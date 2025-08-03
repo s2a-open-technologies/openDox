@@ -1,0 +1,35 @@
+
+
+# Standard library
+import os
+
+# Third party
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+# Custom import
+from app.components.modules.logger import get_logger
+from app.views.api import api_bp
+from app.views.dashboard import dashboard_bp
+from config import Config
+
+logger = get_logger(__name__)
+
+templates = Jinja2Templates(directory='app/templates')
+
+def create_app():
+    
+    # Initialize app
+    app = FastAPI()
+    app.mount('/static', StaticFiles(directory='app/static'), name='static')
+    
+    # Register blueprints
+    app.include_router(api_bp, prefix="/api/v1")
+    app.include_router(dashboard_bp, prefix="/dashboard")
+    
+    for route in app.routes:
+        print(f"{route.path} [{route.__class__.__name__}]")
+
+    
+    return app

@@ -9,7 +9,9 @@ dependencies = [
     "fastapi>=0.116.1",
     "jinja2>=3.1.6",
     "numpy>=2.3.2",
+    "pydantic>=2.11.7",
     "python-dotenv>=1.1.1",
+    "python-multipart>=0.0.20",
     "setuptools-rust>=1.11.1",
     "soundfile>=0.13.1",
     "torch>=2.7.1",
@@ -20,16 +22,20 @@ dependencies = [
 
 [tool.uv.sources]
 torch = [
-    { index = "pytorch-cpu" },
+  { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
+  { index = "pytorch-cu129", marker = "sys_platform == 'linux'" },
 ]
 torchvision = [
-    { index = "pytorch-cpu" },
-]
-torchaudio = [
-    { index = "pytorch-cpu" },
+  { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
+  { index = "pytorch-cu129", marker = "sys_platform == 'linux'" },
 ]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
 explicit = true

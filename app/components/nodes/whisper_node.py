@@ -4,7 +4,8 @@
 # Third party
 import torch
 import numpy as np
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+from transformers.pipelines import pipeline
 
 
 class Transcriber:

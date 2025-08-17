@@ -30,10 +30,6 @@ def create_app():
     
     # Register blueprints
     app.include_router(api_bp, prefix="/api/v1")
-    app.include_router(dashboard_bp, prefix="/dashboard")
-    
-    for route in app.routes:
-        print(f"{route.path} [{route.__class__.__name__}]")
-
-    
+    app.include_router(dashboard_bp, prefix="/dashboard")    
+  
     return app

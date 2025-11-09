@@ -1,46 +1,48 @@
-
-let ws = null;
-let audioContext, micStream, workletNode;
+let mediaRecorder;
+let sessionId = Date.now().toString(); // eindeutige Session ID
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('rec-start').addEventListener('click', handleRec);
     document.getElementById('rec-stop').addEventListener('click', handleStop);
 });
 
-
 // Record
 async function handleRec() {
-    // initialize variable;
-    ws = new WebSocket(`ws://localhost:5000/api/v1/record?sid=${Date.now()}`)
-    
-    // initalize mediarecorder
-    audioContext = new AudioContext();
-    await audioContext.audioWorklet.addModule("/static/processor.js")
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
 
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    console.log("Stream erhalten: ", micStream)
-    const source = audioContext.createMediaStreamSource(micStream);
+    mediaRecorder.ondataavailable = async (e) => {
+        if (e.data.size > 0) {
+            const formData = new FormData();
+            formData.append("file", e.data);
+            formData.append("session_id", sessionId);
 
-    let pcmBuffer = [];
-
-    workletNode = new AudioWorkletNode(audioContext, "audio-processor");
-    workletNode.port.onmessage = (event) => {
-        pcmBuffer.push(...new Float32Array(event.data));
-        if (pcmBuffer.length >= 16000) {  // 1 Sekunde bei 16kHz
-            const buffer = new Float32Array(pcmBuffer.splice(0, 16000));
-            ws.send(buffer.buffer);
+            try {
+            await fetch(`http://localhost:5000/api/v1/record`, {
+                method: "POST",
+                body: formData
+            });
+            } catch (error) {
+                console.error("Error sending chunk:", error);
         }
+}
     };
 
-    source.connect(workletNode).connect(audioContext.destination);
+    mediaRecorder.start(1000); // Alle 1000ms einen Chunk hochladen
 }
-
 
 // Record stop
 async function handleStop() {
-    if (workletNode) workletNode.disconnect();
-    if (audioContext) audioContext.close();
-    if (micStream) micStream.getTracks().forEach(t => t.stop());
-    if (ws) ws.close();
+    mediaRecorder.stop();
+    try {
+        const response = await fetch("http://localhost:5000/api/v1/record_finalize", {
+        method: "POST",
+        headers: { "content-type": "application/json"},
+        body: JSON.stringify({ "session_id": sessionId})
+        });
+        console.log("Record finalized:", response.ok);
+    } catch (error) {
+        console.error("Error finalizing record:", error);
+    }
 }
 

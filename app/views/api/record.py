@@ -1,14 +1,17 @@
 
 # Standard library
-import os
+import os, shutil
 from datetime import datetime
 import asyncio
 import time
+import subprocess
 
 # Third party
-from fastapi import WebSocket, Request, WebSocketDisconnect
+from fastapi import UploadFile, File, Form
 import numpy as np
 import soundfile as sf
+from pydantic import BaseModel
+
 
 # Custom imports
 from app.views.api import api_bp
@@ -17,49 +20,55 @@ from app.components.nodes.whisper_node import Transcriber
 
 logger = get_logger(__name__)
 
+class FinalizeRecord(BaseModel):
+    session_id: str
+
 
 OUTPUT_DIR = 'chunks'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Helper function for audio
-async def save_pcm_to_float32(pcm_bytes: bytes, samplerate: int = 44100):
-    print("Saving function entered")
-    timestamp = int(time.time() * 1000)
-    filename = os.path.join(OUTPUT_DIR, f"chunk_{timestamp}.wav")
-    
-    # Converting bytes to numpy array
-    audio_arry = np.frombuffer(pcm_bytes, dtype=np.float32)
-    
-    # Save file
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None ,sf.write, filename, audio_arry, samplerate, 'FLOAT')
-    
-    return filename
+@api_bp.post("/record")
+async def record(file: UploadFile = File(...), session_id: str = Form(...)):
+    """
+    Record a new audio file and save it to the server.
 
-# Websocket
-@api_bp.websocket("/record")   
-async def websocket_endpoint(websocket: WebSocket):
-    """Function to accept websocket connection"""
-    print("Funktion wird aufgerufen")
+    Parameters:
+        file (UploadFile): The uploaded audio file.
+        session_id (str): A unique identifier for the recording session.
+
+    Returns:
+        dict: A dictionary containing information about the recorded file, including its path and duration.
+    """
+    filepath = os.path.join(OUTPUT_DIR, f"{session_id}.webm")
     
-    await websocket.accept()
-    print("Verbindung akzeptiert")
+    with open(filepath, "ab") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return {"status": "chunk_received", "session_id": session_id}, 200
+
+
+@api_bp.post("/record_finalize")
+async def record_finalize(req: FinalizeRecord):
+    webm_path = os.path.join(OUTPUT_DIR, f"{req.session_id}.webm")
+    wav_path = os.path.join(OUTPUT_DIR, f"{req.session_id}.wav")
+           
+    if not os.path.exists(webm_path):    
+        return {"status": "error", "detail": "file not found"}, 422
     
-    transcriber = Transcriber()    
+    subprocess.run([
+        "app/components/ffmpeg/bin/ffmpeg",
+        "-y", "-i", webm_path,
+        "-ac", "1", "-ar", "16000",
+        wav_path], check=True)
     
-    try:
-        # Whait for input and save to file
-        while True:
-            chunk = await websocket.receive_bytes()
-            print(f"Chunk erhalten: {len(chunk)} Bytes")
-            
-            if len(chunk) < 4:
-                print("Chunk zu klein")
-                continue
-            
-            result = transcriber.transcribe(chunk)
-            
-            await websocket.send_text(result)
-            
-    except WebSocketDisconnect:
-        print("Verbindung getrennt")
+    # Transcriben
+    
+    transcriber = Transcriber()
+    with open(wav_path, 'rb') as file:
+        pcm_buffer = file.read()
+        
+    transcription = transcriber.transcribe(pcm_buffer=pcm_buffer)
+    
+    with open("transcription.txt", "a") as file:
+        file.write(transcription)
+    
+    return {"status": "finalized", "file": webm_path, "transcription": transcription}, 200    

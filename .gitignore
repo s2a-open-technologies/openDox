@@ -11,3 +11,6 @@ ffmpeg/
 
 # Virtual environments
 .venv
+
+# Environment
+.env

@@ -1,22 +1,23 @@
-
 # Standard library
 import os, shutil
 from datetime import datetime
 import subprocess
+import random
+import asyncio
 
 # Third party
 import uuid
-from fastapi import UploadFile, File, Form, Depends, BackgroundTasks
+import json
+from fastapi import UploadFile, File, Form, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect
 from sqlmodel import Session
 import numpy as np
 import soundfile as sf
 from pydantic import BaseModel
 
-
 # Custom imports
 from app.views.record_api import record_bp
 from app.components.modules.logger import get_logger
-from app.components.nodes.transcribe_node import Transcriber
+from app.components.services.final_transcription import Transcriber
 
 from app.components.sql.sql_engine import SessionDep, get_session_factory
 from app.components.models.record_model import (Record, RecordCreate, 
@@ -25,18 +26,23 @@ from app.components.models.record_model import (Record, RecordCreate,
 
 from app.components.models.task_model import Task
 from app.components.services.transcribe_service import background_transcription_task
+from app.components.services.live_transcription import LiveASR
 
 logger = get_logger(__name__)
 
 
+record_ws_sessions = {}             # session_id → bytearray buffer
+live_asr = LiveASR()                # Vosk
 
 OUTPUT_DIR = 'chunks'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-@record_bp.post("/record/create")
+
+@record_bp.post("/create")
 async def record_create(
     db: SessionDep,
-    payload: str = Form(...)):
+    data: RecordCreate
+):
     """
     Creates a new record
     
@@ -45,14 +51,11 @@ async def record_create(
     """
     
     # Create a unique session_id
-    session_id = uuid.uuid4()
-    
-    # Creating the database record
-    data = RecordCreate.model_validate_json(payload)  
-    
+    session_id = uuid.uuid4()      
+   
     # Creates a new record in database
     record = Record(
-        session_id=session_id,
+        session_id=str(session_id),
         user_id=data.user_id,
         title=data.title,
         timestamp=datetime.utcnow().isoformat(),
@@ -66,80 +69,131 @@ async def record_create(
     db.refresh(record)
     
     return record
-
-
-@record_bp.post("/record")
-async def record(
-    db: SessionDep,
-    file: UploadFile = File(...),
-    payload: str = Form(...)):
     
-    data = RecordChunk.model_validate_json(payload)
+@record_bp.websocket("/ws/record")
+async def websocket_record(websocket: WebSocket, db: SessionDep):
+    """Websocket for partial transcribing and saving into buffer"""
 
-    # Save the uploaded file to a temporary directory
-    temp_file_path = os.path.join(OUTPUT_DIR, f"{data.session_id}.wav")
-    with open(temp_file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    await websocket.accept()
 
-    # Transcribe the audio file using Whisper
-    transcriber = Transcriber()
-    transcription = transcriber.transcribe(temp_file_path)
+    session_id = websocket.query_params.get("session_id")
+    user_id = websocket.query_params.get("user_id")
 
-    # Create a new record in database
-    record = Record(
-        session_id=data.session_id,
-        user_id=data.user_id,
-        title="",
-        timestamp=datetime.utcnow().isoformat(),
-        content="",
-        summarize="",
-        file=temp_file_path
-    )
+    if not session_id or not user_id:
+        await websocket.send_json({"error": "session_id and user_id required"})
+        await websocket.close()
+        return
 
-    db.add(record)
-    db.commit()
-    db.refresh(record)
+    print(f"[WS-START] user={user_id}, session={session_id}")
 
-    return record
+    record_ws_sessions[session_id] = bytearray()
 
-    
-@record_bp.post("/record_finalize")
-async def record_finalize(
-    background_tasks: BackgroundTasks,
-    req: FinalizeRecord, 
-    db: SessionDep
-    ):
-    webm_path = os.path.join(OUTPUT_DIR, f"{req.user_id}_{req.session_id}.webm")
-    wav_path = os.path.join(OUTPUT_DIR, f"{req.user_id}_{req.session_id}.wav")
-           
-    if not os.path.exists(webm_path):    
-        return {"status": "error", "detail": "file not found"}, 422
-    
-    subprocess.run([
-        "app/components/ffmpeg/bin/ffmpeg",
-        "-y", "-i", webm_path,
-        "-ac", "1", "-ar", "16000",
-        wav_path], check=True)
-    
-    # Transcriben        
-    with open(wav_path, 'rb') as file:
-        pcm_buffer = file.read()
-        
-        # Task erstellen
+    try:
+        while True:
+            msg = await websocket.receive()
+
+            # Disconnect Message
+            if msg["type"] == "websocket.disconnect":
+                print(f"[WS-DISCONNECT] session={session_id}")
+                break
+
+            # Text Message
+            if msg.get("text"):
+                data = msg["text"]
+                print(f"[WS-TEXT] {data}")
+
+                # Stop event → beende die Aufnahme
+                if "stop" in data:
+                    print("[WS] Stop event received")
+                    break
+
+                continue  # andere Textnachrichten ignorieren
+
+            # Binary Message
+            if msg.get("bytes"):
+                chunk = msg["bytes"]
+
+                if not chunk:
+                    print("[WARNING] Empty binary chunk received")
+                    continue
+
+                # Buffer für finale Whisper-Transkription
+                record_ws_sessions[session_id].extend(chunk)
+
+                # Live ASR mit Vosk
+                try:
+                    resp = live_asr.process(chunk)
+
+                    if not resp:
+                        continue
+
+                    if "partial" in resp:
+                        await websocket.send_json({
+                            "session_id": session_id,
+                            "partial": resp["partial"]
+                        })
+
+                    if "text" in resp:
+                        await websocket.send_json({
+                            "session_id": session_id,
+                            "text": resp["text"]
+                        })
+
+                except Exception as e:
+                    print(f"[LIVE-ASR-ERROR] {e}")
+
+                continue  # nächster Loop
+
+            # Ignoriere sonstige Nachrichtentypen
+            print(f"[WS-UNKNOWN] {msg}")
+            continue
+
+    except Exception as e:
+        print(f"[WS-ERROR] {e}")
+
+    # =========================================================
+    # FINAL PROCESSING — WIRD NUN IMMER AUSGEFÜHRT
+    # =========================================================
+    if session_id in record_ws_sessions:
+        pcm_buffer = bytes(record_ws_sessions[session_id])
+        print(f"[FINAL-BUFFER] size={len(pcm_buffer)}")
+        del record_ws_sessions[session_id]
+
+        if len(pcm_buffer) == 0:
+            print("[WARNING] Empty audio buffer received")
+            await websocket.send_json({
+                "status": "error",
+                "message": "No audio data received"
+            })
+            await websocket.close()
+            return
+
+        # Task in DB
         task = Task(status="pending")
         db.add(task)
         db.commit()
         db.refresh(task)
 
-        # Worker starten
-        background_tasks.add_task(
-            background_transcription_task,
-            task_id=task.id,
-            pcm_buffer=pcm_buffer,
-            db_session_factory=get_session_factory
+        # Signal an Client senden
+        await websocket.send_json({
+            "status": "finished",
+            "task_id": task.id,
+            "session_id": session_id
+        })
+
+        print("[WS] Background Whisper processing launched")
+
+        await websocket.close()
+
+        # Background task starten
+        asyncio.create_task(
+            asyncio.to_thread(background_transcription_task, task.id, pcm_buffer)
         )
 
-    return {"task_id": task.id, "status": task.status}   
+    else:
+        print("[ERROR] Session not found during final processing")
+        await websocket.close()
+
 
 
 @record_bp.get("/status/{task_id}")

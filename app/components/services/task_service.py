@@ -1,14 +1,14 @@
 from sqlmodel import select
 from datetime import datetime
 
-from app.components.sql.sql_engine import SessionDep
+from app.components.sql.sql_engine import Session
 from app.components.models.task_model import Task
 
+def update_task_status(db: Session, task_id: int, status: str, result=None, error=None):
+    """Function to help updating the task status"""    
 
-def update_task_status(db: SessionDep, task_id: int, status: str, result=None, error=None):
-    """Function to help updating the task status"""
-
-    task = db.query(Task).filter(Task.id == task_id).first()
+    smt = select(Task).where(Task.id == task_id)
+    task = db.exec(smt).one_or_none()
     
     if not task:
         return

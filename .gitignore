@@ -14,3 +14,8 @@ ffmpeg/
 
 # Environment
 .env
+*.zip
+*.db
+*.sqlite
+
+model/

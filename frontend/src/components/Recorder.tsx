@@ -5,139 +5,200 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface RecorderProps {
-  onTranscriptReceived: (transcript: string) => void;
+  userId: string;
+  onFinalTranscription?: (text: string) => void;
 }
 
-const Recorder = ({ onTranscriptReceived }: RecorderProps) => {
+const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [stableTranscript, setStableTranscript] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const socketRef = useRef<WebSocket | null>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
+  const finalChunksRef = useRef<Blob[]>([]);
+
+  const createRecord = async () => {
+    const response = await fetch("/api/v1/records/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        "user_id": 1, // Verwende den übergebenen userId
+        "title": "Neue Aufnahme"
+      })
+    });
+
+    if (!response.ok) throw new Error("Fehler beim Erstellen der Aufnahme");
+
+    const record = await response.json();
+    setSessionId(record.session_id);
+    toast.success("Aufnahme gestartet");
+    return record;
+  };
+
+  const openWebSocket = (userId: string, session_id: string) => {
+    const ws = new WebSocket(
+      `ws://localhost:5000/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}`
+    );
+    socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WebSocket verbunden");
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      // PARTIAL -> nur anzeigen
+      if (data.partial) {
+        setLiveTranscript(data.partial);
+      }
+
+      // FINAL -> an stableTranscript anhängen
+      if (data.text) {
+        setStableTranscript((prev) =>
+          (prev + " " + data.text).trim()
+        );
+        setLiveTranscript(""); // Clear the preview
+      }
+
+      if (data.status === "finished") {
+        setIsProcessing(false);
+        toast.success("Transkription abgeschlossen");
+      }
+    };
+
+
+    ws.onerror = (error) => {
+      console.error("WebSocket Fehler:", error);
+      toast.error("WebSocket Fehler");
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket geschlossen");
+    };
+  };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
+      const record = await createRecord();
+      openWebSocket(userId, record.session_id); // Verwende userId und session_id
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
+      // 1) User Audio holen
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // 2) AudioContext + Worklet
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      await audioCtx.audioWorklet.addModule("/pcm-worklet.js");
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      const worklet = new AudioWorkletNode(audioCtx, "pcm-worklet");
+
+      // PCM16 → WebSocket
+      worklet.port.onmessage = (e) => {
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send(e.data); // ArrayBuffer (PCM16)
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-        stream.getTracks().forEach((track) => track.stop());
-        await uploadAudio(audioBlob);
+      source.connect(worklet);
+
+      // 3) OPTIONAL: MediaRecorder für finale Datei
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = mediaRecorder;
+      finalChunksRef.current = []; // reset
+
+      mediaRecorder.ondataavailable = (e) => {
+        // Finale Datei lokal puffern, NICHT an Server schicken
+        finalChunksRef.current.push(e.data);
       };
 
-      mediaRecorder.start();
+      mediaRecorder.onstop = () => {
+        socketRef.current?.send(JSON.stringify({ event: "stop" }));
+        setIsProcessing(true);
+        // hier kannst du später finalChunksRef zusammenführen und hochladen
+      };
+
+      // alle 1000 ms Chunk für finale Datei
+      mediaRecorder.start(1000);
+
+      audioContextRef.current = audioCtx;
+      workletRef.current = worklet;
       setIsRecording(true);
-      toast.success("Aufnahme gestartet");
-    } catch (error) {
-      toast.error("Mikrofonzugriff verweigert");
+      setIsProcessing(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Starten der Aufnahme");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setIsProcessing(true);
-    }
-  };
+    if (!isRecording) return;
 
-  const uploadAudio = async (audioBlob: Blob) => {
+    // MediaRecorder stoppen → triggert onstop
+    mediaRecorderRef.current?.stop();
+
+    // Worklet & AudioContext aufräumen
     try {
-      // Mock upload - replace with real API call
-      // const formData = new FormData();
-      // formData.append("audio", audioBlob);
-      // const response = await fetch("/api/upload", { method: "POST", body: formData });
-      // const data = await response.json();
-      
-      // Mock response for demonstration
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const mockTranscript = "Dies ist ein Beispieltranskript. Ersetzen Sie dies mit einem echten Backend-Aufruf an /api/upload.";
-      
-      onTranscriptReceived(mockTranscript);
-      toast.success("Transkript erfolgreich erstellt");
-    } catch (error) {
-      toast.error("Fehler beim Hochladen");
-    } finally {
-      setIsProcessing(false);
+      workletRef.current?.disconnect();
+    } catch (_) {
+      // ignore
     }
+
+    audioContextRef.current?.close();
+
+    setIsRecording(false);
   };
 
   return (
-    <div className="flex items-center justify-center h-full p-8">
-      <div className="text-center space-y-8 max-w-md">
-        {!isRecording && !isProcessing && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-semibold text-foreground">Keine Aufnahme aktiv</h2>
-            <p className="text-muted-foreground">
-              Klicken Sie auf den Button, um eine neue Aufnahme zu starten
-            </p>
-          </div>
-        )}
+    <div className="flex flex-col items-center p-8 w-full h-full gap-4">
 
-        {isRecording && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-semibold text-foreground">Aufnahme läuft...</h2>
-            <div className="flex items-center justify-center gap-1">
-              <div className="w-2 h-2 bg-recording-pulse rounded-full animate-pulse" />
-              <div
-                className="w-2 h-2 bg-recording-pulse rounded-full animate-pulse"
-                style={{ animationDelay: "0.2s" }}
-              />
-              <div
-                className="w-2 h-2 bg-recording-pulse rounded-full animate-pulse"
-                style={{ animationDelay: "0.4s" }}
-              />
-            </div>
-          </div>
-        )}
-
-        {isProcessing && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-semibold text-foreground">Verarbeitung läuft...</h2>
-            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
-          </div>
-        )}
-
-        <div className="flex justify-center">
-          {!isRecording ? (
-            <Button
-              onClick={startRecording}
-              disabled={isProcessing}
-              size="lg"
-              className={cn(
-                "w-24 h-24 rounded-full",
-                !isProcessing && "hover:scale-110 transition-transform"
-              )}
-            >
-              {isProcessing ? (
-                <Loader2 className="w-10 h-10 animate-spin" />
-              ) : (
-                <Mic className="w-10 h-10" />
-              )}
-            </Button>
-          ) : (
-            <Button
-              onClick={stopRecording}
-              size="lg"
-              variant="destructive"
-              className="w-24 h-24 rounded-full relative hover:scale-110 transition-transform"
-            >
-              <Square className="w-10 h-10" />
-              <div className="absolute inset-0 rounded-full bg-recording-pulse/20 animate-ping" />
-            </Button>
-          )}
+      {/* Live Container */}
+      {isRecording && (
+        <div className="w-full max-w-lg bg-background border rounded-lg p-4 shadow-sm">
+          <h2 className="text-lg font-semibold mb-2">Live-Transkription</h2>
+          <p className="text-muted-foreground min-h-[80px]">
+            {stableTranscript}
+            {liveTranscript && (
+              <span className="opacity-50"> {liveTranscript}</span>
+            )}
+          </p>
         </div>
+      )}
+
+      {/* BUTTON-BEREICH → IMMER vertikal zentriert */}
+      <div className="flex-1 flex items-center justify-center w-full">
+        {!isProcessing ? (
+          <Button
+            onClick={isRecording ? stopRecording : startRecording}
+            size="lg"
+            className={cn(
+              "w-20 h-20 rounded-full",
+              !isRecording && "hover:scale-110 transition-transform"
+            )}
+          >
+            {isRecording ? (
+              <Square className="w-10 h-10" />
+            ) : (
+              <Mic className="w-10 h-10" />
+            )}
+          </Button>
+        ) : (
+          <div className="flex flex-col items-center">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-muted-foreground mt-2">Verarbeitung…</p>
+          </div>
+        )}
       </div>
+
     </div>
   );
+
 };
 
 export default Recorder;

@@ -4,8 +4,8 @@ from pydantic import BaseModel
 
 
 class Record(SQLModel, table=True):
-    id: int = Field(primary_key=True)
-    session_id: int = Field(index=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: str = Field(index=True)
     user_id: int
     title: str = Field()
     content: str = Field()
@@ -18,13 +18,9 @@ class RecordBase(SQLModel):
     title: str
 
 
-class RecordCreate(RecordBase):
-    session_id: int
+class RecordCreate(SQLModel):
     user_id: int
-    timestamp: Optional[str] = None
-    content: str = Field(default="")
-    summarize: str = Field(default="")
-    file: str = Field(default="")
+    title: str
 
 
 class RecordUpdate(RecordBase):
@@ -41,7 +37,7 @@ class RecordRead(RecordBase):
 
 
 class RecordChunk(BaseModel):
-    session_id: int
+    session_id: str
     user_id: int
 
 

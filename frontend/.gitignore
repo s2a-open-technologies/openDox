@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Dependency directories
+model/
+
+# Build output
+*.zip
+*.db 
+*.sqlite

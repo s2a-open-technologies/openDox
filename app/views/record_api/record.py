@@ -25,14 +25,18 @@ from app.components.models.record_model import (Record, RecordCreate,
                                                 RecordChunk, FinalizeRecord)
 
 from app.components.models.task_model import Task
-from app.components.services.transcribe_service import background_transcription_task
-from app.components.services.live_transcription import LiveASR
+from app.components.services.background_transcription_service import background_transcription_task
+from app.components.services.live_transcription_vosk import LiveASR
+from app.components.services.live_transcription_whisper import WhisperLiveASR
 
 logger = get_logger(__name__)
 
 
 record_ws_sessions = {}             # session_id → bytearray buffer
-live_asr = LiveASR()                # Vosk
+#live_asr = LiveASR()               # Vosk
+
+live_asr = WhisperLiveASR()         # Whisper
+
 
 OUTPUT_DIR = 'chunks'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -85,7 +89,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         return
 
     print(f"[WS-START] user={user_id}, session={session_id}")
-
+    
     record_ws_sessions[session_id] = bytearray()
 
     try:
@@ -122,21 +126,12 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
                 # Live ASR mit Vosk
                 try:
-                    resp = live_asr.process(chunk)
-
-                    if not resp:
-                        continue
-
-                    if "partial" in resp:
+                    result = await asyncio.to_thread(live_asr.process, chunk)
+                    
+                    if result:
                         await websocket.send_json({
                             "session_id": session_id,
-                            "partial": resp["partial"]
-                        })
-
-                    if "text" in resp:
-                        await websocket.send_json({
-                            "session_id": session_id,
-                            "text": resp["text"]
+                            "text": result["text"]
                         })
 
                 except Exception as e:
@@ -151,9 +146,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     except Exception as e:
         print(f"[WS-ERROR] {e}")
 
-    # =========================================================
-    # FINAL PROCESSING — WIRD NUN IMMER AUSGEFÜHRT
-    # =========================================================
+
     if session_id in record_ws_sessions:
         pcm_buffer = bytes(record_ws_sessions[session_id])
         print(f"[FINAL-BUFFER] size={len(pcm_buffer)}")
@@ -193,7 +186,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     else:
         print("[ERROR] Session not found during final processing")
         await websocket.close()
+        
 
+@record_bp.post("/record/upload-chunk")
+async def record():
+    pass
 
 
 @record_bp.get("/status/{task_id}")

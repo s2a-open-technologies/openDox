@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.122.0",
     "faster-whisper>=1.2.1",
     "numpy>=2.3.5",
+    "openai-whisper>=20250625",
     "passlib>=1.7.4",
     "pycryptodome>=3.23.0",
     "pydantic>=2.12.5",
@@ -16,7 +17,9 @@ dependencies = [
     "python-jose>=3.5.0",
     "soundfile>=0.13.1",
     "sqlmodel>=0.0.27",
+    "torchaudio>=2.9.1",
     "transformers>=4.57.3",
     "uvicorn[standard]>=0.38.0",
     "vosk>=0.3.45",
+    "webrtcvad>=2.0.10",
 ]

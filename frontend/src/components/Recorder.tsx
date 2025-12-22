@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface RecorderProps {
   userId: string;
+  sessionId: string;
   onFinalTranscription?: (text: string) => void;
 }
 
@@ -108,14 +109,15 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
 
       source.connect(worklet);
 
-      // 3) OPTIONAL: MediaRecorder für finale Datei
+      // MediaRecorder für finale Datei
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mediaRecorderRef.current = mediaRecorder;
       finalChunksRef.current = []; // reset
 
       mediaRecorder.ondataavailable = (e) => {
-        // Finale Datei lokal puffern, NICHT an Server schicken
-        finalChunksRef.current.push(e.data);
+        if (e.data.size > 0 && sessionId) {
+          uploadChunk(e.data, sessionId);
+        }
       };
 
       mediaRecorder.onstop = () => {
@@ -125,7 +127,7 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
       };
 
       // alle 1000 ms Chunk für finale Datei
-      mediaRecorder.start(1000);
+      mediaRecorder.start(10000);
 
       audioContextRef.current = audioCtx;
       workletRef.current = worklet;
@@ -154,6 +156,23 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
 
     setIsRecording(false);
   };
+
+  // Function for uploading Wav chunks to the background
+  const uploadChunk = async (chunk: Blob, sessionId: string) => {
+    const formData = new FormData();
+    formData.append("audio", chunk, `chunk_${Date.now()}_${sessionId}.webm`);
+    formData.append("session_id", sessionId);
+
+    try {
+      await fetch("api/v1/records/upload_chunk", {
+        method: "POST",
+        body: formData
+      });      
+    } catch (err) {
+      console.error("Error sending chunks: ", err)
+      toast.error("Error sending chunks")
+    }
+  }
 
   return (
     <div className="flex flex-col items-center p-8 w-full h-full gap-4">

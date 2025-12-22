@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -8,17 +8,26 @@ import { Mic } from "lucide-react";
 import { toast } from "sonner";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
+  const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(email, password);
-      toast.success("Erfolgreich angemeldet");
-      navigate("/dashboard");
+      const success = await login(user, password);
+      if (success) {
+        toast.success("Erfolgreich angemeldet");
+      } else {
+        toast.error("Anmeldung fehlgeschlagen");
+      }
     } catch (error) {
       toast.error("Anmeldung fehlgeschlagen");
     }
@@ -40,10 +49,10 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Input
-                type="email"
-                placeholder="E-Mail"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="Username"
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
                 required
               />
             </div>

@@ -1,4 +1,5 @@
 from vosk import Model, KaldiRecognizer
+
 import json
 
 class LiveASR:
@@ -11,6 +12,8 @@ class LiveASR:
         
         # Partiale Resultate
         self.recognizer.SetWords(True)
+        
+        
 
     def process(self, pcm_chunk: bytes):
         """

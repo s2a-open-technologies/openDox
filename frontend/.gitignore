@@ -25,8 +25,14 @@ dist-ssr
 
 # Dependency directories
 model/
+models_cache/
+__pycache__/
 
 # Build output
 *.zip
 *.db 
+*.sqlite
+.env
+.env.local
+*.db
 *.sqlite

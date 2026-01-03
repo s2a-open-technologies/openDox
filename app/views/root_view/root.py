@@ -7,7 +7,7 @@ root_router = APIRouter()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Beispiel-Route für deine API
-@router.get("/api/endpoint")
+@root_router.get("/api/endpoint")
 async def api_endpoint():
     return {"message": "API Endpoint"}
 

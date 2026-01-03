@@ -34,6 +34,7 @@ export default function NewRecordView({
             )}
           </div>
 
+            {/* Aufnahmebutton*/}
           <div className="flex flex-col items-center gap-2 pt-4">
             <Button
               onClick={isRecording ? onStopRecording : onStartRecording}

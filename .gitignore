@@ -7,7 +7,8 @@ wheels/
 *.egg-info
 logs/
 chunks/
-
+ffmpeg/
+models_cache/
 
 # Virtual environments
 .venv

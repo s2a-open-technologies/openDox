@@ -1,19 +1,23 @@
 from transformers import pipeline
 import numpy as np
 import torch
+import gc
 from collections import deque
 from .silero_vad import SileroVAD
-from transformers import WhisperProcessor
+from transformers import BitsAndBytesConfig
+
+from app.components.llm.whisper_model import WhisperModel
+
 class WhisperLiveASR:
     
     def __init__(
         self, 
-        model_name="openai/whisper-small",
+        model: WhisperModel = WhisperModel(),
         device="cuda",
-        chunk_len_s=3,    # Three second chunks
-        overlap_s=1.5,      # Half of the time overlap
+        chunk_len_s=3,
+        overlap_s=1,
         sample_rate=16000,
-        language='de'
+        language='de',
         ):
         """
         This class provides a live audio transcription service using the Whisper model from OpenAI.
@@ -42,16 +46,13 @@ class WhisperLiveASR:
         # VAD Voice detection
         self.vad = SileroVAD(device=device)
         
-        # Whisper Processor
-        self.whisper_processor = WhisperProcessor.from_pretrained(model_name)
-        self.last_prompt_ids = None
         
         # Whipser Pipeline with GPU        
         self.pipe = pipeline(
             "automatic-speech-recognition",
-            model=model_name,
-            device=device,
-            torch_dtype=torch.float16,
+            model=model.model,
+            tokenizer=model.tokenizer,
+            feature_extractor=model.feature_extractor,
             return_timestamps=False,
             generate_kwargs={
                 "language": language,
@@ -59,18 +60,19 @@ class WhisperLiveASR:
                 "temperature": 0.0,
                 "max_new_tokens": 32,         
                 "compression_ratio_threshold": 2.0,
+                "condition_on_prev_tokens": False,
                 "length_penalty": 1,
-                "repetition_penalty": 1, 
+                "repetition_penalty": 1.2,  # WICHTIG: > 1.0 bestraft Wiederholungen, < 1.0 fördert sie!
                 "logprob_threshold": -1.0,  
-                "no_speech_threshold": 0.6,
+                "no_speech_threshold": 0.8, # Etwas strenger, um "Murks" bei Stille zu vermeiden
                 "no_repeat_ngram_size": 3
             }
         )
         
         
     def _bytes_to_float(self, audio_bytes: bytes) -> np.ndarray:
-        """PCM16 Bytes to float32 array"""
-        return np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        """Float32 Bytes to float32 array (Direct copy)"""
+        return np.frombuffer(audio_bytes, dtype=np.float32).copy()
     
     
     def _apply_gain(self, audio_float32: np.ndarray, target_rms=0.1) -> np.ndarray:
@@ -86,14 +88,24 @@ class WhisperLiveASR:
         if not prev or not current:
             return current
 
-        prev_words = prev.split()
-        curr_words = current.split()
-
-        i = 0
-        while i < min(len(prev_words), len(curr_words)) and prev_words[i] == curr_words[i]:
-            i += 1
-
-        return " ".join(curr_words[i:])
+        # Normalisierung für den Vergleich (lowercase, strip)
+        prev_lower = prev.lower().strip()
+        curr_lower = current.lower().strip()
+        
+        # Entferne Satzzeichen am Ende von prev, damit "Wort." und "Wort" matchen
+        prev_clean = prev_lower.rstrip(".,!?;:")
+        
+        # Wir prüfen die letzten N Zeichen (großzügig, um auch ganze Sätze zu fangen)
+        check_len = min(len(prev_clean), len(curr_lower), 200)
+        
+        # Rückwärts suchen: Finde den längsten gemeinsamen String an der Nahtstelle
+        for i in range(check_len, 2, -1): # Min 3 Zeichen Overlap
+            if prev_clean.endswith(curr_lower[:i]):
+                # Overlap gefunden!
+                # Schneide die ersten i Zeichen vom neuen Text ab
+                return current.strip()[i:].lstrip()
+        
+        return current
 
     
         
@@ -107,14 +119,20 @@ class WhisperLiveASR:
         
         self.buffer.extend(pcm_chunk)
         
+        # Float32 hat 4 Bytes pro Sample (statt 2 bei Int16)
+        bytes_per_sample = 4 
+        
         # Wait for data
-        required_bytes = self.chunk_samples *2
+        required_bytes = self.chunk_samples * bytes_per_sample
         if len(self.buffer) < required_bytes:
             return None
         
         # Extract chunk with overlap
-        chunk = self.buffer[:self.chunk_samples * 2]
-        self.buffer=self.buffer[required_bytes - self.overlap_samples * 2:]
+        chunk = self.buffer[:self.chunk_samples * bytes_per_sample]
+        
+        # Sliding Window: Entferne den verarbeiteten Teil, behalte den Overlap
+        shift_bytes = required_bytes - (self.overlap_samples * bytes_per_sample)
+        self.buffer = self.buffer[shift_bytes:]
         
         # Convert and process
         audio_float32 = self._bytes_to_float(chunk)
@@ -127,7 +145,6 @@ class WhisperLiveASR:
        
         # Checks for VAD
         if not self.vad.contains_speech(audio=audio_float32):
-            self.last_prompt_ids = None
             print("No speech detected, skipping transcription.")
             return None
         
@@ -138,18 +155,12 @@ class WhisperLiveASR:
         
 
         try:
-
-            current_generated_kwargs = {}
-            
-            if self.last_prompt_ids is not None:
-                current_generated_kwargs['decoder_input_ids'] = torch.tensor([self.last_prompt_ids]).to(self.pipe.device)
-           
+          
             # Transcription
             result = self.pipe(
                 {"array": audio_float32, "sampling_rate": self.sample_rate},
                 chunk_length_s=self.chunk_len_s,
                 batch_size=1,
-                generate_kwargs=current_generated_kwargs,
             )
             text = result["text"].strip()
             
@@ -164,38 +175,7 @@ class WhisperLiveASR:
                 return None
             
             # Add cleaned part
-            self.last_text += (" " + cleaned_text)
-            
-            # Just the last 10 Tokens
-            prompt_text = " ".join(cleaned_text.split()[-10:])
-            
-            # Get the IDs of the text
-            text_prompt_ids_raw = self.whisper_processor.get_prompt_ids(
-                prompt_text,
-                return_tensors="pt"
-            )[0].tolist()
-            
-            print("[TEXT-PROMPT-IDS]: ", text_prompt_ids_raw)
-        
-            forced_ids_raw = self.whisper_processor.get_decoder_prompt_ids(
-                language="de", task="transcribe", no_timestamps=True
-            )
-            
-            print("[FORCED_IDS_RAW]: ", forced_ids_raw)
-            
-            forced_ids = [token_id for (token_index, token_id) in forced_ids_raw]
-            
-            if isinstance(text_prompt_ids_raw, int):
-                text_prompt_ids = [text_prompt_ids_raw]
-            elif isinstance(text_prompt_ids_raw, list):
-                text_prompt_ids = text_prompt_ids_raw
-            else:
-                # Letzte Rettung: Erzwinge List-Typ
-                text_prompt_ids = list(text_prompt_ids_raw)
-            
-            self.last_prompt_ids = forced_ids + text_prompt_ids
-            print("[LAST_PROMPT_IDS]: ", self.last_prompt_ids)
-        
+            self.last_text += (" " + cleaned_text)        
 
             return {"text": cleaned_text}
             
@@ -203,6 +183,11 @@ class WhisperLiveASR:
             print(f"[ASR-ERROR] {e}")
             return None
         
-        
-        
-        
+    def close(self):
+        """Explicit cleanup to free VRAM"""
+        if hasattr(self, 'pipe'):
+            del self.pipe
+        if hasattr(self, 'vad'):
+            del self.vad
+        gc.collect()
+        torch.cuda.empty_cache()   

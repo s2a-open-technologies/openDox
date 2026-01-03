@@ -1,74 +1,61 @@
+
+# Third party
 import torch
 import numpy as np
-from transformers import (
-    AutoModelForSpeechSeq2Seq,
-    AutoTokenizer,
-    AutoFeatureExtractor,
-)
+import gc
 from transformers.pipelines import pipeline
+
+# Custom imports
+from app.components.llm.whisper_model import WhisperModel
 
 
 class Transcriber:
-    def __init__(self, model_id="openai/whisper-large-v3"):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
-
-        model = AutoModelForSpeechSeq2Seq.from_pretrained(
-            model_id, 
-            torch_dtype=torch_dtype
-        )
-
+    def __init__(self, model: WhisperModel = WhisperModel()):
+        
         self.pipe = pipeline(
             "automatic-speech-recognition",
-            model=model,
-            tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
-            torch_dtype=torch_dtype,
-            device=device,
+            model=model.model,
+            tokenizer=model.tokenizer,
+            feature_extractor=model.feature_extractor,
+            #torch_dtype=torch_dtype,
+            device_map="auto",
+            generate_kwargs={
+                "language": "de",
+                "task": "transcribe", 
+                "temperature": 0.0,               
+            }
         )
 
     def transcribe(self, pcm_buffer: bytes, samplerate=16000):
         """
-        Transcribe PCM16 buffer using Whisper
+        Transcribe Float32 buffer using Whisper
         """
 
+        # VRAM aufräumen bevor wir starten, um Platz für Flash Attention zu schaffen
+        gc.collect()
+        torch.cuda.empty_cache()
+
         try:
-            # PCM16 → float32 normalized
-            audio_array = (
-                np.frombuffer(pcm_buffer, dtype=np.int16)
-                .astype(np.float32)
-                / 32768.0
-            )
+            # Float32 bytes → float32 array
+            audio_array = np.frombuffer(pcm_buffer, dtype=np.float32).copy()
 
             if audio_array.size == 0:
                 return ""
 
-            chunk_size = 30 * samplerate
-
-            if len(audio_array) <= chunk_size:
-                result = self.pipe(
-                    {"array": audio_array, "sampling_rate": samplerate}
-                )
-                return result.get("text", "")
-
-            # Multi-chunk processing
-            results = []
-            for i in range(0, len(audio_array), chunk_size):
-                chunk = audio_array[i:i + chunk_size]
-                if chunk.size == 0:
-                    continue
-
-                result = self.pipe(
-                    {"array": chunk, "sampling_rate": samplerate}
-                )
-                text = result.get("text", "")
-                if text:
-                    results.append(text)
-
-            return " ".join(results)
+            # Pipeline übernimmt das Chunking automatisch und intelligent (Sliding Window)
+            result = self.pipe(
+                {"array": audio_array, "sampling_rate": samplerate},
+                chunk_length_s=30,
+                batch_size=4,
+                return_timestamps=False,
+                generate_kwargs={
+                    "task": "transcribe",
+                    "language": "de",     # Zwingt Whisper auf Deutsch
+                    "num_beams": 5        # Erhöht die Genauigkeit durch Prüfung mehrerer Pfade
+                }
+            )
+            
+            return result.get("text", "").strip()
 
         except Exception as e:
             print(f"[TRANSCRIBE-ERROR] {e}")

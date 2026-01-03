@@ -39,7 +39,7 @@ const Sidebar = ({ recordings, onSelectRecording, selectedId }: SidebarProps) =>
                       {recording.title}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {recording.date}
+                      {recording.timestamp}
                     </p>
                   </div>
                 </div>

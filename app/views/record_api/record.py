@@ -1,25 +1,18 @@
 # Standard library
 import os, shutil
 from datetime import datetime
-import subprocess
-import random
 import asyncio
 
 # Third party
 import uuid
-import json
-from fastapi import UploadFile, File, Form, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect
-from sqlmodel import Session
-import numpy as np
-import soundfile as sf
-from pydantic import BaseModel
+from fastapi import UploadFile, File, Form, WebSocket
+from sqlmodel import select
 
 # Custom imports
 from app.views.record_api import record_bp
 from app.components.modules.logger import get_logger
-from app.components.services.final_transcription import Transcriber
 
-from app.components.sql.sql_engine import SessionDep, get_session_factory
+from app.components.sql.sql_engine import SessionDep
 from app.components.models.record_model import (Record, RecordCreate, 
                                                 RecordUpdate, RecordRead, 
                                                 RecordChunk, FinalizeRecord)
@@ -62,7 +55,7 @@ async def record_create(
         session_id=str(session_id),
         user_id=data.user_id,
         title=data.title,
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
         content="",
         summarize="",
         file=""
@@ -74,6 +67,7 @@ async def record_create(
     
     return record
     
+# Websocket Connection for live transcription
 @record_bp.websocket("/ws/record")
 async def websocket_record(websocket: WebSocket, db: SessionDep):
     """Websocket for partial transcribing and saving into buffer"""
@@ -180,19 +174,43 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
         # Background task starten
         asyncio.create_task(
-            asyncio.to_thread(background_transcription_task, task.id, pcm_buffer)
+            asyncio.to_thread(background_transcription_task, task.id, session_id, pcm_buffer)
         )
 
     else:
         print("[ERROR] Session not found during final processing")
         await websocket.close()
         
-
+        
+# Audiochunk upload
 @record_bp.post("/record/upload-chunk")
-async def record():
-    pass
+async def record(db: SessionDep, file: UploadFile = File(...), user_id: int = Form(...), session_id: str = Form(...)):
+    """Upload audio chunk and append to session buffer"""
+    
+    actual_date = datetime.now().strftime("%Y%m%d_%H%M%S")
+    chunk_filename = f"{OUTPUT_DIR}/user{user_id}_session{session_id}_{actual_date}_chunk.webm"
+
+    with open(f"{OUTPUT_DIR}/{chunk_filename}", "ab") as f:
+        shutil.copyfileobj(file.file, f)
+        
+    return {"status": "chunk received"}
 
 
+# Route for showing records in frontend
+@record_bp.get("/record/list-records/{user_id}")
+async def list_records(user_id: int, db: SessionDep):
+    """List all records for a specific user"""
+    
+    print(f"TYPE: {type(user_id)}\nVALUE: {user_id}")
+    
+    # Get the record sessions per user
+    smt = select(Record).where(Record.user_id == user_id)
+    records = db.exec(smt).all()
+
+    return [record.to_dict() for record in records]
+
+
+# Route to get the status of an actual task
 @record_bp.get("/status/{task_id}")
 async def transcription_status(task_id: int, db: SessionDep):
     

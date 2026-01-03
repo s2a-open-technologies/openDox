@@ -12,6 +12,18 @@ class Record(SQLModel, table=True):
     timestamp: str = Field()
     summarize: str = Field()
     file: str = Field()
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "user_id": self.user_id,
+            "title": self.title,
+            "content": self.content,
+            "timestamp": self.timestamp,
+            "summarize": self.summarize,
+            "file": self.file,
+        }
 
 
 class RecordBase(SQLModel):
@@ -23,9 +35,10 @@ class RecordCreate(SQLModel):
     title: str
 
 
-class RecordUpdate(RecordBase):
+class RecordUpdate(SQLModel):
+    title: Optional[str] = None
     content: Optional[str] = None
-    file: str
+    file: Optional[str] = None
     summarize: Optional[str] = None
 
 

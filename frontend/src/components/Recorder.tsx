@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -6,11 +6,12 @@ import { cn } from "@/lib/utils";
 
 interface RecorderProps {
   userId: string;
-  sessionId: string;
+  title?: string;
   onFinalTranscription?: (text: string) => void;
+  autoStart?: boolean;
 }
 
-const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
+const Recorder = ({ userId, title, onFinalTranscription, autoStart }: RecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -29,8 +30,8 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        "user_id": 1, // Verwende den übergebenen userId
-        "title": "Neue Aufnahme"
+        "user_id": userId,
+        "title": title || "Neue Aufnahme"
       })
     });
 
@@ -71,6 +72,9 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
       if (data.status === "finished") {
         setIsProcessing(false);
         toast.success("Transkription abgeschlossen");
+        if (onFinalTranscription) {
+          onFinalTranscription(stableTranscript);
+        }
       }
     };
 
@@ -91,19 +95,46 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
       openWebSocket(userId, record.session_id); // Verwende userId und session_id
 
       // 1) User Audio holen
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          channelCount: 1,      // Zwingend Mono für Whisper
+          sampleRate: 16000,    // Versuch, direkt 16kHz zu bekommen
+          echoCancellation: true,
+          noiseSuppression: true,
+        } 
+      });
 
       // 2) AudioContext + Worklet
       const audioCtx = new AudioContext({ sampleRate: 16000 });
-      await audioCtx.audioWorklet.addModule("/pcm-worklet.js");
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      // Inline Worklet: Garantiert, dass der Code geladen wird und Float32 -> Int16 konvertiert
+      const workletCode = `
+        class PCMProcessor extends AudioWorkletProcessor {
+          process(inputs, outputs, parameters) {
+            const input = inputs[0];
+            if (input.length > 0) {
+              // Sende rohes Float32 (4 Byte pro Sample) direkt an das Backend
+              this.port.postMessage(input[0].buffer);
+            }
+            return true;
+          }
+        }
+        registerProcessor("pcm-worklet", PCMProcessor);
+      `;
+      const blob = new Blob([workletCode], { type: "application/javascript" });
+      const workletUrl = URL.createObjectURL(blob);
+      await audioCtx.audioWorklet.addModule(workletUrl);
 
       const source = audioCtx.createMediaStreamSource(stream);
       const worklet = new AudioWorkletNode(audioCtx, "pcm-worklet");
 
-      // PCM16 → WebSocket
+      // Float32 → WebSocket
       worklet.port.onmessage = (e) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
-          socketRef.current.send(e.data); // ArrayBuffer (PCM16)
+          socketRef.current.send(e.data); // ArrayBuffer (Float32)
         }
       };
 
@@ -160,11 +191,11 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
   // Function for uploading Wav chunks to the background
   const uploadChunk = async (chunk: Blob, sessionId: string) => {
     const formData = new FormData();
-    formData.append("audio", chunk, `chunk_${Date.now()}_${sessionId}.webm`);
+    formData.append("audio", chunk, `chunk_${Date.now()}_${sessionId}_${userId}.webm`);
     formData.append("session_id", sessionId);
 
     try {
-      await fetch("api/v1/records/upload_chunk", {
+      await fetch("/api/v1/records/record/upload-chunk", {
         method: "POST",
         body: formData
       });      
@@ -173,6 +204,12 @@ const Recorder = ({ userId, onFinalTranscription }: RecorderProps) => {
       toast.error("Error sending chunks")
     }
   }
+
+  useEffect(() => {
+    if (autoStart) {
+      startRecording();
+    }
+  }, []);
 
   return (
     <div className="flex flex-col items-center p-8 w-full h-full gap-4">

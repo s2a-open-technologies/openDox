@@ -36,7 +36,7 @@ const Sidebar = ({
 }: SidebarProps) => {
   return (
     <aside className={cn("w-80 bg-background flex flex-col border-r border-border h-screen")}>
-      <div className="p-4 border-b border-border flex flex-col gap-2">
+      <div className="p-4 border-b border-border z-10 relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex flex-col gap-2">
         <div className="flex items-center justify-start w-full">
           <Logo className="h-20 w-auto" />
         </div>

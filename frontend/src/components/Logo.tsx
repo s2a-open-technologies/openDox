@@ -7,9 +7,9 @@ interface LogoProps {
 export const Logo = ({ className }: LogoProps) => {
     return (
         <svg
-            width="200"
+            width="210"
             height="60"
-            viewBox="0 0 200 60"
+            viewBox="0 0 210 60"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className={cn("w-full h-auto", className)}
@@ -20,12 +20,12 @@ export const Logo = ({ className }: LogoProps) => {
             </text>
 
             <path
-                d="M10 35H40L45 25L55 55L65 15L75 45L85 30L95 40H190"
-                stroke="white"
+                d="M0 35H40L45 25L55 55L65 15L75 45L85 30L95 40H110"
+                stroke="black" className="dark:stroke-white"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={{ mixBlendMode: 'overlay', opacity: 0.8 }}
+                style={{ mixBlendMode: 'overlay', opacity: 0.9 }}
                 strokeDasharray="300"
                 strokeDashoffset="0"
             >

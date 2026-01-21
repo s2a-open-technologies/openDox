@@ -9,6 +9,9 @@ from sqlmodel import Session
 from dotenv import load_dotenv
 from sqlmodel import select, insert
 
+# Load environment variables befor importing the modules
+load_dotenv(override=True)
+
 # Custom import
 from app.components.modules.logger import get_logger, initialize_logging
 from app.components.security.hashing import get_password_hash
@@ -62,7 +65,7 @@ def seed_startup(logger):
 def create_app():
     
     # Initialize Environment
-    load_dotenv()
+
     
     # Initialize logging
     initialize_logging()

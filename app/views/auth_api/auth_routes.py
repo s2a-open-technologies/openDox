@@ -14,6 +14,8 @@ from app.components.security.hashing import (
     create_refresh_token,
     decode_token,
 )
+from app.components.services.ldap import LdapService
+from app.components.models.ldap_model import LdapSettingsModel
 
 
 @auth_bp.post("/register", response_model=UserRead, status_code=201)
@@ -48,18 +50,46 @@ async def login(user_in: UserLogin, db: SessionDep):
     stmt = select(User).where(User.name == user_in.name)
     user = db.exec(stmt).first()
 
-    if not user or not verify_password(user_in.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect name or password",
-        )
+    # 1. Local Login
+    if user and user.hashed_password:
+         if verify_password(user_in.password, user.hashed_password):
+            access_token = create_access_token(sub=str(user.id))
+            refresh_token = create_refresh_token(sub=str(user.id))
+            return Token(access_token=access_token, refresh_token=refresh_token)
+    
+    # 2. LDAP Login (if local failed or user not found)
+    # Check if LDAP is configured
+    stmt_ldap = select(LdapSettingsModel)
+    ldap_settings = db.exec(stmt_ldap).first()
 
-    access_token = create_access_token(sub=str(user.id))
-    refresh_token = create_refresh_token(sub=str(user.id))
+    if ldap_settings:
+        ldap_service = LdapService(ldap_settings)
+        auth_result = ldap_service.authenticate(user_in.name, user_in.password)
 
-    return Token(
-        access_token=access_token,
-        refresh_token=refresh_token,
+        if auth_result["success"]:
+            # Sync user to DB
+            if not user:
+                user = User(
+                    name=user_in.name,
+                    hashed_password="", # No password for LDAP users
+                    is_active=True
+                )
+                db.add(user)
+                
+            else:
+                 # Update existing user if needed (e.g. reactivate)
+                 user.is_active = True
+                 
+            db.commit()
+            db.refresh(user)
+
+            access_token = create_access_token(sub=str(user.id))
+            refresh_token = create_refresh_token(sub=str(user.id))
+            return Token(access_token=access_token, refresh_token=refresh_token)
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Incorrect name or password",
     )
 
 

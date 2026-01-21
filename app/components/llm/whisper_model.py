@@ -4,30 +4,24 @@ from transformers import (
     AutoTokenizer,
     AutoFeatureExtractor,
 )
+# Transformers
 from transformers import BitsAndBytesConfig 
 
+# CTranslate2
+import ctranslate2 as ct2
+
+from faster_whisper import WhisperModel as FasterWhisperModel
 
 class WhisperModel:
-    
-    def __init__(self, model_id="openai/whisper-large-v3", cache_dir="./models_cache"):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        self.model_id= model_id
-        self.cache_dir = cache_dir
+    def __init__(self, model_id="large-v3-turbo", device="cuda", compute_type="float16"):
+        self.device = device
+        self.model_id = model_id
         
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, cache_dir=self.cache_dir)
-        self.feature_extractor = AutoFeatureExtractor.from_pretrained(self.model_id, cache_dir=self.cache_dir)
-
-        # Quantization
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-        )
-
-        self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
-            self.model_id, 
-            torch_dtype=self.torch_dtype,
-            quantization_config=quantization_config,
-            device_map="auto",
-            cache_dir=self.cache_dir,
-            attn_implementation="flash_attention_2"
+        # Faster-Whisper lädt das Modell, den Tokenizer und Feature Extractor intern
+        # Falls du ein lokales CT2-konvertiertes Modell hast, gib den Pfad an.
+        # Ansonsten lädt er es automatisch von Hugging Face/CTranslate2 Repos.
+        self.model = FasterWhisperModel(
+            model_id, 
+            device=self.device, 
+            compute_type=compute_type
         )

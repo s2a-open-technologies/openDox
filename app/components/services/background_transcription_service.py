@@ -16,7 +16,7 @@ transcriber = Transcriber()  # Whisper lädt einmal global
 session_factory = get_session_factory()
 model = OllamaModel()
 
-def background_transcription_task(task_id: int, session_id: str, pcm_buffer: bytes):
+def background_transcription_task(task_id: int, session_id: str, pcm_buffer: bytes | None, file_path: str | None = None):
     db = session_factory()
     
     # Get the right record
@@ -24,11 +24,16 @@ def background_transcription_task(task_id: int, session_id: str, pcm_buffer: byt
     record = db.exec(session).one_or_none()
     
     try:
-        # Update task status to running
-        update_task_status(db, task_id,"running")
+        # Update task status to running (transcribing)
+        update_task_status(db, task_id,"transcribing")
         
         # Original text transcription
-        text = transcriber.transcribe(pcm_buffer)  
+        if file_path:
+             text = transcriber.transcribe(file_path)
+        elif pcm_buffer:
+             text = transcriber.transcribe(pcm_buffer)
+        else:
+             raise ValueError("No audio source provided (pcm_buffer or file_path)")  
         
         if record:
             record.content = text
@@ -38,7 +43,10 @@ def background_transcription_task(task_id: int, session_id: str, pcm_buffer: byt
             logger.info(f"Transcription completed for session_id: {session_id}")
             with open("Transcription_test", "w") as file:
                 file.write(text)        
-                
+        
+        # Update task status to processing LLM
+        update_task_status(db, task_id, "processing_llm")
+        
         # Summarization using Ollama
         summary = model.generate_response(text)
         logger.info(f"Summarization completed for session_id: {session_id}")
@@ -47,6 +55,10 @@ def background_transcription_task(task_id: int, session_id: str, pcm_buffer: byt
             db.add(record)
             db.commit()
             db.refresh(record)
+            
+        # Update task status to finished
+        update_task_status(db, task_id, "finished")
+            
     except Exception as e:
         update_task_status(db, task_id, "error", error=str(e))
         

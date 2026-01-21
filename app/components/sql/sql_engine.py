@@ -1,14 +1,18 @@
+import os
 from typing import Annotated
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from fastapi import Depends
 
+user = os.getenv("SQL_USER")
+password = os.getenv("SQL_PASS")
+host = os.getenv("SQL_HOST")
+port = os.getenv("SQL_PORT")
+database = os.getenv("SQL_DB")
 
-sql_file_name = 'general_test_db.db'
-sqlite_uri = f"sqlite:///{sql_file_name}"
 
-connect_args = {"check_same_thread": False }
-engine = create_engine(sqlite_uri, connect_args=connect_args)
+sql_uri = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
 
+engine = create_engine(sql_uri, echo=True)
 
 def create_db_and_tables():
     """Function to create the databases"""

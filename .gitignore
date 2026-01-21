@@ -9,6 +9,7 @@ logs/
 chunks/
 ffmpeg/
 models_cache/
+node_modules
 
 # Virtual environments
 .venv
@@ -22,3 +23,4 @@ models_cache/
 model/
 *.png
 *.db
+image/

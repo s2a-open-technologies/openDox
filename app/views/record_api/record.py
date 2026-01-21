@@ -78,13 +78,17 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     user_id = websocket.query_params.get("user_id")
 
     if not session_id or not user_id:
-        await websocket.send_json({"error": "session_id and user_id required"})
-        await websocket.close()
+        try:
+            await websocket.send_json({"error": "session_id and user_id required"})
+            await websocket.close()
+        except:
+            pass
         return
 
     print(f"[WS-START] user={user_id}, session={session_id}")
     
     record_ws_sessions[session_id] = bytearray()
+    client_connected = True
 
     try:
         while True:
@@ -93,12 +97,13 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             # Disconnect Message
             if msg["type"] == "websocket.disconnect":
                 print(f"[WS-DISCONNECT] session={session_id}")
+                client_connected = False
                 break
 
             # Text Message
             if msg.get("text"):
                 data = msg["text"]
-                print(f"[WS-TEXT] {data}")
+                # print(f"[WS-TEXT] {data}")
 
                 # Stop event → beende die Aufnahme
                 if "stop" in data:
@@ -122,11 +127,29 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 try:
                     result = await asyncio.to_thread(live_asr.process, chunk)
                     
+                    # Persist partial transcription to DB for resume capability
                     if result:
-                        await websocket.send_json({
-                            "session_id": session_id,
-                            "text": result["text"]
-                        })
+                        try:
+                            record = db.exec(select(Record).where(Record.session_id == session_id)).one_or_none()
+                            if record:
+                                # Append new text with a space separator and timestamp
+                                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                record.content = (record.content or "") + f" [{timestamp}] {result['text']}"
+                                db.add(record)
+                                db.commit()
+                        except Exception as e:
+                            print(f"[DB-PARTIAL-ERROR] {e}")
+
+                    if result and client_connected:
+                        try:
+                            await websocket.send_json({
+                                "session_id": session_id,
+                                "text": result["text"]
+                            })
+                        except Exception as e:
+                            print(f"[WS-SEND-ERROR-PARTIAL] {e}")
+                            client_connected = False
+                            break
 
                 except Exception as e:
                     print(f"[LIVE-ASR-ERROR] {e}")
@@ -139,6 +162,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
     except Exception as e:
         print(f"[WS-ERROR] {e}")
+        client_connected = False
 
 
     if session_id in record_ws_sessions:
@@ -148,11 +172,15 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
         if len(pcm_buffer) == 0:
             print("[WARNING] Empty audio buffer received")
-            await websocket.send_json({
-                "status": "error",
-                "message": "No audio data received"
-            })
-            await websocket.close()
+            if client_connected:
+                try:
+                    await websocket.send_json({
+                        "status": "error",
+                        "message": "No audio data received"
+                    })
+                    await websocket.close()
+                except:
+                    pass
             return
 
         # Task in DB
@@ -161,25 +189,98 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         db.commit()
         db.refresh(task)
 
-        # Signal an Client senden
-        await websocket.send_json({
-            "status": "finished",
-            "task_id": task.id,
-            "session_id": session_id
-        })
+        if client_connected:
+            try:
+                await websocket.send_json({
+                    "status": "finished",
+                    "task_id": task.id,
+                    "session_id": session_id
+                })
+                print("[WS] Background Whisper processing launched (Response sent)")
+            except Exception as e:
+                print(f"[WS-SEND-ERROR] Failed to send finish signal: {e}")
+        else:
+            print("[WS] Background Whisper processing launched (Client disconnected)")
 
-        print("[WS] Background Whisper processing launched")
+        # Socket schließen (falls noch offen)
+        try:
+            if client_connected:
+                await websocket.close()
+        except Exception:
+            pass # Socket might be already closed
 
-        await websocket.close()
+        # FFMPEG Merge Logic
+        async def merge_and_process():
+            import subprocess, glob
 
-        # Background task starten
-        asyncio.create_task(
-            asyncio.to_thread(background_transcription_task, task.id, session_id, pcm_buffer)
-        )
+            # 1. Find all chunks for this session
+            # Pattern: user{user_id}_session{session_id}_*_chunk.webm
+            chunk_pattern = f"{OUTPUT_DIR}/user{user_id}_session{session_id}_*_chunk.webm"
+            chunks = sorted(glob.glob(chunk_pattern))
+
+            if not chunks:
+                 print(f"[ERROR] No chunks found for session {session_id}")
+                 # Fallback to PCM buffer if needed, or fail.
+                 # For now, we proceed with PCM buffer logic if no chunks (legacy behavior) 
+                 # BUT user wants enable chunked upload flow.
+                 # Let's assume chunks exist if upload worked.
+                 background_transcription_task(task.id, session_id, pcm_buffer)
+                 return
+
+            # 2. Create file list for ffmpeg
+            list_file_path = f"{OUTPUT_DIR}/session_{session_id}_list.txt"
+            with open(list_file_path, "w") as f:
+                for chunk in chunks:
+                    # ffmpeg concat requires 'file path' format
+                    # use absolute path to be safe or relative to directory
+                    abs_path = os.path.abspath(chunk)
+                    f.write(f"file '{abs_path}'\n")
+
+            # 3. Merge
+            output_filename = f"session_{session_id}_merged.webm"
+            output_path = f"{OUTPUT_DIR}/{output_filename}"
+            
+            # Command: ffmpeg -f concat -safe 0 -i list.txt -c copy output.webm
+            cmd = [
+                "ffmpeg",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", list_file_path,
+                "-c", "copy",
+                "-y", # Overwrite if exists
+                output_path
+            ]
+            
+            print(f"[FFMPEG] Merging {len(chunks)} chunks...")
+            try:
+                process = await asyncio.to_thread(subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if process.returncode != 0:
+                    print(f"[FFMPEG-ERROR] {process.stderr.decode()}")
+                    # Fallback?
+                    background_transcription_task(task.id, session_id, pcm_buffer)
+                else:
+                    print(f"[FFMPEG] Merge successful: {output_path}")
+                    # Cleanup chunks and list file? (Optional, maybe keep for debug)
+                    # os.remove(list_file_path)
+                    # for c in chunks: os.remove(c)
+                    
+                    # 4. Trigger Background Task with FILE PATH
+                    # We pass 'None' for pcm_buffer or handle it in service
+                    await asyncio.to_thread(background_transcription_task, task.id, session_id, None, file_path=output_path)
+            
+            except Exception as e:
+                print(f"[FFMPEG-EXCEPTION] {e}")
+                background_transcription_task(task.id, session_id, pcm_buffer)
+
+        # Background task starten (via helper to do ffmpeg first)
+        asyncio.create_task(merge_and_process())
 
     else:
         print("[ERROR] Session not found during final processing")
-        await websocket.close()
+        try:
+           await websocket.close()
+        except:
+           pass
         
         
 # Audiochunk upload
@@ -198,13 +299,11 @@ async def record(db: SessionDep, file: UploadFile = File(...), user_id: int = Fo
 
 # Route for showing records in frontend
 @record_bp.get("/record/list-records/{user_id}")
-async def list_records(user_id: int, db: SessionDep):
-    """List all records for a specific user"""
+async def list_records(user_id: int, db: SessionDep, archived: bool = False):
+    """List all records for a specific user, filtering by archived status"""
     
-    print(f"TYPE: {type(user_id)}\nVALUE: {user_id}")
-    
-    # Get the record sessions per user
-    smt = select(Record).where(Record.user_id == user_id)
+    # Get the record sessions per user and archived status
+    smt = select(Record).where(Record.user_id == user_id).where(Record.archived == archived)
     records = db.exec(smt).all()
 
     return [record.to_dict() for record in records]
@@ -225,3 +324,40 @@ async def transcription_status(task_id: int, db: SessionDep):
         "result": task.result,
         "error": task.error,
     }
+
+@record_bp.delete("/record/{record_id}")
+async def delete_record(record_id: int, db: SessionDep):
+    """Delete a record permanently"""
+    record = db.get(Record, record_id)
+    if not record:
+        return {"error": "Record not found"}
+    
+    db.delete(record)
+    db.commit()
+    return {"status": "success", "message": "Record deleted"}
+
+@record_bp.put("/record/{record_id}/archive")
+async def archive_record(record_id: int, db: SessionDep):
+    """Archive a record"""
+    record = db.get(Record, record_id)
+    if not record:
+        return {"error": "Record not found"}
+    
+    record.archived = True
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record.to_dict()
+
+@record_bp.put("/record/{record_id}/unarchive")
+async def unarchive_record(record_id: int, db: SessionDep):
+    """Unarchive a record"""
+    record = db.get(Record, record_id)
+    if not record:
+        return {"error": "Record not found"}
+    
+    record.archived = False
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record.to_dict()

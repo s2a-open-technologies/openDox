@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+
 
 // Typen definieren
 type User = {
@@ -6,6 +7,7 @@ type User = {
   name: string;
   is_active: boolean;
   authenticated: boolean;
+  is_superuser: boolean;
 };
 
 type AuthContextType = {
@@ -51,24 +53,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       if (res.ok) {
         const data = await res.json();
-        if (res.ok) {
-          setUser({
-            id: data.id,
-            name: data.name,
-            is_active: data.is_active,
-            authenticated: true,
-          });
-          setIsAuthenticated(true);
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
-        }
+        setUser({
+          id: data.id,
+          name: data.name,
+          is_active: data.is_active,
+          authenticated: true,
+          is_superuser: data.is_superuser,
+        });
+        setIsAuthenticated(true);
       } else {
         setUser(null);
         setIsAuthenticated(false);
       }
-    } catch (e) {
-      console.error("Failed to fetch user: ", e);
+    } catch (error) {
+      console.error("Error fetching user:", error);
       setUser(null);
       setIsAuthenticated(false);
     } finally {
@@ -81,10 +79,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
 
     try {
-      const res = await authFetch("/api/v1/auth/login", {
+      // Authentifizierung NUR über Backend
+      const res = await fetch("/api/v1/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),  // <-- Feldname anpassen
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name,
+          password: password,
+        }),
+        credentials: "include",
       });
 
       if (!res.ok) {
@@ -102,33 +107,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem("access_token", data.access_token);
       await fetchUser();
       return true;
-    } catch (e) {
-      console.error("Login error:", e);
-      setIsLoading(false);
+    } catch (error) {
+      console.error("Login error:", error);
       return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Logout-Funktion
   const logout = async (): Promise<void> => {
     try {
-      const token = localStorage.getItem("access_token");
-      if (token) {
-        await authFetch("/api/v1/auth/logout", {
-          method: "POST",
-          credentials: "include",
-        });
-      }
-    } catch (e) {
-      console.warn("Logout failed", e);
+      // Versuche, sich vom Backend abzumelden
+      await fetch("/api/v1/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
     } finally {
+      // Bereinige alle Tokens und Benutzerdaten
       localStorage.removeItem("access_token");
       setUser(null);
       setIsAuthenticated(false);
     }
   };
 
-  // Initialen User laden
+  // Beim Laden des Kontexts versuchen, den Benutzerstatus wiederherzustellen
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (token) {
@@ -138,23 +143,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const value = {
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    logout,
+    authFetch,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated,
-        login,
-        logout,
-        authFetch,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom Hook für den Auth-Kontext
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {

@@ -12,6 +12,7 @@ class Record(SQLModel, table=True):
     timestamp: str = Field()
     summarize: str = Field()
     file: str = Field()
+    archived: bool = Field(default=False)
     
     def to_dict(self):
         return {
@@ -23,6 +24,7 @@ class Record(SQLModel, table=True):
             "timestamp": self.timestamp,
             "summarize": self.summarize,
             "file": self.file,
+            "archived": self.archived,
         }
 
 

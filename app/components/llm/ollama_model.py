@@ -1,8 +1,9 @@
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 
 class OllamaModel:
-    def __init__(self, model_name="google/gemma-3-4b-it:latest", base_url="http://localhost:11434"):
+    def __init__(self, model_name="ministral-3:3b", base_url="http://localhost:11434/v1"):
         """
         Initializes the OllamaModel with the specified model name and base URL.
 
@@ -12,7 +13,11 @@ class OllamaModel:
         """
         self.model = model_name
         self.base_url = base_url
-        self.client = ChatOllama(model=self.model, base_url=self.base_url)
+        self.client = ChatOpenAI(
+            model=self.model,             
+            base_url=self.base_url,
+            api_key="loc-123"
+        )
         
 
     def get_system_prompt(self) -> str:

@@ -29,7 +29,7 @@ export const Logo = ({ className }: LogoProps) => {
                 strokeDasharray="300"
                 strokeDashoffset="0"
             >
-                <animate attributeName="stroke-dashoffset" from="300" to="0" dur="2s" fill="freeze" />
+                <animate attributeName="stroke-dashoffset" from="300" to="0" dur="1.2s" fill="freeze" />
             </path>
         </svg>
     );

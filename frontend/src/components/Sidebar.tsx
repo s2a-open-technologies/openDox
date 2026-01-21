@@ -1,4 +1,5 @@
-import { ScrollArea } from "@/components/ui/ScrollArea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library } from "lucide-react";
 import UserDropdown from "@/components/UserDropdown";
@@ -8,8 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/DropdownMenu";
-import { Button } from "@/components/ui/Button";
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import type { Recording } from "@/pages/Dashboard";
 
 interface SidebarProps {
@@ -36,9 +37,8 @@ const Sidebar = ({
   return (
     <aside className={cn("w-80 bg-background flex flex-col border-r border-border h-screen")}>
       <div className="p-4 border-b border-border flex flex-col items-center gap-2">
-        <div className="flex items-center justify-center py-4">
-          <img src="aidox-light.png" className="w-auto h-24 dark:hidden" />
-          <img src="aidox-dark.png" className="w-auto h-24 hidden dark:block" />
+        <div className="flex items-center justify-center w-full">
+          <Logo className="w-auto h-24 mx-auto" />
         </div>
       </div>
 

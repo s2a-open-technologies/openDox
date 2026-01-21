@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, StopCircle } from "lucide-react";
 
 interface NewRecordViewProps {
@@ -34,7 +34,7 @@ export default function NewRecordView({
             )}
           </div>
 
-            {/* Aufnahmebutton*/}
+          {/* Aufnahmebutton*/}
           <div className="flex flex-col items-center gap-2 pt-4">
             <Button
               onClick={isRecording ? onStopRecording : onStartRecording}

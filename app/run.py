@@ -17,12 +17,15 @@ from app.components.modules.logger import get_logger, initialize_logging
 from app.components.security.hashing import get_password_hash
 from app.views.record_api import record_bp
 from app.views.auth_api import auth_bp
+from app.views.settings_api import settings_bp
 from config import Config
 from app.components.sql.sql_engine import get_session_factory
 
 from app.components.sql.sql_engine import create_db_and_tables
 from app.components.models.record_model import Record
 from app.components.models.user_model import User
+from app.components.models.settings_model import WhisperSettingsModel
+from app.components.models.ldap_model import LdapSettingsModel
 from app.components.sql.sql_engine import SessionDep
 
 
@@ -64,9 +67,6 @@ def seed_startup(logger):
 
 def create_app():
     
-    # Initialize Environment
-
-    
     # Initialize logging
     initialize_logging()
     logger = get_logger()
@@ -86,5 +86,8 @@ def create_app():
     
     # Register auth
     app.include_router(auth_bp)
+
+    # Register settings
+    app.include_router(settings_bp)
 
     return app

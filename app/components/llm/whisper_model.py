@@ -6,10 +6,6 @@ from transformers import (
 )
 # Transformers
 from transformers import BitsAndBytesConfig 
-
-# CTranslate2
-import ctranslate2 as ct2
-
 from faster_whisper import WhisperModel as FasterWhisperModel
 
 class WhisperModel:
@@ -24,4 +20,4 @@ class WhisperModel:
             model_id, 
             device=self.device, 
             compute_type=compute_type
-        )
+        )   

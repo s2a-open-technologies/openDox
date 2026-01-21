@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Recorder from "@/components/Recorder";
 import TranscriptView from "@/components/TranscriptView";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 import {
@@ -17,7 +17,7 @@ import {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/Dialog"
+} from "@/components/ui/dialog"
 
 export interface Recording {
   id: string;

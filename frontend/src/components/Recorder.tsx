@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/Dialog";
+} from "@/components/ui/dialog";
 
 interface RecorderProps {
   userId: string;

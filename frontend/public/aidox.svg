@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100" fill="none">
+  <!-- CSS Styles for Theme Adaptation -->
+  <style>
+    .text-primary { fill: #0f172a; } /* Slate 900 */
+    .text-accent { fill: #06b6d4; } /* Cyan 500 */
+    .pulse-line { stroke: #06b6d4; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    
+    /* Dark Mode overrides (handled via parent class usually, but putting defaults here) */
+    @media (prefers-color-scheme: dark) {
+      .text-primary { fill: #f8fafc; } /* Slate 50 */
+    }
+  </style>
+
+  <!-- Text: ai -->
+  <text x="20" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-primary" letter-spacing="-2">ai</text>
+  
+  <!-- Text: dox -->
+  <text x="130" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-accent" letter-spacing="-2">ox</text>
+
+  <!-- Letter 'd' (Custom composite for the split mostly) -->
+  <text x="80" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-primary" letter-spacing="-2">d</text>
+
+  <!-- Heartbeat / EKG Line -->
+  <!-- Starts low, spikes up/down through the O or D -->
+  <path d="M 60 55 L 85 55 L 90 35 L 100 80 L 110 45 L 115 55 L 190 55" class="pulse-line" stroke-dasharray="300" stroke-dashoffset="0">
+    <animate attributeName="stroke-dashoffset" from="300" to="0" dur="2s" fill="freeze" />
+  </path>
+  
+</svg>

@@ -36,9 +36,9 @@ const Sidebar = ({
 }: SidebarProps) => {
   return (
     <aside className={cn("w-80 bg-background flex flex-col border-r border-border h-screen")}>
-      <div className="p-4 border-b border-border flex flex-col items-center gap-2">
-        <div className="flex items-center justify-center w-full px-4">
-          <Logo className="w-full h-auto max-w-[200px]" />
+      <div className="p-4 border-b border-border flex flex-col gap-2">
+        <div className="flex items-center justify-start w-full">
+          <Logo className="h-20 w-auto" />
         </div>
       </div>
 

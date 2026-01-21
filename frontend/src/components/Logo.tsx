@@ -7,28 +7,25 @@ interface LogoProps {
 export const Logo = ({ className }: LogoProps) => {
     return (
         <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 210 100"
+            width="200"
+            height="60"
+            viewBox="0 0 200 60"
             fill="none"
+            xmlns="http://www.w3.org/2000/svg"
             className={cn("w-full h-auto", className)}
         >
-            <title>aidox</title>
-            {/* "ai" */}
-            <text x="20" y="70" fontFamily="Arial, sans-serif" fontWeight="bold" fontSize="60" className="fill-slate-900 dark:fill-slate-50" letterSpacing="-2">ai</text>
+            <text x="10" y="45" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="38" letterSpacing="-1.5">
+                <tspan fill="#1A2B6D" className="dark:fill-white">ai</tspan>
+                <tspan fill="#00CED1">dox</tspan>
+            </text>
 
-            {/* "ox" - Cyan */}
-            <text x="130" y="70" fontFamily="Arial, sans-serif" fontWeight="bold" fontSize="60" className="fill-[#06b6d4]" letterSpacing="-2">ox</text>
-
-            {/* "d" - Matches "ai" color */}
-            <text x="80" y="70" fontFamily="Arial, sans-serif" fontWeight="bold" fontSize="60" className="fill-slate-900 dark:fill-slate-50" letterSpacing="-2">d</text>
-
-            {/* Heartbeat Line - Cyan */}
             <path
-                d="M 60 55 L 85 55 L 90 35 L 100 80 L 110 45 L 115 55 L 190 55"
-                className="stroke-[#06b6d4]"
-                strokeWidth="3"
+                d="M10 35H40L45 25L55 55L65 15L75 45L85 30L95 40H190"
+                stroke="white"
+                strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                style={{ mixBlendMode: 'overlay', opacity: 0.8 }}
                 strokeDasharray="300"
                 strokeDashoffset="0"
             >

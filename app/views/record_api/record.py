@@ -228,7 +228,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                  return
 
             # 2. Create file list for ffmpeg
-            list_file_path = f"{OUTPUT_DIR}/session_{session_id}_list.txt"
+            list_file_path = f"{OUTPUT_DIR}/session_{user_id}_{session_id}_list.txt"
             with open(list_file_path, "w") as f:
                 for chunk in chunks:
                     # ffmpeg concat requires 'file path' format
@@ -284,7 +284,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         
         
 # Audiochunk upload
-@record_bp.post("/record/upload-chunk")
+@record_bp.post("/upload-chunk")
 async def record(db: SessionDep, file: UploadFile = File(...), user_id: int = Form(...), session_id: str = Form(...)):
     """Upload audio chunk and append to session buffer"""
     
@@ -298,7 +298,7 @@ async def record(db: SessionDep, file: UploadFile = File(...), user_id: int = Fo
 
 
 # Route for showing records in frontend
-@record_bp.get("/record/list-records/{user_id}")
+@record_bp.get("/list-records/{user_id}")
 async def list_records(user_id: int, db: SessionDep, archived: bool = False):
     """List all records for a specific user, filtering by archived status"""
     
@@ -325,6 +325,16 @@ async def transcription_status(task_id: int, db: SessionDep):
         "error": task.error,
     }
 
+# CRUD Records
+@record_bp.get("/record/{record_id}", response_model=RecordRead)
+async def get_record(record_id: int, db: SessionDep):
+    """Retrieves the information for the specific record"""
+    record = db.get(Record, record_id)
+    print(record)
+
+    return record
+
+
 @record_bp.delete("/record/{record_id}")
 async def delete_record(record_id: int, db: SessionDep):
     """Delete a record permanently"""
@@ -335,6 +345,7 @@ async def delete_record(record_id: int, db: SessionDep):
     db.delete(record)
     db.commit()
     return {"status": "success", "message": "Record deleted"}
+
 
 @record_bp.put("/record/{record_id}/archive")
 async def archive_record(record_id: int, db: SessionDep):
@@ -348,6 +359,7 @@ async def archive_record(record_id: int, db: SessionDep):
     db.commit()
     db.refresh(record)
     return record.to_dict()
+
 
 @record_bp.put("/record/{record_id}/unarchive")
 async def unarchive_record(record_id: int, db: SessionDep):

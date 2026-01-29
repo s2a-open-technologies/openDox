@@ -44,7 +44,7 @@ const Dashboard = () => {
 
   const fetchRecords = async () => {
     try {
-      const response = await fetch(`/api/v1/records/record/list-records/${userId}?archived=${showArchived}`);
+      const response = await fetch(`/api/v1/records/list-records/${userId}?archived=${showArchived}`);
       if (response.ok) {
         const data = await response.json();
         setRecordings(data);
@@ -190,9 +190,15 @@ const Dashboard = () => {
     }
   };
 
-  const handleSelectRecording = (recording: Recording) => {
+  const handleSelectRecording = async (recording: Recording) => {
+    const result = await fetch(`/api/v1/records/record/${recording.id}`,{
+      method: "GET"
+    })
+    
+    const data = await result.json();
+    console.log(data);
     setSelectedRecording(recording);
-    setCurrentTranscript("");
+    setCurrentTranscript(data);
     setShowRecorder(false); // Hide recorder when selecting an existing recording
   };
 

@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { VoiceVisualizer } from "@/components/ui/voice-visualizer";
 
 interface RecorderProps {
   userId: string;
@@ -30,14 +31,14 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
   const [isPaused, setIsPaused] = useState(false);
   const [isStopDialogOpen, setIsStopDialogOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
-  const finalChunksRef = useRef<Blob[]>([]);
-
+  const activeUploadsRef = useRef<Set<Promise<any>>>(new Set());
   const isPausedRef = useRef(false);
 
   const createRecord = async () => {
@@ -118,16 +119,14 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
       if (savedSession) {
         record = JSON.parse(savedSession);
         setSessionId(record.session_id);
-        // If we are resuming, we might want to notify or just proceed
-        // Assuming 'title' etc are still valid
         if (onRecordingStart && !sessionId) {
-          onRecordingStart(record); // ensure sidebar is updated if it was a reload
+          onRecordingStart(record);
         }
       } else {
         record = await createRecord();
       }
 
-      openWebSocket(userId, record.session_id); // Verwende userId und session_id
+      openWebSocket(userId, record.session_id);
 
       // 1) User Audio holen
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -139,11 +138,16 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
         }
       });
 
-      // 2) AudioContext + Worklet
+      // 2) AudioContext + Worklet + Visualizer
       const audioCtx = new AudioContext({ sampleRate: 16000 });
       if (audioCtx.state === "suspended") {
         await audioCtx.resume();
       }
+
+      // Analyser for Visualization
+      const analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 256;
+      setAnalyser(analyserNode);
 
       // Inline Worklet: Garantiert, dass der Code geladen wird und Float32 -> Int16 konvertiert
       const workletCode = `
@@ -173,12 +177,17 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
         }
       };
 
+      // Connect Graph
+      source.connect(analyserNode); // source -> analyser
+      // source.connect(worklet); // source -> worklet (Using separate connection?)
+      // Actually, we can connect source to multiple destinations
       source.connect(worklet);
+      // We don't connect to destination (speakers) to avoid feedback loop unless desired
 
       // MediaRecorder für finale Datei
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mediaRecorderRef.current = mediaRecorder;
-      finalChunksRef.current = []; // reset
+      activeUploadsRef.current.clear();
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0 && sessionId) {
@@ -186,16 +195,26 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         // If paused, do NOT send stop event and do NOT show processing
         if (isPausedRef.current) {
           console.log("Recording paused - waiting for resume");
           return;
         }
 
+        setIsProcessing(true); // Start showing spinner immediately
+
+        // CRITICAL FIX: Wait for all uploads to complete before sending stop
+        console.log(`Waiting for ${activeUploadsRef.current.size} active uploads...`);
+        try {
+          await Promise.all(Array.from(activeUploadsRef.current));
+          console.log("All uploads finished.");
+        } catch (err) {
+          console.error("Some uploads failed, proceeding anyway", err);
+          // Proceed anyway to at least try to finalize
+        }
+
         socketRef.current?.send(JSON.stringify({ event: "stop" }));
-        setIsProcessing(true);
-        // hier kannst du später finalChunksRef zusammenführen und hochladen
       };
 
       // alle 10s Chunk für finale Datei (Upload)
@@ -219,34 +238,20 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
     // Explicitly mark as NOT paused (we are stopping)
     isPausedRef.current = false;
 
-    // MediaRecorder stoppen → triggert onstop
+    // MediaRecorder stoppen → triggert onstop logic (wait for chunks -> send ws stop)
     mediaRecorderRef.current?.stop();
 
-    // Worklet & AudioContext aufräumen
+    // Aufräumen
     try {
       workletRef.current?.disconnect();
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) { }
+
+    // Stop tracks
+    mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
 
     audioContextRef.current?.close();
+    setAnalyser(null); // Clear visuals
 
-    // WebSocket schließen - WAIT! If we close immediately, we might miss the 'finished' message?
-    // record.py logic: if we send "stop", it breaks loop, sends "finished", then closes.
-    // So we should NOT close it here manually if we want to receive "finished".
-    // But `openWebSocket` sets `onclose`.
-    // Let's keep it open until "finished" OR timeout?
-    // The previous code closed it immediately.
-    // If we close it, the backend sees disconnect.
-    // Backend says: `if client_connected: await websocket.send_json({"status": "finished"...})`
-    // So we MUST NOT close it here.
-
-    // REMOVED explicit socket close here. Let the backend close it or close on unmount.
-    // But we need to cleanup references.
-    // If we don't close, when do we close?
-    // Backend closes it after sending finished.
-
-    // Reset session
     localStorage.removeItem("currentSession");
 
     setIsRecording(false);
@@ -255,52 +260,47 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
   };
 
   // Function for uploading Wav chunks to the background
-  const uploadChunk = async (chunk: Blob, sessionId: string) => {
+  const uploadChunk = (chunk: Blob, sessionId: string) => {
     const formData = new FormData();
     formData.append("audio", chunk, `chunk_${Date.now()}_${sessionId}_${userId}.webm`);
     formData.append("session_id", sessionId);
     formData.append("user_id", userId);
 
-    try {
-      await fetch("/api/v1/records/record/upload-chunk", {
-        method: "POST",
-        body: formData
+    // Track promise
+    const promise = fetch("/api/v1/records/upload-chunk", {
+      method: "POST",
+      body: formData
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Chunk upload failed");
+        // Remove self from set
+        activeUploadsRef.current.delete(promise);
+      })
+      .catch((err) => {
+        console.error("Error sending chunk: ", err);
+        toast.error("Fehler beim Senden eines Audio-Teils");
+        activeUploadsRef.current.delete(promise); // Ensure removal on error
       });
-    } catch (err) {
-      console.error("Error sending chunks: ", err)
-      toast.error("Error sending chunks")
-    }
+
+    activeUploadsRef.current.add(promise);
   }
 
-
-
-  // Re-implementing Pause correctly
-  // Re-implementing Pause correctly
   const pauseSession = () => {
     if (!isRecording) return;
-
-    isPausedRef.current = true; // Mark intent
-
-    // Pause capturing
+    isPausedRef.current = true;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.pause();
     }
-
-    // Suspend AudioContext
     if (audioContextRef.current && audioContextRef.current.state === "running") {
       audioContextRef.current.suspend();
     }
-
     setIsPaused(true);
   };
 
-  // Updated resumeSession: resume MediaRecorder and AudioContext, WebSocket stays open
   const resumeSession = () => {
-    // Resume AudioContext if it was suspended
     if (audioContextRef.current?.state === "suspended") {
       audioContextRef.current.resume();
     }
-    // Resume MediaRecorder if it was paused
     if (mediaRecorderRef.current?.state === "paused") {
       mediaRecorderRef.current.resume();
     }
@@ -317,17 +317,6 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
     stopRecording();
   };
 
-  // NOTE: I am rewriting the `pauseSession` and `resumeSession` completely to use `suspend/resume` and `MediaRecorder.pause()`.
-  // This is much better than restarting the whole stack.
-
-
-  if (socketRef.current) {
-    // We keep socket open.
-  }
-
-
-
-
   useEffect(() => {
     // Check persistence on mount
     const savedSession = localStorage.getItem("currentSession");
@@ -337,8 +326,6 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
       setSessionId(record.session_id);
       setIsRecording(true);
       setIsPaused(true); // Default to paused on restore
-
-      // Notify parent to show active state in sidebar
       if (onRecordingStart) onRecordingStart(record);
     } else if (autoStart) {
       startRecording();
@@ -396,6 +383,13 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
             )}
           </div>
         </div>
+
+        {/* Visualization Area */}
+        {isRecording && !isPaused && (
+          <div className="w-full flex justify-center pb-2 bg-gradient-to-t from-background/50 to-transparent">
+            <VoiceVisualizer analyser={analyser} />
+          </div>
+        )}
 
         {/* Footer / Controls */}
         <div className="p-8 border-t border-border bg-zinc-50/30 dark:bg-zinc-900/30 flex justify-center items-center gap-6">

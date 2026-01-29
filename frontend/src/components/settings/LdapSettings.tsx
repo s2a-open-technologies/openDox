@@ -13,18 +13,21 @@ interface LdapSettingsData {
     use_ssl: boolean;
     base_dn: string;
     user_dn: string;
-    bind_user_dn?: string;
-    bind_user_password?: string;
+    bind_user_dn: string;
+    bind_user_password: string;
 }
 
 const LdapSettings = () => {
     const { authFetch } = useAuth();
+    const [isSSL, setIsSSL] = useState(false);
     const [settings, setSettings] = useState<LdapSettingsData>({
         server_host: '',
-        server_port: 389,
+        server_port: 636,
         use_ssl: false,
         base_dn: '',
         user_dn: '',
+        bind_user_dn: '',
+        bind_user_password: '',
     });
     const [loading, setLoading] = useState(false);
 
@@ -77,7 +80,7 @@ const LdapSettings = () => {
                             <Input
                                 value={settings.server_host}
                                 onChange={e => setSettings({ ...settings, server_host: e.target.value })}
-                                placeholder="ldap.example.com"
+                                placeholder="ldaps.example.com"
                             />
                         </div>
                         <div className="space-y-2">
@@ -91,11 +94,25 @@ const LdapSettings = () => {
                     </div>
                     <div className="flex items-center space-x-2">
                         <Switch
+                            id="use-ssl"
                             checked={settings.use_ssl}
-                            onCheckedChange={c => setSettings({ ...settings, use_ssl: c })}
+                            onCheckedChange={(checked) => {
+                                setSettings({ ...settings, use_ssl: checked });
+                                setIsSSL(checked);
+                            }}
                         />
-                        <Label>Use SSL (LDAPS)</Label>
+                        <Label htmlFor="use-ssl">SSL (LDAPS) verwenden</Label>
                     </div>
+                    {isSSL && (
+                        <div className="space-y-2">
+                            <Label>Zertifikatsdateiname</Label>
+                            <Input
+                                value={(settings as any).cert_filename || ''}
+                                onChange={e => setSettings({ ...settings, cert_filename: e.target.value } as any)}
+                                placeholder="cert.pem"
+                            />
+                        </div>
+                    )}
                     <div className="space-y-2">
                         <Label>Base DN</Label>
                         <Input
@@ -112,7 +129,22 @@ const LdapSettings = () => {
                             placeholder="uid"
                         />
                     </div>
-
+                    <div className="space-y-2">
+                        <Label>Bind User DN</Label>
+                        <Input
+                            value={settings.bind_user_dn}
+                            onChange={e => setSettings({ ...settings, bind_user_dn: e.target.value })}
+                            placeholder="cn=admin,dc=example,dc=com"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Bind User Password</Label>
+                        <Input
+                            type="password"
+                            value={settings.bind_user_password}
+                            onChange={e => setSettings({ ...settings, bind_user_password: e.target.value })}
+                        />
+                    </div>
                     <div className="flex space-x-2 pt-4">
                         <Button type="submit" disabled={loading}>Speichern</Button>
                         <Button type="button" variant="outline" onClick={handleTest} disabled={loading}>Verbindung testen</Button>

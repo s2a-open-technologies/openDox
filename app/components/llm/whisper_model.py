@@ -9,7 +9,7 @@ from transformers import BitsAndBytesConfig
 from faster_whisper import WhisperModel as FasterWhisperModel
 
 class WhisperModel:
-    def __init__(self, model_id="large-v3-turbo", device="cuda", compute_type="float16"):
+    def __init__(self, model_id="TheTobyB/whisper-large-v3-turbo-german-ct2", device="cuda", compute_type="float16"):
         self.device = device
         self.model_id = model_id
         

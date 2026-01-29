@@ -3,12 +3,13 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings, Users, Shield, Server, HardDrive } from 'lucide-react';
+import { GlobeLock, BookOpenCheck, Settings, Users, Shield, Server, HardDrive } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import WhisperConfig from './settings/WhisperConfig';
 import { ThemeToggle } from './settings/ThemeToggle';
 import LdapSettings from './settings/LdapSettings';
 import SystemSettings from './settings/SystemSettings';
+import CategorySettings from './settings/CategorySettings';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
     { id: 'settings', label: 'Einstellungen', icon: Settings },
     { id: 'users', label: 'Benutzer', icon: Users },
     { id: 'permissions', label: 'Berechtigungen', icon: Shield },
-    { id: 'ldap', label: 'LDAP', icon: Server },
+    { id: 'categories', label: 'Kategorien', icon: BookOpenCheck},
     { id: 'system', label: 'System', icon: Server },
     { id: 'backup', label: 'Backup', icon: HardDrive },
   ];
@@ -43,9 +44,6 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
                     <ThemeToggle />
                   </div>
                 </div>
-              </div>
-              <div className="p-4 border rounded-md">
-                <WhisperConfig />
               </div>
             </div>
           </div>
@@ -118,6 +116,12 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             </div>
           </div>
         );
+      case 'categories':
+        return (
+          <div className="space-y-4">
+            <CategorySettings />
+          </div>
+        );
       default:
         return <div>Wählen Sie eine Option aus der Navigation</div>;
     }
@@ -125,8 +129,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[70vh] p-0 overflow-hidden">
-
+      <DialogContent className="max-w-4xl h-[85vh] p-0 overflow-hidden">
 
         <DialogHeader className="p-4 border-b z-10 relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 space-y-2">
           <div className="flex justify-start">
@@ -156,7 +159,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
               </nav>
             </ScrollArea>
           </div>
-          <div className="flex-1 p-6 overflow-auto h-[50vh]">
+          <div className="flex-1 p-6 overflow-auto h-[60vh]">
             {renderContent()}
           </div>
         </div>

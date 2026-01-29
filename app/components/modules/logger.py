@@ -8,12 +8,12 @@ LOG_DIR= "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(LOG_DIR, f"log_{datetime.now().strftime('%Y-%m-%d')}.log")
-
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 def initialize_logging():
     logging.basicConfig(
         filename=LOG_FILE,
-        level=logging.INFO,
+        level=LOG_LEVEL,
         format="%(name)s - %(module)s - %(funcName)s - %(message)s",
         force=True
     )

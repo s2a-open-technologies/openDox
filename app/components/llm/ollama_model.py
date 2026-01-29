@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 
 class OllamaModel:
-    def __init__(self, model_name="ministral-3:3b", base_url="http://localhost:11434/v1"):
+    def __init__(self, model_name="medgemma-4b-it:Q4_K_M", base_url="http://localhost:11434/v1"):
         """
         Initializes the OllamaModel with the specified model name and base URL.
 
@@ -16,7 +16,11 @@ class OllamaModel:
         self.client = ChatOpenAI(
             model=self.model,             
             base_url=self.base_url,
-            api_key="loc-123"
+            api_key="loc-123",
+            temperature=0.2,
+            max_tokens=2048,
+            top_p=0.9,
+            top_k=40,            
         )
         
 

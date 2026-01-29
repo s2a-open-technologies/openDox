@@ -113,7 +113,7 @@ const TranscriptView = ({ transcript, onNewRecording }: TranscriptViewProps) => 
         <div className="col-span-2">
           <h3 className="text-xl font-semibold text-foreground mb-4">Transkript</h3>
           <div className="prose prose-slate dark:prose-invert max-w-none text-foreground whitespace-pre-wrap leading-relaxed">
-            {transcript.transcript}
+            {transcript.content}
           </div>
         </div>
         <div className="col-span-1">
@@ -125,7 +125,7 @@ const TranscriptView = ({ transcript, onNewRecording }: TranscriptViewProps) => 
               </Button>
             </div>
             <div className="prose prose-slate dark:prose-invert max-w-none text-muted-foreground whitespace-pre-wrap">
-              {transcript.summary || "Noch keine Zusammenfassung verfügbar"}
+              {transcript.summarize || "Noch keine Zusammenfassung verfügbar"}
             </div>
           </div>
         </div>

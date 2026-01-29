@@ -1,0 +1,207 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+
+interface CategorySettingsData {
+    id?: number;
+    name: string;
+    description: string;
+    system_prompt: string;
+}
+
+const CategorySettings = () => {
+    const { authFetch } = useAuth();
+    const [categories, setCategories] = useState<CategorySettingsData[]>([]);
+    const [settings, setSettings] = useState<CategorySettingsData>({
+        name: '',
+        description: '',
+        system_prompt: '',
+    });
+    const [loading, setLoading] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+
+    const fetchCategories = async () => {
+        try {
+            const res = await authFetch('/api/v1/settings/categories/');
+            if (res.ok) {
+                const data = await res.json();
+                setCategories(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch categories:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const url = isEditing && settings.id
+                ? `/api/v1/settings/categories/${settings.id}`
+                : '/api/v1/settings/categories/';
+
+            const method = isEditing && settings.id ? 'PUT' : 'POST';
+
+            const res = await authFetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings),
+            });
+
+            if (res.ok) {
+                await fetchCategories();
+                resetForm();
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEdit = (category: CategorySettingsData) => {
+        setSettings(category);
+        setIsEditing(true);
+    };
+
+    const handleDelete = async (id: number) => {
+        if (!confirm('Möchten Sie diese Kategorie wirklich löschen?')) return;
+
+        try {
+            const res = await authFetch(`/api/v1/settings/categories/${id}`, {
+                method: 'DELETE',
+            });
+
+            if (res.ok) {
+                await fetchCategories();
+                if (settings.id === id) {
+                    resetForm();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to delete category:', error);
+        }
+    };
+
+    const resetForm = () => {
+        setSettings({
+            name: '',
+            description: '',
+            system_prompt: '',
+        });
+        setIsEditing(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Kategorien Liste</CardTitle>
+                    <CardDescription>Verwalten Sie Ihre vorhandenen Kategorien</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {categories.map((category) => (
+                            <div
+                                key={category.id}
+                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                            >
+                                <div className="space-y-1">
+                                    <div className="font-medium">{category.name}</div>
+                                    <div className="text-sm text-muted-foreground">{category.description}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEdit(category)}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() => category.id && handleDelete(category.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                        {categories.length === 0 && (
+                            <div className="text-center text-muted-foreground py-8">
+                                Keine Kategorien vorhanden
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>{isEditing ? 'Kategorie bearbeiten' : 'Neue Kategorie erstellen'}</CardTitle>
+                    <CardDescription>
+                        {isEditing ? 'Bearbeiten Sie die ausgewählte Kategorie' : 'Fügen Sie eine neue Kategorie hinzu'}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Kategorie Name</Label>
+                                <Input
+                                    value={settings.name}
+                                    onChange={e => setSettings({ ...settings, name: e.target.value })}
+                                    placeholder="Kategorie Name"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Beschreibung</Label>
+                                <Input
+                                    value={settings.description}
+                                    onChange={e => setSettings({ ...settings, description: e.target.value })}
+                                    placeholder="Beschreibung"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>System Prompt</Label>
+                            <Textarea
+                                value={settings.system_prompt}
+                                onChange={e => setSettings({ ...settings, system_prompt: e.target.value })}
+                                placeholder="System Prompt"
+                                className="min-h-[100px]"
+                                required
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="submit" disabled={loading}>
+                                {loading ? 'Speichern...' : (isEditing ? 'Aktualisieren' : 'Erstellen')}
+                            </Button>
+                            {isEditing && (
+                                <Button type="button" variant="outline" onClick={resetForm}>
+                                    Abbrechen
+                                </Button>
+                            )}
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
+export default CategorySettings;

@@ -4,7 +4,7 @@ from sqlmodel import select
 
 from backend.views.auth_api import auth_bp
 from backend.components.sql.sql_engine import SessionDep
-from backend.components.models.user_model import User, UserCreate, UserRead, UserLogin
+from backend.components.models.user_model import User, UserCreate, UserRead, UserLogin, UserUpdate
 from backend.components.models.token_model import Token
 from backend.views.auth_api.dependencies import get_current_user
 from backend.components.security.hashing import (
@@ -17,6 +17,8 @@ from backend.components.security.hashing import (
 from backend.components.services.ldap import LdapService
 from backend.components.models.ldap_model import LdapSettingsModel
 
+
+# ── Authentication ──────────────────────────────────────────────────────
 
 @auth_bp.post("/register", response_model=UserRead, status_code=201)
 async def register(user_in: UserCreate, db: SessionDep):
@@ -79,7 +81,7 @@ async def login(user_in: UserLogin, db: SessionDep):
             else:
                  # Update existing user if needed (e.g. reactivate)
                  user.is_active = True
-                 
+                  
             db.commit()
             db.refresh(user)
 
@@ -105,7 +107,7 @@ async def refresh_token_endpoint(refresh_token: str):
             detail="Invalid or expired refresh token",
         )
 
-    if payload.get("type") != "refresh":
+    if payload.get("token_type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
@@ -129,3 +131,110 @@ async def refresh_token_endpoint(refresh_token: str):
 @auth_bp.get("/me", response_model=UserRead)
 async def read_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# ── User Management (CRUD) ─────────────────────────────────────────────
+
+def _require_superuser(current_user: User):
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superuser required",
+        )
+    return current_user
+
+
+@auth_bp.get("/users", response_model=list[UserRead])
+async def list_users(
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+    offset: int = 0,
+    limit: int = 100,
+):
+    _require_superuser(current_user)
+    users = db.exec(select(User).offset(offset).limit(limit)).all()
+    return users
+
+
+@auth_bp.post("/users", response_model=UserRead, status_code=201)
+async def create_user(
+    user_in: UserCreate,
+    db: SessionDep,
+    is_superuser: bool = False,
+    current_user: User = Depends(get_current_user),
+):
+    _require_superuser(current_user)
+
+    existing = db.exec(select(User).where(User.name == user_in.name)).first()
+    if existing:
+        raise HTTPException(status_code=422, detail="User already exists")
+
+    db_user = User(
+        name=user_in.name,
+        hashed_password=get_password_hash(user_in.password),
+        is_superuser=is_superuser,
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+@auth_bp.get("/users/{user_id}", response_model=UserRead)
+async def get_user(
+    user_id: int,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    _require_superuser(current_user)
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@auth_bp.put("/users/{user_id}", response_model=UserRead)
+async def update_user(
+    user_id: int,
+    user_in: UserUpdate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    _require_superuser(current_user)
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user_in.name is not None:
+        user.name = user_in.name
+    if user_in.is_active is not None:
+        user.is_active = user_in.is_active
+    if user_in.is_superuser is not None:
+        user.is_superuser = user_in.is_superuser
+    if user_in.password is not None:
+        user.hashed_password = get_password_hash(user_in.password)
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@auth_bp.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    _require_superuser(current_user)
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent self-deletion
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    db.delete(user)
+    db.commit()
+    return {"ok": True}

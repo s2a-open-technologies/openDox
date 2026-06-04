@@ -26,7 +26,7 @@ def get_current_user(
             detail="Invalid or expired token",
         )
 
-    if payload.get("type") != "access":
+    if payload.get("token_type") != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",

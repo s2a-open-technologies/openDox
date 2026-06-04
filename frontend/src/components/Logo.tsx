@@ -7,20 +7,21 @@ interface LogoProps {
 export const Logo = ({ className }: LogoProps) => {
     return (
         <svg
-            width="210"
+            width="340"
             height="60"
-            viewBox="0 0 210 60"
+            viewBox="0 0 340 60"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className={cn("w-full h-auto", className)}
         >
             <text x="10" y="45" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="38" letterSpacing="-1.5">
-                <tspan fill="#1A2B6D" className="dark:fill-white">ai</tspan>
-                <tspan fill="#00CED1">dox</tspan>
+                <tspan fill="#1A2B6D" className="dark:fill-white">open</tspan>
+                <tspan fill="#1A2B6D" className="dark:fill-white">D</tspan>
+                <tspan fill="#00CED1">ox</tspan>
             </text>
 
             <path
-                d="M0 35H40L45 25L55 55L65 15L75 45L85 30L95 40H110"
+                d="M0 35H120L125 20L135 55L145 10L155 50L165 25L175 35H220"
                 stroke="black" className="dark:stroke-white"
                 strokeWidth="2"
                 strokeLinecap="round"

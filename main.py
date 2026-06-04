@@ -1,4 +1,4 @@
-from app.run import create_app
+from backend.run import create_app
 import uvicorn
 
 app = create_app()

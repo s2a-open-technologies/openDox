@@ -268,7 +268,7 @@ const Dashboard = () => {
         ) : !selectedRecording && !currentTranscript ? (
           <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold">Willkommen bei aidox</h1>
+              <h1 className="text-3xl font-bold">Willkommen bei openDox</h1>
               <p className="text-muted-foreground">Wählen Sie eine Aufnahme aus oder starten Sie eine neue, um loszulegen.</p>
             </div>
 
@@ -320,7 +320,7 @@ const Dashboard = () => {
             onNewRecording={async () => {
               setSelectedRecording(null);
               setCurrentTranscript("");
-              setShowRecorder(false); // This returns to the "Start Screen" (Welcome to aidox)
+              setShowRecorder(false); // This returns to the "Start Screen" (Welcome to openDox)
               // Optionally fetch records if needed to keep list fresh, though strictly not necessary for the view
               await fetchRecords();
             }}

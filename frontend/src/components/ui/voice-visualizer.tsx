@@ -104,7 +104,7 @@ export const VoiceVisualizer = ({ analyser, className }: VoiceVisualizerProps) =
         <div className={cn("w-full h-16 flex items-center justify-center", className)}>
              <canvas
                 ref={canvasRef}
-                className="w-full h-full opacity-80"
+                className="h-full w-full max-w-md opacity-80"
             />
         </div>
     );

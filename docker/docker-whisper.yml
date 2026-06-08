@@ -4,7 +4,7 @@ services:
     container_name: whisper
     restart: always
     ports:
-      - "9000:9000/tcp"  
+      - "9100:9000/tcp"
     volumes:
       - whisper-data:/var/lib/whisper
     environment:

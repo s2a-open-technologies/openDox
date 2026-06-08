@@ -1,3 +1,21 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
@@ -16,14 +34,15 @@ import { VoiceVisualizer } from "@/components/ui/voice-visualizer";
 interface RecorderProps {
   userId: string;
   title?: string;
+  categoryId?: string | null;
   patient?: string;
   subject?: string;
-  onFinalTranscription?: (text: string, taskId?: string | number) => void;
+  onFinalTranscription?: (sessionId: string, taskId?: string | number) => void;
   onRecordingStart?: (recordingData: any) => void;
   autoStart?: boolean;
 }
 
-const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRecordingStart, autoStart }: RecorderProps) => {
+const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart }: RecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -41,13 +60,16 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
   const activeUploadsRef = useRef<Set<Promise<any>>>(new Set());
   const isPausedRef = useRef(false);
 
+  const [liveEnabled, setLiveEnabled] = useState(true);
+
   const createRecord = async () => {
     const response = await fetch("/api/v1/records/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         "user_id": userId,
-        "title": title || "Neue Aufnahme"
+        "title": title || "Neue Aufnahme",
+        "category_id": categoryId ? parseInt(categoryId) : null
       })
     });
 
@@ -65,8 +87,9 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
   };
 
   const openWebSocket = (userId: string, session_id: string) => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(
-      `ws://localhost:5000/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}`
+      `${protocol}//${window.location.host}/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}`
     );
     socketRef.current = ws;
 
@@ -94,7 +117,7 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
         setIsProcessing(false);
         toast.success("Transkription abgeschlossen");
         if (onFinalTranscription) {
-          onFinalTranscription(stableTranscript, data.task_id);
+          onFinalTranscription(sessionId || "", data.task_id);
         }
       }
     };
@@ -262,7 +285,7 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
   // Function for uploading Wav chunks to the background
   const uploadChunk = (chunk: Blob, sessionId: string) => {
     const formData = new FormData();
-    formData.append("audio", chunk, `chunk_${Date.now()}_${sessionId}_${userId}.webm`);
+    formData.append("file", chunk, `chunk_${Date.now()}_${sessionId}_${userId}.webm`);
     formData.append("session_id", sessionId);
     formData.append("user_id", userId);
 
@@ -318,6 +341,16 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
   };
 
   useEffect(() => {
+    // Load settings to determine if live transcription is enabled
+    fetch("/api/v1/settings/whisper-settings/")
+      .then((res) => res.json())
+      .then((data) => {
+        setLiveEnabled(data.live_backend !== "disabled");
+      })
+      .catch(() => setLiveEnabled(true));
+  }, []);
+
+  useEffect(() => {
     // Check persistence on mount
     const savedSession = localStorage.getItem("currentSession");
     if (savedSession) {
@@ -366,22 +399,28 @@ const Recorder = ({ userId, title, patient, subject, onFinalTranscription, onRec
 
         {/* Transcription Area */}
         <div className="flex-1 overflow-y-auto p-8 font-sans">
-          <div className="w-full max-w-3xl mx-auto space-y-2">
-            {stableTranscript || liveTranscript ? (
-              <p className="text-xl md:text-2xl font-light leading-relaxed text-foreground/90 tracking-wide selection:bg-primary/20">
-                {stableTranscript}
-                {liveTranscript && (
-                  <span className="text-primary/70 animate-pulse font-normal ml-1 border-b border-primary/30 pb-0.5">
-                    {liveTranscript}
-                  </span>
-                )}
-              </p>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40 mt-20">
-                <p className="text-lg font-light">Sprechen Sie, um die Transkription zu starten</p>
-              </div>
-            )}
-          </div>
+          {liveEnabled ? (
+            <div className="w-full max-w-3xl mx-auto space-y-2">
+              {stableTranscript || liveTranscript ? (
+                <p className="text-xl md:text-2xl font-light leading-relaxed text-foreground/90 tracking-wide selection:bg-primary/20">
+                  {stableTranscript}
+                  {liveTranscript && (
+                    <span className="text-primary/70 animate-pulse font-normal ml-1 border-b border-primary/30 pb-0.5">
+                      {liveTranscript}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40 mt-20">
+                  <p className="text-lg font-light">Sprechen Sie, um die Transkription zu starten</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
+              <p className="text-lg font-light animate-pulse">Aufnahme läuft...</p>
+            </div>
+          )}
         </div>
 
         {/* Visualization Area */}

@@ -1,13 +1,36 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import { useState } from 'react';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { GlobeLock, BookOpenCheck, Settings, Users, Shield, Server, HardDrive } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  GlobeLock, BookOpenCheck, Settings, Users, Shield, Server, HardDrive, Mic, Brain
+} from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import WhisperConfig from './settings/WhisperConfig';
+import LlmConfig from './settings/LlmConfig';
 import { ThemeToggle } from './settings/ThemeToggle';
 import LdapSettings from './settings/LdapSettings';
+import UserSettings from './settings/UserSettings';
 import SystemSettings from './settings/SystemSettings';
 import CategorySettings from './settings/CategorySettings';
 
@@ -17,51 +40,55 @@ interface AdminModalProps {
 }
 
 const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
-  const [activeTab, setActiveTab] = useState('settings');
+  const [activeTab, setActiveTab] = useState('services');
 
   const navItems = [
-    { id: 'settings', label: 'Einstellungen', icon: Settings },
+    { id: 'services', label: 'Dienste', icon: Server },
     { id: 'users', label: 'Benutzer', icon: Users },
     { id: 'permissions', label: 'Berechtigungen', icon: Shield },
     { id: 'categories', label: 'Kategorien', icon: BookOpenCheck},
-    { id: 'system', label: 'System', icon: Server },
+    { id: 'ldap', label: 'LDAP', icon: GlobeLock },
+    { id: 'system', label: 'System', icon: Settings },
     { id: 'backup', label: 'Backup', icon: HardDrive },
   ];
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'settings':
+      case 'services':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Allgemeine Einstellungen</h3>
-            <div className="space-y-2">
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Systemkonfiguration</h4>
-                <p className="text-sm text-muted-foreground">Grundlegende Systemeinstellungen</p>
-                <div className="mt-2 space-y-2">
-                  <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                    <span className="text-sm font-medium">Theme</span>
-                    <ThemeToggle />
-                  </div>
-                </div>
-              </div>
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Server className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-medium">API-Dienste konfigurieren</h3>
             </div>
+            
+            <Tabs defaultValue="whisper" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="whisper" className="flex items-center gap-2">
+                  <Mic className="w-4 h-4" />
+                  <span>Whisper / ASR</span>
+                </TabsTrigger>
+                <TabsTrigger value="llm" className="flex items-center gap-2">
+                  <Brain className="w-4 h-4" />
+                  <span>LLM / Ollama</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="whisper">
+                <WhisperConfig />
+              </TabsContent>
+
+              <TabsContent value="llm">
+                <LlmConfig />
+              </TabsContent>
+            </Tabs>
           </div>
         );
       case 'users':
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Benutzerverwaltung</h3>
-            <div className="space-y-2">
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Benutzerliste</h4>
-                <p className="text-sm text-muted-foreground">Verwalten Sie Benutzerkonten</p>
-              </div>
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Rollen</h4>
-                <p className="text-sm text-muted-foreground">Definieren Sie Benutzerrollen</p>
-              </div>
-            </div>
+            <UserSettings />
           </div>
         );
       case 'permissions':
@@ -86,7 +113,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             <h3 className="text-lg font-medium">LDAP Integration</h3>
             <LdapSettings />
           </div>
-        )
+        );
       case 'system':
         return (
           <div className="space-y-4">

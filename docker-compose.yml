@@ -1,0 +1,104 @@
+#  openDox - Medical transcription platform
+#  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU Affero General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+
+services:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PostgreSQL Database
+  # ═══════════════════════════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:15-alpine
+    container_name: opendox-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${SQL_USER:-postgres}
+      POSTGRES_PASSWORD: ${SQL_PASS:-postgres}
+      POSTGRES_DB: ${SQL_DB:-opendox}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SQL_USER:-postgres} -d ${SQL_DB:-opendox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Whisper Server (OpenAI-compatible API for transcription)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  whisper:
+    image: hwdsl2/whisper-server:cuda
+    container_name: opendox-whisper
+    restart: always
+    volumes:
+      - whisper-data:/var/lib/whisper
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
+      WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
+    # GPU support - uncomment if you have NVIDIA Docker runtime
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # openDox Application (FastAPI + React)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opendox-app
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      # Database (use service name as host)
+      SQL_USER: ${SQL_USER:-postgres}
+      SQL_PASS: ${SQL_PASS:-postgres}
+      SQL_HOST: postgres
+      SQL_PORT: 5432
+      SQL_DB: ${SQL_DB:-opendox}
+      # Security
+      SECRET_KEY: ${SECRET_KEY:-ChangeThisInProduction}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Whisper API (point to the whisper container)
+      WHISPER_API_ENDPOINT: http://whisper:9000/v1
+      WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
+      # Root path for sub-path deployment (e.g. /app)
+      ROOT_PATH: ${ROOT_PATH:-/app}
+    volumes:
+      - app-logs:/app/logs
+      - app-chunks:/app/chunks
+      - app-models-cache:/app/models_cache
+      - app-certs:/app/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      whisper:
+        condition: service_started
+
+volumes:
+  postgres-data:
+    name: opendox-postgres-data
+  whisper-data:
+    name: opendox-whisper-data
+  app-logs:
+    name: opendox-app-logs
+  app-chunks:
+    name: opendox-app-chunks
+  app-models-cache:
+    name: opendox-app-models-cache
+  app-certs:
+    name: opendox-app-certs

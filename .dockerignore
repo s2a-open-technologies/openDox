@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.sqlite3
+*.db
+
+# Logs
+logs/
+*.log
+
+# Audio chunks / runtime data
+chunks/
+models_cache/
+certs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile.local
+docker-compose.override.yml
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Tests (if you add them later)
+tests/
+test/
+pytest.ini
+
+# Documentation (optional)
+docs/
+*.md
+!README.md
+
+# Alembic cache
+alembic/__pycache__/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock

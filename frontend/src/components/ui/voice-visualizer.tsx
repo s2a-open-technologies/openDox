@@ -1,3 +1,21 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
@@ -21,51 +39,55 @@ export const VoiceVisualizer = ({ analyser, className }: VoiceVisualizerProps) =
 
         let animationId: number;
 
-        // Configuration
-        // We only want to visualize the lower frequencies where speech usually is
-        // so we skip the higher part of the buffer
-        const relevantBufferLength = Math.floor(bufferLength / 2);
-        const barWidth = 4;
-        const gap = 2;
-        const totalBars = Math.floor(canvas.width / (barWidth + gap));
+        const resizeCanvas = () => {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        };
+
+        resizeCanvas();
+        window.addEventListener("resize", resizeCanvas);
 
         const draw = () => {
             animationId = requestAnimationFrame(draw);
 
             analyser.getByteFrequencyData(dataArray);
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const displayWidth = canvas.width / window.devicePixelRatio;
+            const displayHeight = canvas.height / window.devicePixelRatio;
 
-            // Gradient for bars
-            const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-            gradient.addColorStop(0, "rgba(239, 68, 68, 0.5)"); // Red-500
-            gradient.addColorStop(1, "rgba(239, 68, 68, 1)");   // Red-500
+            ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+            const relevantBufferLength = Math.floor(bufferLength / 2);
+            const barWidth = 4;
+            const gap = 2;
+            const totalBars = Math.floor(displayWidth / (barWidth + gap));
+
+            const gradient = ctx.createLinearGradient(0, displayHeight, 0, 0);
+            gradient.addColorStop(0, "rgba(239, 68, 68, 0.5)");
+            gradient.addColorStop(1, "rgba(239, 68, 68, 1)");
 
             ctx.fillStyle = gradient;
 
-            // We map the relevant buffer length to totalBars
-            const step = Math.floor(relevantBufferLength / totalBars);
+            const step = Math.max(1, Math.floor(relevantBufferLength / totalBars));
 
             for (let i = 0; i < totalBars; i++) {
-                // Average the value for this bar's range
                 let value = 0;
                 const start = i * step;
-                const end = start + step;
+                const end = Math.min(start + step, relevantBufferLength);
                 for (let j = start; j < end; j++) {
                     value += dataArray[j];
                 }
-                value = value / step;
+                value = value / Math.max(1, end - start);
 
-                // Enhance changes for visual effect
-                // Scale opacity or height
-                const height = (value / 255) * canvas.height;
+                const height = (value / 255) * displayHeight;
 
-                // Draw rounded bar
                 const x = i * (barWidth + gap);
-                const y = canvas.height - height;
+                const y = displayHeight - height;
 
                 ctx.beginPath();
-                ctx.roundRect(x, y, barWidth, height, 4);
+                ctx.roundRect(x, y, barWidth, height, 2);
                 ctx.fill();
             }
         };
@@ -74,16 +96,15 @@ export const VoiceVisualizer = ({ analyser, className }: VoiceVisualizerProps) =
 
         return () => {
             cancelAnimationFrame(animationId);
+            window.removeEventListener("resize", resizeCanvas);
         };
     }, [analyser]);
 
     return (
         <div className={cn("w-full h-16 flex items-center justify-center", className)}>
-            <canvas
+             <canvas
                 ref={canvasRef}
-                width={300}
-                height={64}
-                className="w-full h-full max-w-xs opacity-80"
+                className="w-full h-full opacity-80"
             />
         </div>
     );

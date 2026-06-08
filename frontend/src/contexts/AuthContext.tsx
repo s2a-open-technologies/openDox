@@ -1,3 +1,21 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 
 
@@ -33,6 +51,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (parts.length === 2) return parts.pop()?.split(";").shift();
   };
 
+  const BASE_PATH = import.meta.env.VITE_ROOT_PATH || "";
+
   // Authentifizierten Fetch mit Token und CSRF
   const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
     const token = localStorage.getItem("access_token");
@@ -42,7 +62,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       "X-CSRF-TOKEN": csrfToken,
       Authorization: token ? `Bearer ${token}` : "",
     };
-    return fetch(url, { ...options, headers, credentials: "include" });
+    // Prepend BASE_PATH to API calls if set
+    const fullUrl = url.startsWith("/api/") && BASE_PATH ? `${BASE_PATH}${url}` : url;
+    return fetch(fullUrl, { ...options, headers, credentials: "include" });
   };
 
   // User-Daten vom Server abrufen
@@ -128,6 +150,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       // Bereinige alle Tokens und Benutzerdaten
       localStorage.removeItem("access_token");
+      localStorage.removeItem("currentSession");
       setUser(null);
       setIsAuthenticated(false);
     }

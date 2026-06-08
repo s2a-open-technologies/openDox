@@ -1,7 +1,26 @@
+"""
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from backend.views.settings_api import settings_bp
 from backend.components.sql.sql_engine import SessionDep
 from backend.components.models.settings_model import WhisperSettingsModel
+from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.services.ldap import LdapService
 from backend.components.services.settings_service import get_settings_service
@@ -30,7 +49,6 @@ async def update_whisper_settings(settings_in: WhisperSettingsModel, db: Session
     if not settings:
         settings = WhisperSettingsModel()
     
-    # Update API-relevant fields
     settings.live_backend = settings_in.live_backend
     settings.live_api_endpoint = settings_in.live_api_endpoint
     settings.live_api_key = settings_in.live_api_key
@@ -49,11 +67,38 @@ async def update_whisper_settings(settings_in: WhisperSettingsModel, db: Session
     db.commit()
     db.refresh(settings)
     
-    # Invalidate settings cache so services pick up changes
     get_settings_service().invalidate_cache()
-    
-    # Reset ASR backends to pick up new settings
     reset_asr_backends()
+    
+    return settings
+
+# LLM Endpoints
+
+@settings_bp.get("/llm-settings/", response_model=LlmSettingsModel)
+async def get_llm_settings(db: SessionDep):
+    settings = db.exec(select(LlmSettingsModel)).first()
+    if not settings:
+        settings = LlmSettingsModel()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+@settings_bp.put("/llm-settings/", response_model=LlmSettingsModel)
+async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
+    settings = db.exec(select(LlmSettingsModel)).first()
+    if not settings:
+        settings = LlmSettingsModel()
+    
+    settings.llm_api_endpoint = settings_in.llm_api_endpoint
+    settings.llm_api_key = settings_in.llm_api_key
+    settings.llm_model = settings_in.llm_model
+    settings.llm_temperature = settings_in.llm_temperature
+    settings.llm_max_tokens = settings_in.llm_max_tokens
+    
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
     
     return settings
 
@@ -62,7 +107,6 @@ async def update_whisper_settings(settings_in: WhisperSettingsModel, db: Session
 async def get_ldap_settings(db: SessionDep):
     settings = db.exec(select(LdapSettingsModel)).first()
     if not settings:
-        # Return empty/default
         return LdapSettingsModel(server_host="", server_port=389, base_dn="", user_dn="")
     return settings
 
@@ -73,7 +117,6 @@ async def update_ldap_settings(settings_in: LdapSettingsModel, db: SessionDep):
         settings = LdapSettingsModel(**settings_in.dict(exclude={"id"}))
         db.add(settings)
     else:
-        # Update existing
         settings_data = settings_in.dict(exclude_unset=True, exclude={"id"})
         for key, value in settings_data.items():
             setattr(settings, key, value)

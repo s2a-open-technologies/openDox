@@ -1,3 +1,21 @@
+"""
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 # Standard library
 import os, shutil
 from datetime import datetime
@@ -5,7 +23,7 @@ import asyncio
 
 # Third party
 import uuid
-from fastapi import UploadFile, File, Form, WebSocket
+from fastapi import UploadFile, File, Form, WebSocket, HTTPException
 from sqlmodel import select
 
 # Custom imports
@@ -59,6 +77,7 @@ async def record_create(
     record = Record(
         session_id=str(session_id),
         user_id=data.user_id,
+        category_id=data.category_id,
         title=data.title,
         timestamp=datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
         content="",
@@ -320,6 +339,30 @@ async def record(db: SessionDep, file: UploadFile = File(...), user_id: int = Fo
     return {"status": "chunk received"}
 
 
+@record_bp.put("/record/{record_id}", response_model=RecordRead)
+async def update_record(record_id: int, data: RecordUpdate, db: SessionDep):
+    """Update an existing record (transcript, summary, title, category)"""
+    record = db.get(Record, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    if data.title is not None:
+        record.title = data.title
+    if data.content is not None:
+        record.content = data.content
+    if data.summarize is not None:
+        record.summarize = data.summarize
+    if data.file is not None:
+        record.file = data.file
+    if data.category_id is not None:
+        record.category_id = data.category_id
+
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
 # Route for showing records in frontend
 @record_bp.get("/list-records/{user_id}")
 async def list_records(user_id: int, db: SessionDep, archived: bool = False):
@@ -332,6 +375,16 @@ async def list_records(user_id: int, db: SessionDep, archived: bool = False):
     return [record.to_dict() for record in records]
 
 
+# Route to get the status of an actual task
+@record_bp.get("/by-session/{session_id}", response_model=RecordRead)
+async def get_record_by_session(session_id: str, db: SessionDep):
+    """Get a record by its session_id"""
+    smt = select(Record).where(Record.session_id == session_id)
+    record = db.exec(smt).one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return record
+    
 # Route to get the status of an actual task
 @record_bp.get("/status/{task_id}")
 async def transcription_status(task_id: int, db: SessionDep):
@@ -354,7 +407,8 @@ async def get_record(record_id: int, db: SessionDep):
     """Retrieves the information for the specific record"""
     record = db.get(Record, record_id)
     print(record)
-
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
     return record
 
 

@@ -1,30 +1,74 @@
-import { useEffect, useState } from "react";
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, Check, Loader2, AlertCircle } from "lucide-react";
+import { Mic, Check, Loader2, AlertCircle, Copy, Save, AlertTriangle, Pencil, Eye } from "lucide-react";
 import { TfiReload } from "react-icons/tfi";
 import type { Recording } from "@/pages/Dashboard";
 import { cn } from "@/lib/utils";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface TranscriptViewProps {
   transcript: Recording | null;
   onNewRecording: () => void;
+  onSave: (id: string, content: string, summarize: string) => Promise<void>;
 }
 
-const TranscriptView = ({ transcript, onNewRecording }: TranscriptViewProps) => {
+const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewProps) => {
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState(transcript?.content || "");
+  const [editedSummary, setEditedSummary] = useState(transcript?.summarize || "");
+  const [confirmed, setConfirmed] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
+
+  const prevId = useRef(transcript?.id);
+
+  useEffect(() => {
+    if (transcript?.id !== prevId.current) {
+      setEditedContent(transcript?.content || "");
+      setEditedSummary(transcript?.summarize || "");
+      setConfirmed(false);
+      setHasUnsavedChanges(false);
+      setIsEditingSummary(false);
+      prevId.current = transcript?.id;
+    }
+  }, [transcript?.id, transcript?.content, transcript?.summarize]);
+
+  useEffect(() => {
+    const contentDiff = (transcript?.content || "") !== editedContent;
+    const summaryDiff = (transcript?.summarize || "") !== editedSummary;
+    setHasUnsavedChanges(contentDiff || summaryDiff);
+  }, [editedContent, editedSummary, transcript?.content, transcript?.summarize]);
 
   useEffect(() => {
     if (!transcript?.taskId) {
       setTaskStatus(null);
       return;
     }
-
-    // Initial check
-    checkStatus();
-
-    const interval = setInterval(checkStatus, 2000);
-    return () => clearInterval(interval);
 
     async function checkStatus() {
       if (!transcript?.taskId) return;
@@ -41,7 +85,10 @@ const TranscriptView = ({ transcript, onNewRecording }: TranscriptViewProps) => 
         console.error("Status check failed", e);
       }
     }
-  }, [transcript]);
+    checkStatus();
+    const interval: ReturnType<typeof setInterval> = setInterval(checkStatus, 2000);
+    return () => clearInterval(interval);
+  }, [transcript?.taskId]);
 
   if (!transcript) {
     return (
@@ -97,37 +144,147 @@ const TranscriptView = ({ transcript, onNewRecording }: TranscriptViewProps) => 
     }
   };
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSave(transcript.id, editedContent, editedSummary);
+      setHasUnsavedChanges(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCopy = async (text: string) => {
+    if (hasUnsavedChanges) {
+      const ok = confirm('Es gibt ungespeicherte Änderungen. Trotzdem kopieren?');
+      if (!ok) return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('In die Zwischenablage kopiert');
+    } catch {
+      toast.error('Kopieren fehlgeschlagen');
+    }
+  };
+
   return (
-    <div className="h-full p-8 space-y-6 bg-background">
+    <div className="h-full flex flex-col p-8 gap-6 bg-background">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-foreground">{transcript.title}</h2>
           {getStatusBadge()}
         </div>
-        <Button onClick={onNewRecording} variant="outline">
-          <Mic className="w-4 h-4 mr-2" />
-          Neue Aufnahme
-        </Button>
-      </div>
-      <div className="grid grid-cols-3 gap-8">
-        <div className="col-span-2">
-          <h3 className="text-xl font-semibold text-foreground mb-4">Transkript</h3>
-          <div className="prose prose-slate dark:prose-invert max-w-none text-foreground whitespace-pre-wrap leading-relaxed">
-            {transcript.content}
-          </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleSave} disabled={!hasUnsavedChanges || isSaving} variant="outline">
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            {isSaving ? "Speichere..." : "Speichern"}
+          </Button>
+          <Button onClick={onNewRecording} variant="outline">
+            <Mic className="w-4 h-4 mr-2" />
+            Neue Aufnahme
+          </Button>
         </div>
-        <div className="col-span-1">
-          <div className="bg-muted/50 p-6 rounded-lg">
+      </div>
+
+      <Alert variant="destructive" className="!mt-4">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Kein Medizinprodukt</AlertTitle>
+        <AlertDescription className="text-sm leading-relaxed">
+          Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
+          Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
+          Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+        </AlertDescription>
+      </Alert>
+
+      {hasUnsavedChanges && (
+        <div className="text-amber-600 text-sm font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          Ungespeicherte Änderungen vorhanden
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-6">
+        <div className="flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xl font-semibold text-foreground">Transkript</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!confirmed}
+              onClick={() => handleCopy(editedContent)}
+              title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : ""}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Kopieren
+            </Button>
+          </div>
+          <Textarea
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            placeholder="Transkript..."
+            className="flex-1 min-h-0 font-sans text-base leading-relaxed resize-none"
+          />
+        </div>
+
+        <div className="flex flex-col min-h-0">
+          <div className="bg-muted/50 p-6 rounded-lg flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-foreground">Zusammenfassung</h3>
-              <Button variant="ghost" size="icon">
-                <TfiReload />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!confirmed}
+                  onClick={() => handleCopy(editedSummary)}
+                  title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : ""}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                </Button>
+                <Button variant="ghost" size="icon">
+                  <TfiReload />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingSummary(!isEditingSummary)}
+                  title={isEditingSummary ? "Markdown-Vorschau" : "Bearbeiten"}
+                >
+                  {isEditingSummary ? <Eye className="w-4 h-4 mr-2" /> : <Pencil className="w-4 h-4 mr-2" />}
+                  {isEditingSummary ? "Vorschau" : "Bearbeiten"}
+                </Button>
+              </div>
             </div>
-            <div className="prose prose-slate dark:prose-invert max-w-none text-muted-foreground whitespace-pre-wrap">
-              {transcript.summarize || "Noch keine Zusammenfassung verfügbar"}
-            </div>
+            {isEditingSummary ? (
+              <Textarea
+                value={editedSummary}
+                onChange={(e) => setEditedSummary(e.target.value)}
+                placeholder="Noch keine Zusammenfassung verfügbar"
+                className="flex-1 min-h-0 font-sans text-base leading-relaxed resize-none"
+              />
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
+                {editedSummary ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{editedSummary}</ReactMarkdown>
+                ) : (
+                  <p className="text-muted-foreground italic">Noch keine Zusammenfassung verfügbar</p>
+                )}
+              </div>
+            )}
           </div>
+        </div>
+      </div>
+
+      <div className="border-t pt-4 mt-4">
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id="transcript-confirm"
+            checked={confirmed}
+            onCheckedChange={(checked) => setConfirmed(checked === true)}
+            className="mt-0.5"
+          />
+          <label htmlFor="transcript-confirm" className="text-sm text-muted-foreground cursor-pointer">
+            Ich habe den Text sorgfältig überprüft und ggf. korrigiert. Ich übernehme die Verantwortung für den kopierten Inhalt.
+          </label>
         </div>
       </div>
     </div>

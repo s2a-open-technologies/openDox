@@ -1,3 +1,21 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Recorder from "@/components/Recorder";
@@ -5,11 +23,17 @@ import TranscriptView from "@/components/TranscriptView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-
+import { AlertTriangle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
-  DialogPortal,
-  DialogOverlay,
   DialogClose,
   DialogTrigger,
   DialogContent,
@@ -17,67 +41,101 @@ import {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export interface Recording {
   id: string;
+  dbId?: number;
   title: string;
-  category: string;
+  categoryId: number | null;
+  categoryName: string;
   timestamp: string;
-  transcript: string;
-  summary?: string;
+  content: string;
+  summarize: string;
   userid: string;
   taskId?: string | number;
 }
 
+interface Category {
+  id: number;
+  name: string;
+}
+
 const Dashboard = () => {
+  const { user } = useAuth();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
-  const [currentTranscript, setCurrentTranscript] = useState<string>("");
-  const [isRecording, setIsRecording] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState("");
-  const [showRecorder, setShowRecorder] = useState(false);
-  const [userId, setUserId] = useState("1"); // Beispielbenutzer-ID
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  const userId = user?.id?.toString() || "";
 
   const fetchRecords = async () => {
     try {
       const response = await fetch(`/api/v1/records/list-records/${userId}?archived=${showArchived}`);
       if (response.ok) {
         const data = await response.json();
-        setRecordings(data);
+        setRecordings(data.map((d: any) => ({
+          id: d.session_id || d.id.toString(),
+          dbId: d.id,
+          title: d.title,
+          categoryId: d.category_id,
+          categoryName: "",
+          timestamp: d.timestamp,
+          content: d.content || "",
+          summarize: d.summarize || "",
+          userid: d.user_id.toString(),
+          taskId: undefined,
+        })));
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  useEffect(() => {
-    fetchRecords();
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/v1/settings/categories/');
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    }
+  };
 
-    // Check for active session in localStorage to restore state
+  useEffect(() => {
+    if (!userId) return;
+    fetchRecords();
+    fetchCategories();
+
     const savedSession = localStorage.getItem("currentSession");
     if (savedSession) {
-      setShowRecorder(true);
+      const rec = JSON.parse(savedSession);
+      if (rec.user_id?.toString() === userId) {
+        setActiveSessionId(rec.session_id);
+      } else {
+        localStorage.removeItem("currentSession");
+      }
     }
   }, [userId, showArchived]);
 
   const handleDelete = async (id: string) => {
+    const rec = recordings.find(r => r.id === id);
+    if (!rec?.dbId) return;
     try {
       if (!confirm("Möchten Sie diese Aufnahme wirklich unwiderruflich löschen?")) return;
-
-      const response = await fetch(`/api/v1/records/record/${id}`, {
-        method: "DELETE",
-      });
-
+      const response = await fetch(`/api/v1/records/record/${rec.dbId}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Fehler beim Löschen");
-
       toast.success("Aufnahme gelöscht");
-      if (selectedRecording?.id === id) {
-        setSelectedRecording(null);
-      }
+      if (selectedRecording?.id === id) setSelectedRecording(null);
       fetchRecords();
     } catch (error) {
       console.error(error);
@@ -86,17 +144,13 @@ const Dashboard = () => {
   };
 
   const handleArchive = async (id: string) => {
+    const rec = recordings.find(r => r.id === id);
+    if (!rec?.dbId) return;
     try {
-      const response = await fetch(`/api/v1/records/record/${id}/archive`, {
-        method: "PUT",
-      });
-
+      const response = await fetch(`/api/v1/records/record/${rec.dbId}/archive`, { method: "PUT" });
       if (!response.ok) throw new Error("Fehler beim Archivieren");
-
       toast.success("Aufnahme archiviert");
-      if (selectedRecording?.id === id) {
-        setSelectedRecording(null);
-      }
+      if (selectedRecording?.id === id) setSelectedRecording(null);
       fetchRecords();
     } catch (error) {
       console.error(error);
@@ -105,17 +159,13 @@ const Dashboard = () => {
   };
 
   const handleUnarchive = async (id: string) => {
+    const rec = recordings.find(r => r.id === id);
+    if (!rec?.dbId) return;
     try {
-      const response = await fetch(`/api/v1/records/record/${id}/unarchive`, {
-        method: "PUT",
-      });
-
+      const response = await fetch(`/api/v1/records/record/${rec.dbId}/unarchive`, { method: "PUT" });
       if (!response.ok) throw new Error("Fehler beim Wiederherstellen");
-
       toast.success("Aufnahme wiederhergestellt");
-      if (selectedRecording?.id === id) {
-        setSelectedRecording(null);
-      }
+      if (selectedRecording?.id === id) setSelectedRecording(null);
       fetchRecords();
     } catch (error) {
       console.error(error);
@@ -123,122 +173,115 @@ const Dashboard = () => {
     }
   };
 
-  const handleNewRecording = async (transcript: string, taskId?: string | number) => {
-    try {
-      // Zuerst die Aufnahme im Backend speichern
-      const response = await fetch('/api/v1/records/record/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          title: newTitle || `Aufnahme ${recordings.length + 1}`,
-          category: newCategory || "Unkategorisiert",
-          transcript: transcript,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Fehler beim Speichern der Aufnahme');
-      }
-
-      const newRecordingData = await response.json();
-
-      // Neue Aufnahme lokal hinzufügen (ersetze temporären Eintrag falls vorhanden)
-      const finalRecording: Recording = {
-        id: newRecordingData.id || newRecordingData.session_id,
-        title: newRecordingData.title,
-        category: newRecordingData.category,
-        timestamp: new Date(newRecordingData.created_at).toLocaleString("de-DE"),
-        transcript,
-        userid: userId,
-        taskId: taskId, // Store task ID
-      };
-
-      // Wenn wir gerade archivierte Aufnahmen anzeigen, wechseln wir zurück zu den aktuellen
-      if (showArchived) {
-        setShowArchived(false);
-        // fetchRecords wird durch den useEffect getriggert, aber wir setzen den State manuell optimistisch
-        setRecordings(prev => [finalRecording, ...prev]);
-      } else {
-        setRecordings(prev => {
-          const exists = prev.find(r => r.id === finalRecording.id || r.id === newRecordingData.session_id);
-          if (exists) {
-            return prev.map(r => (r.id === finalRecording.id || r.id === newRecordingData.session_id) ? finalRecording : r);
-          }
-          return [finalRecording, ...prev];
-        });
-      }
-
-      // Aktualisiere die lokale Auswahl & wechsle zur TranscriptView
-      setSelectedRecording(finalRecording);
-      setCurrentTranscript(""); // Ensure TranscriptView uses selectedRecording
-
-      // Zurücksetzen der Zustände
-      setIsRecording(false);
-      setIsDialogOpen(false);
-      setShowRecorder(false); // Switch to TranscriptView
-      setNewTitle("");
-      setNewCategory("");
-
-      toast.success("Aufnahme erfolgreich gespeichert");
-    } catch (error) {
-      console.error("Fehler beim Speichern der Aufnahme:", error);
-      toast.error("Fehler beim Speichern der Aufnahme");
-    }
-  };
-
-  const handleSelectRecording = async (recording: Recording) => {
-    const result = await fetch(`/api/v1/records/record/${recording.id}`,{
-      method: "GET"
-    })
-    
-    const data = await result.json();
-    console.log(data);
-    setSelectedRecording(recording);
-    setCurrentTranscript(data);
-    setShowRecorder(false); // Hide recorder when selecting an existing recording
-  };
-
   const handleRecordingStart = (recordingData: any) => {
-    // Create a temporary recording entry for immediate sidebar feedback
+    setActiveSessionId(recordingData.session_id);
+    const cat = categories.find(c => c.id.toString() === categoryId);
     const tempRecording: Recording = {
-      id: recordingData.session_id || Date.now().toString(),
+      id: recordingData.session_id,
+      dbId: recordingData.id,
       title: newTitle || recordingData.title || `Aufnahme ${recordings.length + 1}`,
-      category: newCategory || "Unkategorisiert",
+      categoryId: categoryId ? parseInt(categoryId) : null,
+      categoryName: cat?.name || newCategoryName || "Unkategorisiert",
       timestamp: new Date().toLocaleString("de-DE"),
-      transcript: "",
+      content: "",
+      summarize: "",
       userid: userId,
       taskId: undefined,
     };
-
-    // If we're in archive view, switch back to main view
-    if (showArchived) {
-      setShowArchived(false);
-    }
-
-    // Add to list and select it immediately
+    if (showArchived) setShowArchived(false);
     setRecordings(prev => [tempRecording, ...prev]);
     setSelectedRecording(tempRecording);
   };
 
-  const handleStartRecordingSession = () => {
-    if (!newTitle.trim()) {
-      setNewTitle(`Aufnahme ${recordings.length + 1}`);
-    }
-    if (!newCategory.trim()) {
-      setNewCategory("Unkategorisiert");
-    }
-    setIsDialogOpen(false);
-    setTimeout(async () => {
-      // Aktualisiere die Liste der Aufnahmen vor dem Starten der neuen Aufnahme
-      if (showArchived) setShowArchived(false);
-      else await fetchRecords();
+  const handleFinalTranscription = async (sessionId: string, taskId?: string | number) => {
+    setActiveSessionId(null);
+    try {
+      setRecordings(prev => prev.map(r => r.id === sessionId ? { ...r, taskId } : r));
+      const res = await fetch(`/api/v1/records/by-session/${sessionId}`);
+      if (!res.ok) throw new Error("Failed to fetch final record");
+      const data = await res.json();
 
-      setShowRecorder(true);
-    }, 300); // Small delay to allow dialog to close smoothly
+      const finalRecording: Recording = {
+        id: data.session_id,
+        dbId: data.id,
+        title: data.title,
+        categoryId: data.category_id,
+        categoryName: categories.find(c => c.id === data.category_id)?.name || "Unkategorisiert",
+        timestamp: data.timestamp,
+        content: data.content || "",
+        summarize: data.summarize || "",
+        userid: data.user_id.toString(),
+        taskId: taskId,
+      };
+
+      setRecordings(prev => prev.map(r => r.id === sessionId ? finalRecording : r));
+      setSelectedRecording(finalRecording);
+      toast.success("Aufnahme erfolgreich gespeichert");
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Abrufen der Aufnahme");
+    }
+  };
+
+  const handleSelectRecording = async (recording: Recording) => {
+    try {
+      if (!recording.dbId) {
+        setSelectedRecording(recording);
+        setActiveSessionId(null);
+        return;
+      }
+      const result = await fetch(`/api/v1/records/record/${recording.dbId}`);
+      if (!result.ok) throw new Error("Failed to fetch record");
+      const data = await result.json();
+      setSelectedRecording({
+        id: data.session_id,
+        dbId: data.id,
+        title: data.title,
+        categoryId: data.category_id,
+        categoryName: categories.find(c => c.id === data.category_id)?.name || "Unkategorisiert",
+        timestamp: data.timestamp,
+        content: data.content || "",
+        summarize: data.summarize || "",
+        userid: data.user_id.toString(),
+        taskId: recording.taskId,
+      });
+      setActiveSessionId(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Laden der Aufnahme");
+    }
+  };
+
+  const handleSaveRecording = async (id: string, content: string, summarize: string) => {
+    const rec = recordings.find(r => r.id === id);
+    if (!rec?.dbId) return;
+    try {
+      const res = await fetch(`/api/v1/records/record/${rec.dbId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, summarize }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      toast.success("Aufnahme gespeichert");
+      setRecordings(prev => prev.map(r => r.id === id ? { ...r, content, summarize } : r));
+      if (selectedRecording?.id === id) {
+        setSelectedRecording(prev => prev ? { ...prev, content, summarize } : null);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Speichern");
+    }
+  };
+
+  const handleStartRecordingSession = () => {
+    if (!newTitle.trim()) setNewTitle(`Aufnahme ${recordings.length + 1}`);
+    if (!newCategoryName.trim()) setNewCategoryName("Unkategorisiert");
+    setIsDialogOpen(false);
+    setTimeout(() => {
+      if (showArchived) setShowArchived(false);
+      else fetchRecords();
+      setActiveSessionId("new");
+    }, 300);
   };
 
   return (
@@ -254,18 +297,19 @@ const Dashboard = () => {
         onToggleArchived={setShowArchived}
       />
       <main className="flex-1 overflow-auto bg-muted/30">
-        {showRecorder ? (
+        {activeSessionId ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Recorder
-              userId="1"
+              userId={userId}
               title={newTitle}
+              categoryId={categoryId}
               onRecordingStart={handleRecordingStart}
-              onFinalTranscription={handleNewRecording}
+              onFinalTranscription={handleFinalTranscription}
               autoStart={true}
             />
-            <Button variant="ghost" className="mt-4" onClick={() => setShowRecorder(false)}>Abbrechen</Button>
+            <Button variant="ghost" className="mt-4" onClick={() => setActiveSessionId(null)}>Abbrechen</Button>
           </div>
-        ) : !selectedRecording && !currentTranscript ? (
+        ) : !selectedRecording ? (
           <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
             <div className="space-y-2">
               <h1 className="text-3xl font-bold">Willkommen bei openDox</h1>
@@ -276,7 +320,7 @@ const Dashboard = () => {
               <DialogTrigger asChild>
                 <Button size="lg">Neue Aufnahme starten</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                   <DialogTitle>Neue Aufnahme</DialogTitle>
                   <DialogDescription>
@@ -296,15 +340,34 @@ const Dashboard = () => {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label htmlFor="category" className="text-sm font-medium">Kategorie</label>
-                    <Input
-                      id="category"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      placeholder="z.B. Kardiologie"
-                    />
+                    <label className="text-sm font-medium">Kategorie</label>
+                    <Select value={categoryId || ""} onValueChange={(val) => {
+                      setCategoryId(val);
+                      const cat = categories.find(c => c.id.toString() === val);
+                      setNewCategoryName(cat?.name || "");
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Kategorie auswählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Wichtiger Hinweis</AlertTitle>
+                    <AlertDescription className="text-sm leading-relaxed">
+                      Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
+                      Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
+                      Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+                    </AlertDescription>
+                  </Alert>
                 </div>
+
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button type="button" variant="secondary">Abbrechen</Button>
@@ -319,11 +382,12 @@ const Dashboard = () => {
             transcript={selectedRecording}
             onNewRecording={async () => {
               setSelectedRecording(null);
-              setCurrentTranscript("");
-              setShowRecorder(false); // This returns to the "Start Screen" (Welcome to openDox)
-              // Optionally fetch records if needed to keep list fresh, though strictly not necessary for the view
+              setCategoryId(null);
+              setNewTitle("");
+              setNewCategoryName("");
               await fetchRecords();
             }}
+            onSave={handleSaveRecording}
           />
         )}
       </main>

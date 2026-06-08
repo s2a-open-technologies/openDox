@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100" fill="none">
+  <!-- CSS Styles for Theme Adaptation -->
+  <style>
+    .text-primary { fill: #0f172a; } /* Slate 900 */
+    .text-accent { fill: #06b6d4; } /* Cyan 500 */
+    .pulse-line { stroke: #06b6d4; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    
+    /* Dark Mode overrides */
+    @media (prefers-color-scheme: dark) {
+      .text-primary { fill: #f8fafc; } /* Slate 50 */
+    }
+  </style>
+
+  <!-- Text: open -->
+  <text x="20" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-primary" letter-spacing="-2">open</text>
+  
+  <!-- Text: D -->
+  <text x="150" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-primary" letter-spacing="-2">D</text>
+  
+  <!-- Text: ox -->
+  <text x="195" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-accent" letter-spacing="-2">ox</text>
+
+  <!-- Heartbeat / EKG Line -->
+  <path d="M 130 55 L 165 55 L 170 35 L 180 80 L 190 45 L 195 55 L 230 55" class="pulse-line" stroke-dasharray="300" stroke-dashoffset="0">
+    <animate attributeName="stroke-dashoffset" from="300" to="0" dur="2s" fill="freeze" />
+  </path>
+  
+</svg>

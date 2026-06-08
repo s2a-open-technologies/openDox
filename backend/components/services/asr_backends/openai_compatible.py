@@ -1,3 +1,21 @@
+"""
+  openDox - Medical transcription platform
+  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import io
 import struct
 import tempfile
@@ -41,8 +59,11 @@ class OpenAICompatibleBackend(ASRBackend):
         self.model = model
         self.timeout = timeout
         
-        # Ensure endpoint has correct path
-        if '/audio/transcriptions' not in self.endpoint:
+        if '/audio/transcriptions' in self.endpoint:
+            pass
+        elif self.endpoint.endswith('/v1'):
+            self.endpoint = f"{self.endpoint}/audio/transcriptions"
+        else:
             self.endpoint = f"{self.endpoint}/v1/audio/transcriptions"
     
     def _pcm_to_wav(self, audio: bytes | np.ndarray) -> bytes:
@@ -130,8 +151,10 @@ class OpenAICompatibleBackend(ASRBackend):
         files = {
             'file': (filename, audio_bytes, 'audio/wav'),
             'model': (None, self.model),
-            'language': (None, language),
         }
+        
+        if language and language.lower() != "auto":
+            files['language'] = (None, language)
         
         if prompt:
             files['prompt'] = (None, prompt)

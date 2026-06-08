@@ -4,10 +4,13 @@ services:
     container_name: whisper
     restart: always
     ports:
-      - "9000:9000/tcp"  # For a host-based reverse proxy, change to "127.0.0.1:9000:9000/tcp"
+      - "9000:9000/tcp"  
     volumes:
       - whisper-data:/var/lib/whisper
-      - ./whisper.env:/whisper.env:ro
+    environment:
+    - WHISPER_MODEL=large-v3-turbo
+    - WHISPER_DEVICE=cuda
+    - WHISPER_API_KEY=loc-123
     deploy:
       resources:
         reservations:

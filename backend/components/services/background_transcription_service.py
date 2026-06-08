@@ -54,7 +54,8 @@ def background_transcription_task(task_id: int, session_id: str, pcm_buffer: byt
         backend = get_final_backend()
         logger.info(f"[TASK {task_id}] Starting final transcription for session={session_id}")
         
-        # Transcribe with category prompt as whisper prompt
+        update_task_status(db, task_id, "transcribing")
+        
         if file_path:
              text = backend.transcribe(file_path, prompt=category_prompt)
         elif pcm_buffer:

@@ -38,6 +38,7 @@ from backend.components.models.record_model import (Record, RecordCreate,
 from backend.components.models.task_model import Task
 from backend.components.services.background_transcription_service import background_transcription_task
 from backend.components.services.asr_factory import get_live_backend, get_final_backend
+from sqlalchemy import desc as _sql_desc
 
 logger = get_logger(__name__)
 
@@ -246,6 +247,13 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         db.commit()
         db.refresh(task)
 
+        # Link task to record
+        record = db.exec(select(Record).where(Record.session_id == session_id)).one_or_none()
+        if record:
+            record.task_id = task.id
+            db.add(record)
+            db.commit()
+
         if client_connected:
             try:
                 await websocket.send_json({
@@ -368,8 +376,13 @@ async def update_record(record_id: int, data: RecordUpdate, db: SessionDep):
 async def list_records(user_id: int, db: SessionDep, archived: bool = False):
     """List all records for a specific user, filtering by archived status"""
     
-    # Get the record sessions per user and archived status
-    smt = select(Record).where(Record.user_id == user_id).where(Record.archived == archived)
+    # Get the record sessions per user and archived status, newest first
+    smt = (
+        select(Record)
+        .where(Record.user_id == user_id)
+        .where(Record.archived == archived)
+        .order_by(_sql_desc(Record.id))
+    )
     records = db.exec(smt).all()
 
     return [record.to_dict() for record in records]

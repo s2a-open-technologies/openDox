@@ -32,6 +32,7 @@ class Record(SQLModel, table=True):
     summarize: str = Field()
     file: str = Field()
     archived: bool = Field(default=False)
+    task_id: Optional[int] = Field(default=None, foreign_key="task.id")
     
     def to_dict(self):
         return {
@@ -45,6 +46,7 @@ class Record(SQLModel, table=True):
             "summarize": self.summarize,
             "file": self.file,
             "archived": self.archived,
+            "task_id": self.task_id,
         }
 
 
@@ -77,6 +79,7 @@ class RecordRead(RecordBase):
     timestamp: str
     file: str
     archived: bool = False
+    task_id: Optional[int] = None
 
 
 class RecordChunk(BaseModel):

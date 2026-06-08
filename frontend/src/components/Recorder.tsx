@@ -50,6 +50,7 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
   const [isPaused, setIsPaused] = useState(false);
   const [isStopDialogOpen, setIsStopDialogOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -77,6 +78,7 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
 
     const record = await response.json();
     setSessionId(record.session_id);
+    sessionIdRef.current = record.session_id;
     toast.success("Aufnahme gestartet");
     if (onRecordingStart) {
       onRecordingStart(record);
@@ -100,28 +102,27 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      // PARTIAL -> nur anzeigen
       if (data.partial) {
         setLiveTranscript(data.partial);
       }
 
-      // FINAL -> an stableTranscript anhängen
       if (data.text) {
         setStableTranscript((prev) =>
           (prev + " " + data.text).trim()
         );
-        setLiveTranscript(""); // Clear the preview
+        setLiveTranscript("");
       }
 
-      if (data.status === "finished") {
+      if (data.status === "finished" || data.status === "error") {
         setIsProcessing(false);
-        toast.success("Transkription abgeschlossen");
+        if (data.status === "finished") {
+          toast.success("Aufnahme wird verarbeitet...");
+        }
         if (onFinalTranscription) {
-          onFinalTranscription(sessionId || "", data.task_id);
+          onFinalTranscription(sessionIdRef.current || "", data.task_id);
         }
       }
     };
-
 
     ws.onerror = (error) => {
       console.error("WebSocket Fehler:", error);
@@ -142,6 +143,7 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
       if (savedSession) {
         record = JSON.parse(savedSession);
         setSessionId(record.session_id);
+        sessionIdRef.current = record.session_id;
         if (onRecordingStart && !sessionId) {
           onRecordingStart(record);
         }

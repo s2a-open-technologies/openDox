@@ -91,7 +91,7 @@ const Dashboard = () => {
           content: d.content || "",
           summarize: d.summarize || "",
           userid: d.user_id.toString(),
-          taskId: undefined,
+          taskId: d.task_id || undefined,
         })));
       }
     } catch (err) {
@@ -196,10 +196,15 @@ const Dashboard = () => {
   const handleFinalTranscription = async (sessionId: string, taskId?: string | number) => {
     setActiveSessionId(null);
     try {
-      setRecordings(prev => prev.map(r => r.id === sessionId ? { ...r, taskId } : r));
       const res = await fetch(`/api/v1/records/by-session/${sessionId}`);
       if (!res.ok) throw new Error("Failed to fetch final record");
       const data = await res.json();
+
+      const effectiveTaskId = taskId || data.task_id || undefined;
+
+      if (effectiveTaskId) {
+        setRecordings(prev => prev.map(r => r.id === sessionId ? { ...r, taskId: effectiveTaskId } : r));
+      }
 
       const finalRecording: Recording = {
         id: data.session_id,
@@ -211,12 +216,11 @@ const Dashboard = () => {
         content: data.content || "",
         summarize: data.summarize || "",
         userid: data.user_id.toString(),
-        taskId: taskId,
+        taskId: effectiveTaskId,
       };
 
       setRecordings(prev => prev.map(r => r.id === sessionId ? finalRecording : r));
       setSelectedRecording(finalRecording);
-      toast.success("Aufnahme erfolgreich gespeichert");
     } catch (err) {
       console.error(err);
       toast.error("Fehler beim Abrufen der Aufnahme");
@@ -243,7 +247,7 @@ const Dashboard = () => {
         content: data.content || "",
         summarize: data.summarize || "",
         userid: data.user_id.toString(),
-        taskId: recording.taskId,
+        taskId: data.task_id || recording.taskId,
       });
       setActiveSessionId(null);
     } catch (err) {

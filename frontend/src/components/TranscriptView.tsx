@@ -45,6 +45,11 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isEditingSummary, setIsEditingSummary] = useState(false);
 
+  const editedContentRef = useRef(editedContent);
+  const editedSummaryRef = useRef(editedSummary);
+  editedContentRef.current = editedContent;
+  editedSummaryRef.current = editedSummary;
+
   const prevId = useRef(transcript?.id);
 
   useEffect(() => {
@@ -77,8 +82,22 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
         if (res.ok) {
           const data = await res.json();
           setTaskStatus(data.status);
+
           if (data.status === 'finished' || data.status === 'error') {
             clearInterval(interval);
+          }
+
+          if (transcript?.dbId) {
+            const recRes = await fetch(`/api/v1/records/record/${transcript.dbId}`);
+            if (recRes.ok) {
+              const recData = await recRes.json();
+              if (recData.content && recData.content !== editedContentRef.current) {
+                setEditedContent(recData.content);
+              }
+              if (recData.summarize && recData.summarize !== editedSummaryRef.current) {
+                setEditedSummary(recData.summarize);
+              }
+            }
           }
         }
       } catch (e) {
@@ -88,7 +107,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
     checkStatus();
     const interval: ReturnType<typeof setInterval> = setInterval(checkStatus, 2000);
     return () => clearInterval(interval);
-  }, [transcript?.taskId]);
+  }, [transcript?.taskId, transcript?.dbId]);
 
   if (!transcript) {
     return (
@@ -110,6 +129,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
     if (!taskStatus) return null;
 
     switch (taskStatus) {
+      case 'pending':
       case 'running':
       case 'transcribing':
         return (
@@ -167,8 +187,20 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
     }
   };
 
+  const isProcessing = taskStatus === 'pending' || taskStatus === 'running' || taskStatus === 'transcribing' || taskStatus === 'processing_llm';
+
   return (
     <div className="h-full flex flex-col p-8 gap-6 bg-background">
+      {isProcessing && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-muted/80 border border-border animate-pulse">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <span className="text-sm font-medium text-foreground">
+            {taskStatus === 'processing_llm'
+              ? 'KI erstellt Zusammenfassung...'
+              : 'Transkription läuft...'}
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-foreground">{transcript.title}</h2>

@@ -33,13 +33,13 @@ Medical transcription platform. **License: AGPL-3.0-or-later**, Author: `crizz <
 ## Critical Paths
 - **Static files**: `backend/run.py` mounts `./static` → `app.mount("/static", StaticFiles(directory="static"), ...)`. Dockerfile copies `frontend/dist` to `/app/static/`.
 - **App factory**: `backend.run.create_app()` is the ONLY valid entrypoint. Do NOT use `app/run.py` (old path, deleted).
-- **DB migrations**: Alembic runs on startup via `create_app()` → `_run_alembic_migrations()`. Seed data (admin user, default categories, LLM defaults) is in the initial Alembic revision.
+- **DB migrations**: Alembic runs on startup via `create_app()` → `_run_alembic_migrations()`. Seed data (admin user, default categories, LLM defaults) is in the initial Alembic revision. After model changes, run `alembic revision --autogenerate && alembic upgrade head`.
 
 ## Developer Commands
 
 ### Backend
 ```bash
-# Dev server (hot reload)
+# Dev server (hot reload) — use module syntax, NOT `uv run main.py`
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
 
 # Alembic (manual)
@@ -113,9 +113,15 @@ docker compose up --build
 - **Do NOT modify license without explicit user confirmation**.
 
 ## Known Gotchas
-- `uv.lock` was deleted; `uv pip install --system -r pyproject.toml` regenerates it. Do NOT commit a stale lockfile.
-- Alembic must run before the app serves requests (handled by `create_app()`).
-- CORS is wide-open (`allow_origins=["*"]`) in dev; tighten for production.
-- `chunks/` dir is created at runtime (audio upload temp storage).
-- No test runner configured. Manual verification only.
-- `localStorage` session persistence: `currentSession` is cleared on logout to prevent cross-user leakage.
+- **Dev server startup**: `uv run main.py` causes `create_app()` to run twice and uvicorn silently hangs. **Always use `python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000`**.
+- **Whisper settings env fallback**: `settings_service.py` reads `WHISPER_API_ENDPOINT` / `WHISPER_API_KEY` from `.env` **only when the DB values are `None`**. If the DB already has stale entries, either clear them in the DB or update the Settings UI.
+- **Whisper port collision**: Port `9000` is commonly occupied (e.g., Jupyter). The `docker-whisper.yml` maps `9100:9000`; update `WHISPER_API_ENDPOINT` in `.env` accordingly (e.g., `http://localhost:9100/v1`).
+- **`uv.lock` was deleted**; `uv pip install --system -r pyproject.toml` regenerates it. Do NOT commit a stale lockfile.
+- **WebSocket in dev**: Frontend uses `window.location.host` for WebSocket URL. Vite proxy (`vite.config.ts`) is configured with `ws: true` for WebSocket proxying to port 5000.
+- **DB model changes**: After any `SQLModel` change, run `alembic revision --autogenerate -m "desc" && alembic upgrade head`. The `create_app()` factory auto-runs Alembic on startup, but a new revision must exist first.
+- **Frontend build**: `npm run dev` (port 3000) and `npm run build` → `frontend/dist`. No test runner configured; manual verification only.
+- **CORS**: Wide-open (`allow_origins=["*"]`) in dev; tighten for production.
+- **Static files**: `backend/run.py` mounts `./static`. In Docker, `frontend/dist` is copied to `/app/static/`.
+- **Logo SVG**: `frontend/src/components/Logo.tsx` contains an animated SVG that relies on `width`/`height` attributes. Do not remove them — the animation uses the viewBox and the text path.
+- **Task ID link**: The `Record` model has a `task_id` column (added in migration `560287c845a5`) that links to the `Task` table. This allows the frontend to poll task status even when the WebSocket `finished` event is missed.
+- **`localStorage` session persistence**: `currentSession` is cleared on logout to prevent cross-user leakage.

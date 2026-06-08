@@ -19,7 +19,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
-import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library } from "lucide-react";
+import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library, Radio } from "lucide-react";
 import UserDropdown from "@/components/UserDropdown";
 import {
   DropdownMenu,
@@ -35,6 +35,7 @@ interface SidebarProps {
   recordings: Recording[];
   onSelectRecording: (recording: Recording) => void;
   selectedId?: string;
+  activeSessionId?: string;
   onDeleteRecording?: (id: string) => void;
   onArchiveRecording?: (id: string) => void;
   onUnarchiveRecording?: (id: string) => void;
@@ -46,6 +47,7 @@ const Sidebar = ({
   recordings,
   onSelectRecording,
   selectedId,
+  activeSessionId,
   onDeleteRecording,
   onArchiveRecording,
   onUnarchiveRecording,
@@ -89,77 +91,92 @@ const Sidebar = ({
               </p>
             </div>
           ) : (
-            recordings.map((recording) => (
-              <div
-                key={recording.id}
-                className={cn(
-                  "group relative w-full rounded-lg transition-all duration-200",
-                  selectedId === recording.id
-                    ? "bg-blue-50 dark:bg-zinc-800/80 ring-1 ring-primary/20"
-                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                )}
-              >
-                <button
-                  onClick={() => onSelectRecording(recording)}
-                  className="w-full text-left px-4 py-3 pr-10"
+            recordings.map((recording) => {
+              const isActive = activeSessionId && recording.id === activeSessionId;
+              const isSelected = selectedId === recording.id;
+              return (
+                <div
+                  key={recording.id}
+                  className={cn(
+                    "group relative w-full rounded-lg transition-all duration-200",
+                    isSelected
+                      ? "bg-blue-50 dark:bg-zinc-800/80 ring-1 ring-primary/20"
+                      : isActive
+                        ? "bg-red-50 dark:bg-red-900/20 ring-1 ring-red-300 dark:ring-red-700"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                      selectedId === recording.id
-                        ? "bg-primary/10 text-primary"
-                        : "bg-zinc-100 dark:bg-zinc-800 text-muted-foreground"
-                    )}>
-                      <FileAudio className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-semibold truncate transition-colors",
-                        selectedId === recording.id ? "text-primary" : "text-foreground"
+                  <button
+                    onClick={() => onSelectRecording(recording)}
+                    className="w-full text-left px-4 py-3 pr-10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                        isSelected
+                          ? "bg-primary/10 text-primary"
+                          : isActive
+                            ? "bg-red-100 text-red-500 animate-pulse"
+                            : "bg-zinc-100 dark:bg-zinc-800 text-muted-foreground"
                       )}>
-                        {recording.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {recording.timestamp}
-                      </p>
+                        {isActive ? <Radio className="w-4 h-4" /> : <FileAudio className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-sm font-semibold truncate transition-colors",
+                          isSelected ? "text-primary" : isActive ? "text-red-600 dark:text-red-400" : "text-foreground"
+                        )}>
+                          {recording.title}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {recording.timestamp}
+                          </p>
+                          {isActive && (
+                            <span className="text-[10px] font-medium text-red-500 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded-full mt-0.5">
+                              Aktiv
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
 
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-200 dark:hover:bg-zinc-700">
-                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {showArchived ? (
-                        <DropdownMenuItem onClick={() => onUnarchiveRecording?.(recording.id)}>
-                          <RotateCcw className="w-4 h-4 mr-2" />
-                          Wiederherstellen
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem onClick={() => onArchiveRecording?.(recording.id)}>
-                          <Archive className="w-4 h-4 mr-2" />
-                          Archivieren
-                        </DropdownMenuItem>
-                      )}
-
-                      <DropdownMenuSeparator />
-
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => onDeleteRecording?.(recording.id)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Löschen
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {!isActive && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                            <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {showArchived ? (
+                            <DropdownMenuItem onClick={() => onUnarchiveRecording?.(recording.id)}>
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                              Wiederherstellen
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => onArchiveRecording?.(recording.id)}>
+                              <Archive className="w-4 h-4 mr-2" />
+                              Archivieren
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => onDeleteRecording?.(recording.id)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Löschen
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </ScrollArea>

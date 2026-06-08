@@ -228,6 +228,18 @@ const Dashboard = () => {
   };
 
   const handleSelectRecording = async (recording: Recording) => {
+    // Active session guard
+    if (activeSessionId && activeSessionId !== "new" && recording.id !== activeSessionId) {
+      const ok = confirm("Aufnahme läuft noch. Wirklich wechseln? Die laufende Aufnahme wird beendet.");
+      if (!ok) return;
+      // cleanup
+      localStorage.removeItem("currentSession");
+      setActiveSessionId(null);
+    }
+    // Clicking the currently active session: nothing to do (Recorder already shown)
+    if (activeSessionId && recording.id === activeSessionId) {
+      return;
+    }
     try {
       if (!recording.dbId) {
         setSelectedRecording(recording);
@@ -294,6 +306,7 @@ const Dashboard = () => {
         recordings={recordings}
         onSelectRecording={handleSelectRecording}
         selectedId={selectedRecording?.id}
+        activeSessionId={activeSessionId || undefined}
         onDeleteRecording={handleDelete}
         onArchiveRecording={handleArchive}
         onUnarchiveRecording={handleUnarchive}
@@ -311,7 +324,29 @@ const Dashboard = () => {
               onFinalTranscription={handleFinalTranscription}
               autoStart={true}
             />
-            <Button variant="ghost" className="mt-4" onClick={() => setActiveSessionId(null)}>Abbrechen</Button>
+            <div className="flex items-center gap-2 mt-4">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const ok = confirm("Aufnahme wirklich abbrechen? Diese kann nicht wiederhergestellt werden.");
+                  if (ok) {
+                    localStorage.removeItem("currentSession");
+                    setActiveSessionId(null);
+                  }
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  // Zur Übersicht: Session auf null setzen
+                  setActiveSessionId(null);
+                }}
+              >
+                Zur Übersicht
+              </Button>
+            </div>
           </div>
         ) : !selectedRecording ? (
           <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">

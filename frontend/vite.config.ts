@@ -23,8 +23,9 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const rootPath = process.env.VITE_ROOT_PATH || "";
-  const base = rootPath ? `${rootPath}/` : "/";
+  // Leerer base-Pfad für relative Asset-Referenzen
+  // Der Root-Pfad wird durch FastAPI-Middleware realisiert
+  const base = "";
   
   return {
     base,
@@ -32,7 +33,7 @@ export default defineConfig(({ mode }) => {
       host: "::",
       port: 3000,    
       proxy: {
-        [`${rootPath}/api/v1/`]: {
+        "/api/v1/": {
           target: "http://localhost:5000",
           changeOrigin: true,
           secure: false,

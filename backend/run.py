@@ -22,8 +22,9 @@ from typing import Annotated
 from logging import getLogger
 
 # Third party
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, FileResponse
 from sqlmodel import Session
 from dotenv import load_dotenv
 from sqlmodel import select, insert
@@ -122,24 +123,6 @@ def create_app():
     app = FastAPI()
     logger.info("App successfully started")
     
-    # Mount static files (built React frontend)
-    from fastapi.staticfiles import StaticFiles
-    static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
-    if not os.path.isdir(static_dir):
-        # Fallback: if running from project root
-        static_dir = "static"
-    if not os.path.isdir(static_dir):
-        logger.warning("Static directory '%s' does not exist. Creating empty directory.", static_dir)
-        os.makedirs(static_dir, exist_ok=True)
-    static_prefix = f"{root_path}/static" if root_path else "/static"
-    app.mount(static_prefix, StaticFiles(directory=static_dir), name="static")
-    
-    # Health check endpoint for Docker / load balancers
-    health_prefix = f"{root_path}/api/endpoint" if root_path else "/api/endpoint"
-    @app.get(health_prefix)
-    async def health_check():
-        return {"status": "ok"}
-    
     # Configure CORS to allow frontend access
     app.add_middleware(
         CORSMiddleware,
@@ -148,31 +131,65 @@ def create_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Custom middleware for Permissions-Policy header (allows microphone access)
+    @app.middleware("http")
+    async def add_permissions_policy(request: Request, call_next):
+        response = await call_next(request)
+        # Allow microphone in cross-origin contexts
+        response.headers["Permissions-Policy"] = "microphone=(self), camera=(self)"
+        return response
+
+    # Health check endpoint for Docker / load balancers
+    health_prefix = f"{root_path}/api/endpoint" if root_path else "/api/endpoint"
+    @app.get(health_prefix)
+    async def health_check():
+        return {"status": "ok"}
     
-    # Seed startup (idempotent verification)
-    seed_startup(logger)
-    
-    # Register routers with optional root prefix
+    # Register routers with optional root prefix - MUST be registered BEFORE static files
     router_prefix = root_path or ""
     app.include_router(record_bp, prefix=router_prefix)
     app.include_router(auth_bp, prefix=router_prefix)
     app.include_router(settings_bp, prefix=router_prefix)
     
-    # SPA catch-all: serve index.html for all non-API, non-static routes
-    # (React Router handles client-side routing)
-    from fastapi.responses import FileResponse
-    from starlette.exceptions import HTTPException as StarletteHTTPException
+    # Seed startup (idempotent verification)
+    seed_startup(logger)
     
+    # Mount static files (built React frontend) on root path
+    # This allows relative asset references like "./assets/..." to work correctly
+    # MUST be mounted AFTER API routes so that API routes take precedence
+    from fastapi.staticfiles import StaticFiles
+    static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+    if not os.path.isdir(static_dir):
+        # Fallback: if running from project root
+        static_dir = "static"
+    if not os.path.isdir(static_dir):
+        logger.warning("Static directory '%s' does not exist. Creating empty directory.", static_dir)
+        os.makedirs(static_dir, exist_ok=True)
+    # Mount on root so relative paths in index.html resolve correctly
+    # html=True serves index.html for 404s (SPA catch-all)
+    static_prefix = f"{root_path}/" if root_path else "/"
+    app.mount(static_prefix, StaticFiles(directory=static_dir, html=True), name="static")
+
+    # SPA Catch-All: Handle 404s by serving index.html for client-side routing
+    # This must be registered as exception handler, not as a route
+    from fastapi.exceptions import HTTPException as FastAPIHTTPException
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
     @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(request, exc):
+    async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+        # Only handle 404s that are NOT API routes
         if exc.status_code == 404:
             path = request.url.path
+            # Skip API routes - return original 404
             api_prefix = f"{root_path}/api/" if root_path else "/api/"
-            static_prefix_check = f"{root_path}/static/" if root_path else "/static/"
-            if not path.startswith(api_prefix) and not path.startswith(static_prefix_check):
-                index_path = os.path.join(static_dir, "index.html")
-                if os.path.isfile(index_path):
-                    return FileResponse(index_path)
+            if path.startswith(api_prefix):
+                raise exc
+            # Serve index.html for SPA routing
+            index_path = os.path.join(static_dir, "index.html")
+            if os.path.isfile(index_path):
+                return FileResponse(index_path)
+        # Re-raise other exceptions
         raise exc
 
     return app

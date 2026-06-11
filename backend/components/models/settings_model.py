@@ -38,4 +38,4 @@ class WhisperSettingsModel(SQLModel, table=True):
     # Common Settings
     language: str = Field(default="de")
     chunk_length_s: int = Field(default=3)
-    overlap_s: int = Field(default=0)
+    overlap_s: float = Field(default=0.5)

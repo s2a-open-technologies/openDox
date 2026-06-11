@@ -265,6 +265,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
                     # chunk_length_s * 16000 samples/s * 4 bytes/sample (float32)
                     bytes_per_chunk = 3 * 16000 * 4  # default 3s chunks
+                    bytes_per_overlap = 0
                     try:
                         from backend.components.services.settings_service import (
                             get_settings,
@@ -272,6 +273,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
                         settings = get_settings()
                         bytes_per_chunk = settings.chunk_length_s * 16000 * 4
+                        bytes_per_overlap = int(settings.overlap_s * 16000 * 4)
                     except Exception:
                         pass
 
@@ -283,7 +285,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         start = session["last_index"]
                         end = start + bytes_per_chunk
                         audio_slice = bytes(session["audio_buffer"][start:end])
-                        session["last_index"] = end
+                        session["last_index"] = end - bytes_per_overlap
 
                         # Transcribe in background thread (non-blocking)
                         result_text = await asyncio.to_thread(

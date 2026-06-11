@@ -1,6 +1,6 @@
 """
   openDox - Medical transcription platform
-  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU Affero General Public License as published by
@@ -32,7 +32,7 @@ print(NODE_FOLDER)
 
 print("---STARTE COMPILE VORGANG---")
 try:
-    subprocess.run(["/home/crizz/.nvm/versions/node/v22.18.0/bin/node", "run", "build"], check=True)
+    subprocess.run(["node", "run", "build"], check=True)
 except Exception as e:
     print(f"---COMPILE VORGANG ABGEBROCHEN---\n{e}")
 print("---COMPILE VORGANG ABGESCHLOSSEN---")

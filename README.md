@@ -25,10 +25,11 @@ Die schnellste Möglichkeit, das gesamte System lokal zu starten:
 
 ```bash
 # Repository klonen
+git clone https://github.com/daemolition/openDox.git
 cd openDox
 
-# .env anpassen (optional, Docker nutzt Defaults)
-cp .env .env.local
+# Environment konfigurieren (optional)
+cp .env.example .env
 
 # Alles bauen und starten
 docker compose up --build
@@ -64,6 +65,8 @@ alembic upgrade head
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
 ```
 
+**Wichtig:** Immer `python -m uvicorn main:app` verwenden, niemals `uv run main.py` (verursacht doppelte Initialisierung).
+
 ### Frontend starten
 
 ```bash
@@ -73,6 +76,14 @@ npm run dev
 ```
 
 Das Frontend ist dann unter http://localhost:3000 erreichbar.
+
+### Build (für Produktion)
+
+```bash
+cd frontend
+npm run build
+# Kopiert automatisch nach ../static/
+```
 
 ## Architektur
 
@@ -87,6 +98,13 @@ Das Frontend ist dann unter http://localhost:3000 erreichbar.
 
 Beim Start einer Aufnahme wird eine medizinische Kategorie gewählt (z. B. Kardiologie, Orthopädie). Jede Kategorie hat einen eigenen System-Prompt, der sowohl der Whisper-API (für Fachtermini) als auch dem LLM (für Zusammenfassung) übergeben wird.
 
+### Static Files
+
+- Statische Assets (Logos, Icons) liegen in `frontend/public/`
+- Build-Output landet in `frontend/dist/` und wird nach `static/` kopiert
+- `static/` ist in `.gitignore` (wird bei Docker-Build generiert)
+- FastAPI mountet `StaticFiles` auf `/` mit `html=True` für SPA-Routing
+
 ### Docker-Secrets
 
 Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SECRET_KEY_FILE=/run/secrets/secret_key`).
@@ -96,11 +114,22 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | Variable | Beschreibung | Default |
 |----------|--------------|---------|
 | `SQL_USER` / `SQL_PASS` / `SQL_HOST` / `SQL_PORT` / `SQL_DB` | PostgreSQL-Komponenten | postgres/postgres/localhost/5432/opendox |
-| `DATABASE_URI` | Volle DB-URI (überschreibt Komponenten) | – |
+| `DATABASE_URI` | Volle DB-URI (überschreibt Komponenten, z.B. `sqlite:///test.sqlite3`) | – |
 | `SECRET_KEY` | JWT-Signing-Key | `TestintDebugKey` |
 | `ALGORITHM` | JWT-Algorithmus | `HS256` |
 | `WHISPER_API_ENDPOINT` | Whisper-API-URL | `http://localhost:9000/v1` |
 | `WHISPER_API_KEY` | Whisper-API-Key | `loc-123` |
+
+## Datenbank-Migrationen
+
+Nach Änderungen an SQLModel-Tabellen:
+
+```bash
+alembic revision --autogenerate -m "description"
+alembic upgrade head
+```
+
+Migrationen werden automatisch beim App-Start ausgeführt (in `backend/run.py`).
 
 ## Wichtige Dateien
 
@@ -111,13 +140,13 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | `backend/components/sql/db_config.py` | Zentrale DB-URI (PostgreSQL oder SQLite) |
 | `backend/components/services/asr_factory.py` | ASR-Backend-Factory |
 | `backend/components/services/background_transcription_service.py` | Finale Transkription + LLM-Summary |
-| `alembic/versions/07e587f2292a_*.py` | Initiale Migration mit Seed-Daten |
+| `AGENTS.md` | Detaillierte Entwickler-Dokumentation |
 
 ## Lizenz
 
 **AGPL-3.0-or-later**
 
-Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
 Dieses Programm ist freie Software. Details siehe `LICENSE`.
 

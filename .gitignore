@@ -24,3 +24,7 @@ model/
 *.png
 *.db
 image/
+
+# Frontend build artifacts (entire static folder is generated from frontend/public + build)
+static/
+frontend/dist/

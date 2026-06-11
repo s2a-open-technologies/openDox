@@ -1,6 +1,6 @@
 /*
   openDox - Medical transcription platform
-  Copyright (C) 2025  crizz <christopher.abanilla@gmx.de>
+  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU Affero General Public License as published by

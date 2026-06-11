@@ -218,16 +218,6 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
         </div>
       </div>
 
-      <Alert variant="destructive" className="!mt-4">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Kein Medizinprodukt</AlertTitle>
-        <AlertDescription className="text-sm leading-relaxed">
-          Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
-          Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
-          Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
-        </AlertDescription>
-      </Alert>
-
       {hasUnsavedChanges && (
         <div className="text-amber-600 text-sm font-medium flex items-center gap-2">
           <AlertCircle className="w-4 h-4" />
@@ -305,6 +295,18 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
           </div>
         </div>
       </div>
+
+
+      <Alert variant="destructive" className="!mt-4">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Kein Medizinprodukt</AlertTitle>
+        <AlertDescription className="text-sm leading-relaxed">
+          Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
+          Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
+          Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+        </AlertDescription>
+      </Alert>
+
 
       <div className="border-t pt-4 mt-4">
         <div className="flex items-start gap-3">

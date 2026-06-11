@@ -1,46 +1,51 @@
-"""
-  openDox - Medical transcription platform
-  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+"""openDox - Medical transcription platform
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU Affero General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU Affero General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
 
-  You should have received a copy of the GNU Affero General Public License
-  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # routers/auth.py
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import Depends, HTTPException, status
 from sqlmodel import select
 
-from backend.views.auth_api import auth_bp
-from backend.components.sql.sql_engine import SessionDep
-from backend.components.models.user_model import User, UserCreate, UserRead, UserLogin, UserUpdate
+from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.token_model import Token
-from backend.views.auth_api.dependencies import get_current_user
+from backend.components.models.user_model import (
+    User,
+    UserCreate,
+    UserLogin,
+    UserRead,
+    UserUpdate,
+)
 from backend.components.security.hashing import (
-    get_password_hash,
-    verify_password,
     create_access_token,
     create_refresh_token,
     decode_token,
+    get_password_hash,
+    verify_password,
 )
 from backend.components.services.ldap import LdapService
-from backend.components.models.ldap_model import LdapSettingsModel
-
+from backend.components.sql.sql_engine import SessionDep
+from backend.views.auth_api import auth_bp
+from backend.views.auth_api.dependencies import get_current_user
 
 # ── Authentication ──────────────────────────────────────────────────────
 
+
 @auth_bp.post("/register", response_model=UserRead, status_code=201)
 async def register(user_in: UserCreate, db: SessionDep):
-    
+
     # check i user already exists
     stmt = select(User).where(User.name == user_in.name)
     existing_user = db.exec(stmt).first()
@@ -65,18 +70,18 @@ async def register(user_in: UserCreate, db: SessionDep):
 
 @auth_bp.post("/login", response_model=Token)
 async def login(user_in: UserLogin, db: SessionDep):
-    
+
     # Check if user exists and password is correct
     stmt = select(User).where(User.name == user_in.name)
     user = db.exec(stmt).first()
 
     # 1. Local Login
     if user and user.hashed_password:
-         if verify_password(user_in.password, user.hashed_password):
+        if verify_password(user_in.password, user.hashed_password):
             access_token = create_access_token(sub=str(user.id))
             refresh_token = create_refresh_token(sub=str(user.id))
             return Token(access_token=access_token, refresh_token=refresh_token)
-    
+
     # 2. LDAP Login (if local failed or user not found)
     # Check if LDAP is configured
     stmt_ldap = select(LdapSettingsModel)
@@ -91,15 +96,15 @@ async def login(user_in: UserLogin, db: SessionDep):
             if not user:
                 user = User(
                     name=user_in.name,
-                    hashed_password="", # No password for LDAP users
-                    is_active=True
+                    hashed_password="",  # No password for LDAP users
+                    is_active=True,
                 )
                 db.add(user)
-                
+
             else:
-                 # Update existing user if needed (e.g. reactivate)
-                 user.is_active = True
-                  
+                # Update existing user if needed (e.g. reactivate)
+                user.is_active = True
+
             db.commit()
             db.refresh(user)
 
@@ -115,7 +120,7 @@ async def login(user_in: UserLogin, db: SessionDep):
 
 @auth_bp.post("/refresh", response_model=Token)
 async def refresh_token_endpoint(refresh_token: str):
-    
+
     # Refreshes token
     try:
         payload = decode_token(refresh_token)
@@ -145,13 +150,15 @@ async def refresh_token_endpoint(refresh_token: str):
         access_token=new_access,
         refresh_token=new_refresh,
     )
-    
+
+
 @auth_bp.get("/me", response_model=UserRead)
 async def read_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
 # ── User Management (CRUD) ─────────────────────────────────────────────
+
 
 def _require_superuser(current_user: User):
     if not current_user.is_superuser:

@@ -1,24 +1,24 @@
+"""openDox - Medical transcription platform
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-  openDox - Medical transcription platform
-  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU Affero General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU Affero General Public License for more details.
-
-  You should have received a copy of the GNU Affero General Public License
-  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
-
-from sqlmodel import Field, SQLModel
 from typing import Optional
+
 from pydantic import BaseModel
+from sqlmodel import Field, SQLModel
 
 
 class Record(SQLModel, table=True):
@@ -33,7 +33,7 @@ class Record(SQLModel, table=True):
     file: str = Field()
     archived: bool = Field(default=False)
     task_id: Optional[int] = Field(default=None, foreign_key="task.id")
-    
+
     def to_dict(self):
         return {
             "id": self.id,

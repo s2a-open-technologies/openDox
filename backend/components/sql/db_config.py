@@ -1,19 +1,18 @@
-"""
-  openDox - Medical transcription platform
-  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+"""openDox - Medical transcription platform
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU Affero General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU Affero General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
 
-  You should have received a copy of the GNU Affero General Public License
-  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # Central database configuration used by both the app and Alembic.
@@ -27,11 +26,11 @@
 #   DATABASE_URI=sqlite3:///test.sqlite3
 #   SQL_USER_FILE=/run/secrets/db_user   SQL_PASS_FILE=/run/secrets/db_pass
 
-import sys
 import os
+import sys
 
 # Ensure project root is on sys.path for config import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from config import env_or_file
 
 _SQL_USER = env_or_file("SQL_USER", "postgres")
@@ -52,7 +51,9 @@ else:
 # Normalize for SQLAlchemy compatibility
 if RAW_URI.startswith("sqlite3://"):
     SQLALCHEMY_URI = RAW_URI.replace("sqlite3://", "sqlite://", 1)
-elif RAW_URI.startswith("postgresql://") and not RAW_URI.startswith("postgresql+psycopg2://"):
+elif RAW_URI.startswith("postgresql://") and not RAW_URI.startswith(
+    "postgresql+psycopg2://"
+):
     SQLALCHEMY_URI = RAW_URI.replace("postgresql://", "postgresql+psycopg2://", 1)
 else:
     SQLALCHEMY_URI = RAW_URI

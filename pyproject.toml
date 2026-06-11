@@ -21,6 +21,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "python-jose>=3.5.0",
     "python-multipart>=0.0.21",
+    "ruff>=0.15.16",
     "sqlmodel>=0.0.27",
     "uvicorn[standard]>=0.38.0",
 ]
@@ -29,3 +30,30 @@ dependencies = [
 name = "pypi"
 url = "https://pypi.org/simple"
 explicit = false
+
+[tool.ruff]
+# Setze die maximale Zeilenlänge
+line-length = 88
+
+[tool.ruff.lint]
+# Wähle die Regeln aus:
+# E/F = Pyflakes/Pycodestyle (Standard PEP8)
+# I = Isort (Import-Sortierung)
+# D = Pydocstyle (Docstrings)
+select = ["E", "F", "I", "D"]
+ignore = ["D107"] # Optional: Wenn du __init__ nicht immer dokumentieren willst
+
+# Konfiguration der Import-Sortierung
+[tool.ruff.lint.isort]
+# Definiere die Reihenfolge deiner Imports
+known-first-party = ["dein_projektname"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+# Konfiguration für Google-Style Docstrings
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+# Ruff übernimmt hier die Arbeit von Black
+quote-style = "double"
+indent-style = "space"

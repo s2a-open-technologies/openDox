@@ -1,21 +1,19 @@
+"""openDox - Medical transcription platform
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-  openDox - Medical transcription platform
-  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
-
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU Affero General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU Affero General Public License for more details.
-
-  You should have received a copy of the GNU Affero General Public License
-  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
-
 
 # Standard library
 import os
@@ -25,6 +23,7 @@ from dotenv import load_dotenv
 
 # Getting environment variables
 load_dotenv()
+
 
 def env_or_file(env_name, default=None):
     """Fetches an environment variable or the contents of a file specified by the environment variable.
@@ -46,8 +45,6 @@ def env_or_file(env_name, default=None):
 
 class Config:
     """Configuration class for application settings."""
-    
+
     SECRET_KEY = env_or_file("SECRET_KEY", "12345678")
     SQLALCHEMY_URI = env_or_file("DATABASE_URI", "sqlite3:///test.sqlite3")
-    
- 

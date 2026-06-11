@@ -1,33 +1,31 @@
+"""openDox - Medical transcription platform
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-  openDox - Medical transcription platform
-  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU Affero General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU Affero General Public License for more details.
-
-  You should have received a copy of the GNU Affero General Public License
-  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
-
+import os
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Union
 
-import sys
-import os
-
 # Ensure project root is on sys.path for config import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from config import env_or_file
-
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+
+from config import env_or_file
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -45,7 +43,9 @@ def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_token(data: dict, expires_delta: Union[timedelta, None] = None, token_type: str = "access") -> str:
+def create_token(
+    data: dict, expires_delta: Union[timedelta, None] = None, token_type: str = "access"
+) -> str:
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     if expires_delta:

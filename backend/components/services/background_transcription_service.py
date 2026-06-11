@@ -15,6 +15,8 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import os
+
 from sqlmodel import select
 
 from backend.components.llm.llm_model import OllamaModel
@@ -87,6 +89,14 @@ def background_transcription_task(
             db.refresh(record)
 
         update_task_status(db, task_id, "finished")
+
+        # Delete audio file after successful processing — patient audio must not persist
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"[TASK {task_id}] Audio file deleted: {file_path}")
+            except OSError as e:
+                logger.warning(f"[TASK {task_id}] Could not delete audio file {file_path}: {e}")
 
     except Exception as e:
         logger.error(

@@ -15,10 +15,20 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import re
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from backend.components.services.settings_service import get_llm_settings
+
+
+def _strip_thinking(text: str) -> str:
+    """Remove reasoning blocks that thinking-capable models (MedGemma, Qwen3, etc.) emit."""
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<thinking>.*?</thinking>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<thought>.*?</thought>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    return text.strip()
 
 
 class OllamaModel:
@@ -128,4 +138,4 @@ class OllamaModel:
         chain = template | self.client
         response = chain.invoke({"message": message})
 
-        return response.content
+        return _strip_thinking(response.content)

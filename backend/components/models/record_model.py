@@ -18,7 +18,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Optional
 
 from pydantic import BaseModel
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+
+from backend.components.security.field_encryption import EncryptedString
 
 
 class Record(SQLModel, table=True):
@@ -27,9 +30,9 @@ class Record(SQLModel, table=True):
     user_id: int
     category_id: Optional[int] = Field(default=None, foreign_key="categories.id")
     title: str = Field()
-    content: str = Field()
+    content: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     timestamp: str = Field()
-    summarize: str = Field()
+    summarize: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     file: str = Field()
     archived: bool = Field(default=False)
     task_id: Optional[int] = Field(default=None, foreign_key="task.id")

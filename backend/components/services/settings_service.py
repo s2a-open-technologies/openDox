@@ -21,9 +21,8 @@ from typing import Optional
 # Third party
 from sqlmodel import select
 
-from backend.components.models.llm_settings_model import LlmSettingsModel
-
 # Custom imports
+from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.modules.logger import get_logger
 from backend.components.sql.sql_engine import get_session_factory

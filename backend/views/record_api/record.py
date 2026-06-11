@@ -34,6 +34,8 @@ from backend.components.models.record_model import (
     RecordRead,
     RecordUpdate,
 )
+from backend.components.llm.llm_model import OllamaModel
+from backend.components.models.categories import Categories
 from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
@@ -585,9 +587,50 @@ async def delete_record(record_id: int, db: SessionDep):
     if not record:
         return {"error": "Record not found"}
 
+    audio_path = record.file if record.file else None
+
     db.delete(record)
     db.commit()
+
+    if audio_path and os.path.exists(audio_path):
+        try:
+            os.remove(audio_path)
+            logger.info(f"[DELETE] Audio file removed: {audio_path}")
+        except OSError as e:
+            logger.warning(f"[DELETE] Could not remove audio file {audio_path}: {e}")
+
     return {"status": "success", "message": "Record deleted"}
+
+
+@record_bp.post("/record/{record_id}/summarize")
+async def regenerate_summary(record_id: int, db: SessionDep):
+    """Re-generate the LLM summary for an existing record using its current content."""
+    record = db.get(Record, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    if not record.content:
+        raise HTTPException(status_code=400, detail="Record has no transcription content")
+
+    category_prompt = None
+    if record.category_id:
+        cat = db.get(Categories, record.category_id)
+        if cat:
+            category_prompt = cat.system_prompt
+
+    def run_llm():
+        model = OllamaModel()
+        return model.generate_response(record.content, custom_system_prompt=category_prompt)
+
+    try:
+        summary = await asyncio.to_thread(run_llm)
+        record.summarize = summary
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return {"summarize": record.summarize}
+    except Exception as e:
+        logger.error(f"[SUMMARIZE] Error re-generating summary for record {record_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @record_bp.put("/record/{record_id}/archive")

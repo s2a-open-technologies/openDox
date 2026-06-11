@@ -20,12 +20,6 @@ import logging
 import os
 from datetime import datetime
 
-# Logging directory
-LOG_DIR = "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
-
-LOG_FILE = os.path.join(LOG_DIR, f"log_{datetime.now().strftime('%Y-%m-%d')}.log")
-
 # Ensure project root is on sys.path for config import
 import sys  # noqa: E402
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -35,14 +29,31 @@ LOG_LEVEL = env_or_file("LOG_LEVEL", "INFO")
 
 
 def initialize_logging():
-    logging.basicConfig(
-        filename=LOG_FILE,
-        level=LOG_LEVEL,
-        format="%(name)s - %(module)s - %(funcName)s - %(message)s",
-        force=True,
-    )
+    """Initialize logging to use uvicorn's logging system."""
+    # Configure uvicorn loggers
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    uvicorn_error_logger.setLevel(LOG_LEVEL)
+
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_access_logger.setLevel(LOG_LEVEL)
+
+    # Configure root logger to use uvicorn.error handler
+    root_logger = logging.getLogger()
+    root_logger.setLevel(LOG_LEVEL)
+
+    # Remove existing handlers to avoid duplicates
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Add uvicorn.error handler to root logger
+    for handler in uvicorn_error_logger.handlers:
+        root_logger.addHandler(handler)
 
 
 def get_logger(name: str = __name__):
-    """Returns a logger object with the specified name."""
+    """Returns a logger object that writes to uvicorn.error stream.
+
+    This ensures all application logs are captured by uvicorn's
+    logging system and appear in uvicorn's log output.
+    """
     return logging.getLogger(name)

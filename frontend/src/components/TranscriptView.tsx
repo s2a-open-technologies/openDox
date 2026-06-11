@@ -44,6 +44,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const [isRegeneratingSummary, setIsRegeneratingSummary] = useState(false);
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
@@ -189,6 +190,22 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
 
   const isProcessing = taskStatus === 'pending' || taskStatus === 'running' || taskStatus === 'transcribing' || taskStatus === 'processing_llm';
 
+  const handleRegenerateSummary = async () => {
+    if (!transcript?.dbId) return;
+    setIsRegeneratingSummary(true);
+    try {
+      const res = await fetch(`/api/v1/records/record/${transcript.dbId}/summarize`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setEditedSummary(data.summarize || "");
+      toast.success('Zusammenfassung neu generiert');
+    } catch {
+      toast.error('Fehler beim Generieren der Zusammenfassung');
+    } finally {
+      setIsRegeneratingSummary(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col p-8 gap-6 bg-background">
       {isProcessing && (
@@ -244,7 +261,12 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
             value={editedContent}
             onChange={(e) => setEditedContent(e.target.value)}
             placeholder="Transkript..."
-            className="flex-1 min-h-0 font-sans text-base leading-relaxed resize-none"
+            readOnly={!confirmed}
+            onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
+            onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
+            onCut={(e) => { if (!confirmed) e.preventDefault(); }}
+            title={!confirmed ? 'Bitte zuerst Bestätigungshaken setzen' : undefined}
+            className={`flex-1 min-h-0 font-sans text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
           />
         </div>
 
@@ -262,14 +284,23 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
                 >
                   <Copy className="w-4 h-4 mr-2" />
                 </Button>
-                <Button variant="ghost" size="icon">
-                  <TfiReload />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRegenerateSummary}
+                  disabled={isRegeneratingSummary || isProcessing}
+                  title="Zusammenfassung neu generieren"
+                >
+                  {isRegeneratingSummary
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <TfiReload />}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
+                  disabled={!confirmed}
                   onClick={() => setIsEditingSummary(!isEditingSummary)}
-                  title={isEditingSummary ? "Markdown-Vorschau" : "Bearbeiten"}
+                  title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : isEditingSummary ? "Markdown-Vorschau" : "Bearbeiten"}
                 >
                   {isEditingSummary ? <Eye className="w-4 h-4 mr-2" /> : <Pencil className="w-4 h-4 mr-2" />}
                   {isEditingSummary ? "Vorschau" : "Bearbeiten"}
@@ -281,10 +312,19 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
                 value={editedSummary}
                 onChange={(e) => setEditedSummary(e.target.value)}
                 placeholder="Noch keine Zusammenfassung verfügbar"
-                className="flex-1 min-h-0 font-sans text-base leading-relaxed resize-none"
+                readOnly={!confirmed}
+                onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
+                onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
+                onCut={(e) => { if (!confirmed) e.preventDefault(); }}
+                title={!confirmed ? 'Bitte zuerst Bestätigungshaken setzen' : undefined}
+                className={`flex-1 min-h-0 font-sans text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
               />
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
+              <div
+                onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
+                onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
+                className={`flex-1 min-h-0 overflow-y-auto prose prose-sm dark:prose-invert max-w-none${!confirmed ? ' select-none pointer-events-none opacity-75' : ''}`}
+              >
                 {editedSummary ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{editedSummary}</ReactMarkdown>
                 ) : (

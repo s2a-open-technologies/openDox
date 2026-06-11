@@ -23,11 +23,28 @@ from langchain_openai import ChatOpenAI
 from backend.components.services.settings_service import get_llm_settings
 
 
+_THINKING_STARTERS = re.compile(
+    r'^(thought\b|<think|<thinking|<thought|here\'s my|let me|i need to|i will|'
+    r'understand\b|the user\b|my task\b|step \d|first,|next,|now,)',
+    re.IGNORECASE,
+)
+
+
 def _strip_thinking(text: str) -> str:
     """Remove reasoning blocks that thinking-capable models (MedGemma, Qwen3, etc.) emit."""
+    # XML-style tags
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<thinking>.*?</thinking>', '', text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<thought>.*?</thought>', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # Gemma/MedGemma: "thought <multi-paragraph reasoning>\n\nActual answer"
+    # Split into paragraphs; drop leading ones that look like thinking, keep the rest.
+    stripped = text.strip()
+    if re.match(r'^thought\s', stripped, re.IGNORECASE):
+        paragraphs = [p.strip() for p in re.split(r'\n{2,}', stripped) if p.strip()]
+        actual = [p for p in paragraphs if not _THINKING_STARTERS.match(p)]
+        text = '\n\n'.join(actual) if actual else paragraphs[-1] if paragraphs else text
+
     return text.strip()
 
 
@@ -73,6 +90,7 @@ class OllamaModel:
             temperature=self.temperature,
             max_tokens=self.max_tokens,
             top_p=0.9,
+            frequency_penalty=0.3,
         )
 
     def reload(self):
@@ -93,6 +111,8 @@ class OllamaModel:
                     temperature=self.temperature,
                     max_tokens=self.max_tokens,
                     top_p=0.9,
+                    frequency_penalty=0.3,
+                    model_kwargs={"think": False},
                 )
         except Exception:
             pass
@@ -129,6 +149,11 @@ class OllamaModel:
     ) -> str:
         prompt = (
             custom_system_prompt if custom_system_prompt else self.get_system_prompt()
+        )
+        # Suppress thinking output for all models — harmless for non-thinking models
+        prompt = (
+            prompt.rstrip()
+            + "\nDo not output your reasoning or thinking process. Output only the final result."
         )
 
         template = ChatPromptTemplate.from_messages(

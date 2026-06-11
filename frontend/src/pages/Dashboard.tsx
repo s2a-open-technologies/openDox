@@ -23,7 +23,7 @@ import TranscriptView from "@/components/TranscriptView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Radio } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
@@ -70,7 +70,10 @@ const Dashboard = () => {
   const [newTitle, setNewTitle] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  // activeSessionId: whether the Recorder view is shown (record mode).
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // unfinishedSessionId: server-tracked unfinished recording -> drives the sidebar badge.
+  const [unfinishedSessionId, setUnfinishedSessionId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -115,17 +118,24 @@ const Dashboard = () => {
     if (!userId) return;
     fetchRecords();
     fetchCategories();
-
-    const savedSession = localStorage.getItem("currentSession");
-    if (savedSession) {
-      const rec = JSON.parse(savedSession);
-      if (rec.user_id?.toString() === userId) {
-        setActiveSessionId(rec.session_id);
-      } else {
-        localStorage.removeItem("currentSession");
-      }
-    }
   }, [userId, showArchived]);
+
+  // Separate effect: active-session only needs to re-run on login/user change,
+  // not on every Library↔Archive tab toggle. Avoids race where the response
+  // arrives with {active: false} while a recording is being started.
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`/api/v1/records/active-session/${userId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.active) {
+          setUnfinishedSessionId(data.session_id);
+        } else {
+          setUnfinishedSessionId(null);
+        }
+      })
+      .catch(() => setUnfinishedSessionId(null));
+  }, [userId]);
 
   const handleDelete = async (id: string) => {
     const rec = recordings.find(r => r.id === id);
@@ -175,6 +185,7 @@ const Dashboard = () => {
 
   const handleRecordingStart = (recordingData: any) => {
     setActiveSessionId(recordingData.session_id);
+    setUnfinishedSessionId(recordingData.session_id);
     const cat = categories.find(c => c.id.toString() === categoryId);
     const tempRecording: Recording = {
       id: recordingData.session_id,
@@ -190,11 +201,15 @@ const Dashboard = () => {
     };
     if (showArchived) setShowArchived(false);
     setRecordings(prev => [tempRecording, ...prev]);
-    setSelectedRecording(tempRecording);
+    // Don't set selectedRecording here: the Recorder view is active and setting
+    // it would cause TranscriptView to appear after "Zur Übersicht", hiding the
+    // welcome screen and the "Fortsetzen" banner.
   };
 
   const handleFinalTranscription = async (sessionId: string, taskId?: string | number) => {
+    // Recording stopped -> workflow takes over; the unfinished session is cleared.
     setActiveSessionId(null);
+    setUnfinishedSessionId(null);
     try {
       const res = await fetch(`/api/v1/records/by-session/${sessionId}`);
       if (!res.ok) throw new Error("Failed to fetch final record");
@@ -228,22 +243,20 @@ const Dashboard = () => {
   };
 
   const handleSelectRecording = async (recording: Recording) => {
-    // Active session guard
-    if (activeSessionId && activeSessionId !== "new" && recording.id !== activeSessionId) {
-      const ok = confirm("Aufnahme läuft noch. Wirklich wechseln? Die laufende Aufnahme wird beendet.");
-      if (!ok) return;
-      // cleanup
-      localStorage.removeItem("currentSession");
-      setActiveSessionId(null);
-    }
-    // Clicking the currently active session: nothing to do (Recorder already shown)
-    if (activeSessionId && recording.id === activeSessionId) {
+    // Clicking the unfinished recording -> (re)enter record mode and resume it.
+    if (unfinishedSessionId && recording.id === unfinishedSessionId) {
+      setSelectedRecording(null);
+      setActiveSessionId(unfinishedSessionId);
       return;
+    }
+    // Clicking another recording while in record mode -> just leave the recorder
+    // view. The session stays unfinished in the store (badge persists).
+    if (activeSessionId) {
+      setActiveSessionId(null);
     }
     try {
       if (!recording.dbId) {
         setSelectedRecording(recording);
-        setActiveSessionId(null);
         return;
       }
       const result = await fetch(`/api/v1/records/record/${recording.dbId}`);
@@ -261,7 +274,6 @@ const Dashboard = () => {
         userid: data.user_id.toString(),
         taskId: data.task_id || recording.taskId,
       });
-      setActiveSessionId(null);
     } catch (err) {
       console.error(err);
       toast.error("Fehler beim Laden der Aufnahme");
@@ -289,7 +301,20 @@ const Dashboard = () => {
     }
   };
 
-  const handleStartRecordingSession = () => {
+  const handleStartRecordingSession = async () => {
+    // Only one active session per user. If an unfinished one exists, cancel it first.
+    if (unfinishedSessionId) {
+      const ok = confirm(
+        "Es gibt bereits eine unfertige Aufnahme. Diese wird verworfen, wenn Sie eine neue starten. Fortfahren?"
+      );
+      if (!ok) return;
+      try {
+        await fetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
+      } catch (err) {
+        console.error(err);
+      }
+      setUnfinishedSessionId(null);
+    }
     if (!newTitle.trim()) setNewTitle(`Aufnahme ${recordings.length + 1}`);
     if (!newCategoryName.trim()) setNewCategoryName("Unkategorisiert");
     setIsDialogOpen(false);
@@ -306,7 +331,7 @@ const Dashboard = () => {
         recordings={recordings}
         onSelectRecording={handleSelectRecording}
         selectedId={selectedRecording?.id}
-        activeSessionId={activeSessionId || undefined}
+        activeSessionId={unfinishedSessionId || undefined}
         onDeleteRecording={handleDelete}
         onArchiveRecording={handleArchive}
         onUnarchiveRecording={handleUnarchive}
@@ -320,6 +345,7 @@ const Dashboard = () => {
               userId={userId}
               title={newTitle}
               categoryId={categoryId}
+              resumeSessionId={activeSessionId !== "new" ? activeSessionId ?? undefined : undefined}
               onRecordingStart={handleRecordingStart}
               onFinalTranscription={handleFinalTranscription}
               autoStart={true}
@@ -327,12 +353,21 @@ const Dashboard = () => {
             <div className="flex items-center gap-2 mt-4">
               <Button
                 variant="ghost"
-                onClick={() => {
+                onClick={async () => {
                   const ok = confirm("Aufnahme wirklich abbrechen? Diese kann nicht wiederhergestellt werden.");
-                  if (ok) {
-                    localStorage.removeItem("currentSession");
-                    setActiveSessionId(null);
+                  if (!ok) return;
+                  // Unmount Recorder first (stops streams/WS) so no more audio uploads
+                  // happen before the server deletes the chunk files.
+                  setActiveSessionId(null);
+                  setUnfinishedSessionId(null);
+                  setSelectedRecording(null);
+                  try {
+                    await fetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
+                  } catch (err) {
+                    console.error(err);
+                    toast.error("Fehler beim Abbrechen der Aufnahme");
                   }
+                  fetchRecords();
                 }}
               >
                 Abbrechen
@@ -340,8 +375,10 @@ const Dashboard = () => {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  // Zur Übersicht: Session auf null setzen
                   setActiveSessionId(null);
+                  // Clear selected so the welcome screen is shown (not an empty TranscriptView).
+                  // Badge stays visible in sidebar via unfinishedSessionId.
+                  setSelectedRecording(null);
                 }}
               >
                 Zur Übersicht
@@ -350,6 +387,44 @@ const Dashboard = () => {
           </div>
         ) : !selectedRecording ? (
           <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
+            {unfinishedSessionId && (
+              <div className="w-full max-w-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                  <Radio className="w-5 h-5 text-red-500 animate-pulse" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">Unfertige Aufnahme</p>
+                  <p className="text-xs text-red-600/70 dark:text-red-400/70">Eine Aufnahme wurde unterbrochen und kann fortgesetzt werden.</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => setActiveSessionId(unfinishedSessionId)}
+                  >
+                    Fortsetzen
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
+                    onClick={async () => {
+                      const ok = confirm("Aufnahme wirklich verwerfen?");
+                      if (!ok) return;
+                      try {
+                        await fetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
+                      } catch (err) {
+                        console.error(err);
+                      }
+                      setUnfinishedSessionId(null);
+                      fetchRecords();
+                    }}
+                  >
+                    Verwerfen
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <h1 className="text-3xl font-bold">Willkommen bei openDox</h1>
               <p className="text-muted-foreground">Wählen Sie eine Aufnahme aus oder starten Sie eine neue, um loszulegen.</p>

@@ -40,9 +40,10 @@ interface RecorderProps {
   onFinalTranscription?: (sessionId: string, taskId?: string | number) => void;
   onRecordingStart?: (recordingData: any) => void;
   autoStart?: boolean;
+  resumeSessionId?: string;
 }
 
-const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart }: RecorderProps) => {
+const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }: RecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -83,8 +84,6 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
     if (onRecordingStart) {
       onRecordingStart(record);
     }
-    // Save to localStorage
-    localStorage.setItem("currentSession", JSON.stringify(record));
     return record;
   };
 
@@ -107,9 +106,14 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
       }
 
       if (data.text) {
-        setStableTranscript((prev) =>
-          (prev + " " + data.text).trim()
-        );
+        if (data.restored) {
+          // Resume: backend replays the accumulated transcript - set, don't append.
+          setStableTranscript(data.text);
+        } else {
+          setStableTranscript((prev) =>
+            (prev + " " + data.text).trim()
+          );
+        }
         setLiveTranscript("");
       }
 
@@ -137,16 +141,14 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
   const startRecording = async () => {
     try {
       let record;
-      const savedSession = localStorage.getItem("currentSession");
 
-      // Resume logic or New Recording
-      if (savedSession) {
-        record = JSON.parse(savedSession);
-        setSessionId(record.session_id);
-        sessionIdRef.current = record.session_id;
-        if (onRecordingStart && !sessionId) {
-          onRecordingStart(record);
-        }
+      // Resume an existing unfinished session or create a new recording.
+      if (resumeSessionId) {
+        // Reuse the existing session_id - backend restores the live transcript
+        // and new audio is appended to the same session.
+        record = { session_id: resumeSessionId };
+        setSessionId(resumeSessionId);
+        sessionIdRef.current = resumeSessionId;
       } else {
         record = await createRecord();
       }
@@ -215,8 +217,9 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
       activeUploadsRef.current.clear();
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && sessionId) {
-          uploadChunk(e.data, sessionId);
+        // Use the ref - the sessionId state may not be set yet right after start/resume.
+        if (e.data.size > 0 && sessionIdRef.current) {
+          uploadChunk(e.data, sessionIdRef.current);
         }
       };
 
@@ -276,8 +279,6 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
 
     audioContextRef.current?.close();
     setAnalyser(null); // Clear visuals
-
-    localStorage.removeItem("currentSession");
 
     setIsRecording(false);
     setIsPaused(false);
@@ -353,18 +354,29 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
   }, []);
 
   useEffect(() => {
-    // Check persistence on mount
-    const savedSession = localStorage.getItem("currentSession");
-    if (savedSession) {
-      // Restore state
-      const record = JSON.parse(savedSession);
-      setSessionId(record.session_id);
-      setIsRecording(true);
-      setIsPaused(true); // Default to paused on restore
-      if (onRecordingStart) onRecordingStart(record);
-    } else if (autoStart) {
+    // Resume an existing unfinished session or auto-start a new recording.
+    // The server (session_store) holds the live state across reconnects.
+    if (resumeSessionId || autoStart) {
       startRecording();
     }
+
+    return () => {
+      // On unmount without stopping (e.g. "Zur Übersicht"): tear down capture and
+      // close the socket as a plain disconnect -> backend keeps the session so it
+      // can be resumed later. Guard onstop against sending a stop event.
+      isPausedRef.current = true;
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (_) { }
+      try {
+        mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
+      } catch (_) { }
+      try { workletRef.current?.disconnect(); } catch (_) { }
+      try { audioContextRef.current?.close(); } catch (_) { }
+      try { socketRef.current?.close(); } catch (_) { }
+    };
   }, []);
 
   return (

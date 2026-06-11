@@ -40,6 +40,7 @@ from backend.components.services.asr_factory import get_final_backend, get_live_
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
 )
+from backend.components.services.session_store import session_store
 from backend.components.sql.sql_engine import SessionDep
 
 # Custom imports
@@ -48,8 +49,6 @@ from backend.views.record_api import record_bp
 logger = get_logger(__name__)
 
 
-record_ws_sessions = {}  # session_id -> bytearray buffer
-record_ws_live_state = {}  # session_id -> {"last_index": int, "text": str}
 OUTPUT_DIR = "chunks"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -90,7 +89,79 @@ async def record_create(db: SessionDep, data: RecordCreate):
     db.commit()
     db.refresh(record)
 
+    # Register the active recording session in the store (Dict now, Redis later).
+    # This is the single source of truth for an "unfinished recording".
+    session_store.create_session(
+        user_id=data.user_id,
+        session_id=str(session_id),
+        record_id=record.id,
+        title=record.title,
+        category_id=record.category_id,
+    )
+
     return record
+
+
+@record_bp.get("/active-session/{user_id}")
+async def active_session(user_id: int):
+    """Return the user's active (unfinished) recording session, if any.
+
+    Drives the "unfinished recording" indicator in the sidebar.
+    """
+    session = session_store.get_session(user_id)
+    if not session:
+        return {"active": False}
+
+    return {
+        "active": True,
+        "session_id": session["session_id"],
+        "record_id": session["record_id"],
+        "title": session["title"],
+        "category_id": session["category_id"],
+        "status": session["status"],
+    }
+
+
+@record_bp.delete("/cancel-session/{user_id}")
+async def cancel_session(user_id: int, db: SessionDep):
+    """Cancel an unfinished recording.
+
+    Deletes the live session from the store, the DB record and the audio files
+    on disk for that session.
+    """
+    import glob
+
+    session = session_store.get_session(user_id)
+    if not session:
+        return {"status": "no_active_session"}
+
+    session_id = session["session_id"]
+    record_id = session.get("record_id")
+
+    # 1. Delete the DB record
+    if record_id is not None:
+        record = db.get(Record, record_id)
+        if record:
+            db.delete(record)
+            db.commit()
+
+    # 2. Clean up audio files on disk for this session
+    patterns = [
+        f"{OUTPUT_DIR}/user{user_id}_session{session_id}_*_chunk.webm",
+        f"{OUTPUT_DIR}/session_{user_id}_{session_id}_list.txt",
+        f"{OUTPUT_DIR}/session_{session_id}_merged.webm",
+    ]
+    for pattern in patterns:
+        for path in glob.glob(pattern):
+            try:
+                os.remove(path)
+            except OSError as e:
+                print(f"[CANCEL-CLEANUP-ERROR] {path}: {e}")
+
+    # 3. Remove the live session from the store (Dict / Redis later)
+    session_store.delete_session(user_id)
+
+    return {"status": "cancelled", "session_id": session_id}
 
 
 # Websocket Connection for live transcription
@@ -110,11 +181,47 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             pass
         return
 
+    try:
+        user_id_int = int(user_id)
+    except ValueError:
+        try:
+            await websocket.send_json({"error": "user_id must be an integer"})
+            await websocket.close()
+        except Exception:
+            pass
+        return
+
     print(f"[WS-START] user={user_id}, session={session_id}")
 
-    record_ws_sessions[session_id] = bytearray()
-    record_ws_live_state[session_id] = {"last_index": 0, "text": ""}
+    # Get the active recording session (live state lives in the store / Dict).
+    # On a resume the session already exists and carries the prior live text.
+    session = session_store.get_by_session(session_id)
+    if session is None:
+        # Store was cleared (e.g. server restart) - rebuild from the DB record so
+        # live transcription keeps working across reconnects.
+        record = db.exec(
+            select(Record).where(Record.session_id == session_id)
+        ).one_or_none()
+        if record:
+            session = session_store.create_session(
+                user_id=user_id_int,
+                session_id=session_id,
+                record_id=record.id,
+                title=record.title,
+                category_id=record.category_id,
+            )
+
     client_connected = True
+    stopped = False
+
+    # On resume: push the accumulated transcript back so the client gets it again.
+    if session and session.get("live_text"):
+        try:
+            await websocket.send_json(
+                {"session_id": session_id, "text": session["live_text"], "restored": True}
+            )
+        except Exception as e:
+            print(f"[WS-RESTORE-ERROR] {e}")
 
     try:
         while True:
@@ -133,6 +240,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 # Stop event -> beende die Aufnahme
                 if "stop" in data:
                     print("[WS] Stop event received")
+                    stopped = True
                     break
 
                 continue  # andere Textnachrichten ignorieren
@@ -145,13 +253,15 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     print("[WARNING] Empty binary chunk received")
                     continue
 
-                # Buffer für finale Whisper-Transkription
-                record_ws_sessions[session_id].extend(chunk)
+                if session is None:
+                    continue
+
+                # Buffer für finale Whisper-Transkription (im Store gehalten)
+                session["audio_buffer"].extend(chunk)
 
                 # Live ASR
                 try:
                     backend = get_live_asr()
-                    state = record_ws_live_state[session_id]
 
                     # chunk_length_s * 16000 samples/s * 4 bytes/sample (float32)
                     bytes_per_chunk = 3 * 16000 * 4  # default 3s chunks
@@ -165,26 +275,28 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     except Exception:
                         pass
 
-                    buffer_len = len(record_ws_sessions[session_id])
-                    new_data_len = buffer_len - state["last_index"]
+                    buffer_len = len(session["audio_buffer"])
+                    new_data_len = buffer_len - session["last_index"]
 
                     if new_data_len >= bytes_per_chunk:
                         # Extract slice of new audio data
-                        start = state["last_index"]
+                        start = session["last_index"]
                         end = start + bytes_per_chunk
-                        audio_slice = bytes(record_ws_sessions[session_id][start:end])
-                        state["last_index"] = end
+                        audio_slice = bytes(session["audio_buffer"][start:end])
+                        session["last_index"] = end
 
                         # Transcribe in background thread (non-blocking)
                         result_text = await asyncio.to_thread(
                             backend.transcribe,
                             audio=audio_slice,
                             language="de",
-                            prompt=state["text"] if state["text"] else None,
+                            prompt=session["live_text"] or None,
                         )
 
                         if result_text:
-                            state["text"] = (state["text"] + " " + result_text).strip()
+                            session["live_text"] = (
+                                session["live_text"] + " " + result_text
+                            ).strip()
 
                             # Persist partial transcription to DB
                             try:
@@ -228,14 +340,23 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         print(f"[WS-ERROR] {e}")
         client_connected = False
 
-    # Cleanup live state
-    if session_id in record_ws_live_state:
-        del record_ws_live_state[session_id]
+    # Plain disconnect without a "stop" event -> keep the session in the store as
+    # an unfinished recording so it can be resumed later. Nothing else to do.
+    if not stopped:
+        print(f"[WS] Session {session_id} left unfinished (kept for resume)")
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+        return
 
-    if session_id in record_ws_sessions:
-        pcm_buffer = bytes(record_ws_sessions[session_id])
+    # Stop event -> finalize the recording and run the transcription workflow.
+    if session is not None:
+        pcm_buffer = bytes(session["audio_buffer"])
         print(f"[FINAL-BUFFER] size={len(pcm_buffer)}")
-        del record_ws_sessions[session_id]
+
+        # Finished recording -> clear the live session from the store (Dict).
+        session_store.delete_session(user_id_int)
 
         if len(pcm_buffer) == 0:
             print("[WARNING] Empty audio buffer received")
@@ -366,11 +487,11 @@ async def record(
 ):
     """Upload audio chunk and append to session buffer"""
     actual_date = datetime.now().strftime("%Y%m%d_%H%M%S")
-    chunk_filename = (
-        f"{OUTPUT_DIR}/user{user_id}_session{session_id}_{actual_date}_chunk.webm"
-    )
+    # Write into OUTPUT_DIR matching the merge glob in websocket_record.
+    chunk_filename = f"user{user_id}_session{session_id}_{actual_date}_chunk.webm"
+    chunk_path = f"{OUTPUT_DIR}/{chunk_filename}"
 
-    with open(f"{OUTPUT_DIR}/{chunk_filename}", "ab") as f:
+    with open(chunk_path, "ab") as f:
         shutil.copyfileobj(file.file, f)
 
     return {"status": "chunk received"}

@@ -47,7 +47,7 @@ COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
 # Copy built frontend static files
-COPY --from=frontend-builder /app/frontend/dist ./backend/static/
+COPY --from=frontend-builder /app/backend/static ./backend/static/
 
 # Create runtime directories
 RUN mkdir -p logs chunks models_cache certs

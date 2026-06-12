@@ -24,8 +24,8 @@ from backend.components.services.settings_service import get_llm_settings
 
 
 _THINKING_STARTERS = re.compile(
-    r'^(thought\b|<think|<thinking|<thought|here\'s my|let me|i need to|i will|'
-    r'understand\b|the user\b|my task\b|step \d|first,|next,|now,)',
+    r"^(thought\b|<think|<thinking|<thought|here\'s my|let me|i need to|i will|"
+    r"understand\b|the user\b|my task\b|step \d|first,|next,|now,)",
     re.IGNORECASE,
 )
 
@@ -33,17 +33,19 @@ _THINKING_STARTERS = re.compile(
 def _strip_thinking(text: str) -> str:
     """Remove reasoning blocks that thinking-capable models (MedGemma, Qwen3, etc.) emit."""
     # XML-style tags
-    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<thinking>.*?</thinking>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<thought>.*?</thought>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"<thinking>.*?</thinking>", "", text, flags=re.DOTALL | re.IGNORECASE
+    )
+    text = re.sub(r"<thought>.*?</thought>", "", text, flags=re.DOTALL | re.IGNORECASE)
 
     # Gemma/MedGemma: "thought <multi-paragraph reasoning>\n\nActual answer"
     # Split into paragraphs; drop leading ones that look like thinking, keep the rest.
     stripped = text.strip()
-    if re.match(r'^thought\s', stripped, re.IGNORECASE):
-        paragraphs = [p.strip() for p in re.split(r'\n{2,}', stripped) if p.strip()]
+    if re.match(r"^thought\s", stripped, re.IGNORECASE):
+        paragraphs = [p.strip() for p in re.split(r"\n{2,}", stripped) if p.strip()]
         actual = [p for p in paragraphs if not _THINKING_STARTERS.match(p)]
-        text = '\n\n'.join(actual) if actual else paragraphs[-1] if paragraphs else text
+        text = "\n\n".join(actual) if actual else paragraphs[-1] if paragraphs else text
 
     return text.strip()
 
@@ -64,13 +66,19 @@ class OllamaModel:
             db_settings = None
 
         self.model = model_name or (
-            db_settings.llm_model if db_settings else "medgemma-4b-it:Q4_K_M"
+            db_settings.llm_model
+            if db_settings and db_settings.llm_model
+            else "medgemma-4b-it:Q4_K_M"
         )
         self.base_url = base_url or (
-            db_settings.llm_api_endpoint if db_settings else "http://localhost:11434/v1"
+            db_settings.llm_api_endpoint
+            if db_settings and db_settings.llm_api_endpoint
+            else "http://localhost:11434/v1"
         )
         self.api_key = api_key or (
-            db_settings.llm_api_key if db_settings else "loc-123"
+            db_settings.llm_api_key
+            if db_settings and db_settings.llm_api_key
+            else "loc-123"
         )
         self.temperature = (
             temperature

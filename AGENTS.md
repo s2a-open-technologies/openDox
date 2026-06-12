@@ -60,7 +60,13 @@ For Vite dev server, set `VITE_ROOT_PATH` to match `ROOT_PATH` (both in `.env`).
 
 ### Session Store
 
-`session_store.py` — in-memory, keyed by `user_id`. PCM audio written to disk (`session_{id}.pcm`), not held in RAM. Not production-ready for multi-instance (no Redis yet).
+`session_store.py` — factory that selects backend based on `REDIS_URL`:
+- **Redis** (production): `REDIS_URL` set → `RedisSessionStore` with TTL, persistence, multi-instance support
+- **In-Memory** (fallback): no `REDIS_URL` → `SessionStore` dict, sessions lost on restart, single-instance only
+
+PCM audio is always written to disk (`session_{id}.pcm`), never stored in Redis. Import stays `from backend.components.services.session_store import session_store` — the factory decides.
+
+Docker Compose includes a `redis:7-alpine` service with health check. App depends on it.
 
 ### Field Encryption
 
@@ -68,15 +74,15 @@ For Vite dev server, set `VITE_ROOT_PATH` to match `ROOT_PATH` (both in `.env`).
 
 ## Docker Layout
 
-- `docker/docker-compose.yml` — full stack: postgres + whisper (GPU) + parakeet + app
-- `docker/docker-whisper.yml` — standalone Whisper (port 9100 → container 9000)
+- `docker/docker-compose.yml` — full stack: postgres + redis + whisper (GPU, built from `whisper_server/Dockerfile`) + parakeet + app
+- `docker/docker-whisper.yml` — standalone Whisper (port 9100 → container 9000), also uses local `whisper_server/Dockerfile`
 - `docker/docker-parakeet.yml` — standalone Parakeet (port 9200 → container 5001)
 - **`docker/parakeet-server/` is empty** — `docker-compose.yml` build context `./docker/parakeet-server` must be changed to `../parakeet_server` (where `Dockerfile` and `main.py` actually live)
-- Port 9000 is often occupied by Jupyter — use `9100:9000` mapping for Whisper
+- Whisper port is `9100:9000` (9000 conflicts with Jupyter)
 
-### Dockerfile Frontend Build Gotcha
+### Dockerfile Frontend Build
 
-The `Dockerfile` copies from `/app/frontend/dist` but `vite.config.ts` outputs to `../backend/static` (resolves to `/app/backend/static` in Docker). The `COPY --from=frontend-builder /app/frontend/dist` line will copy nothing. Fix: either change vite `outDir` for Docker, or change the Dockerfile COPY path to `/app/backend/static`.
+`vite.config.ts` outputs to `../backend/static` (resolves to `/app/backend/static` in Docker). The Dockerfile `COPY` line correctly copies from `/app/backend/static`.
 
 ## Environment
 
@@ -85,6 +91,7 @@ Copy `.env.example` → `.env`:
 - `WHISPER_API_ENDPOINT` / `WHISPER_API_KEY` fallback when DB settings are `None`
 - `PARAKEET_API_ENDPOINT` — Parakeet server URL (default `http://localhost:5001/v1`)
 - `ENCRYPTION_KEY` — Fernet key for encrypted patient data (silently disabled if empty)
+- `REDIS_URL` — Redis URL for session store (if empty, falls back to in-memory)
 - `ROOT_PATH` — sub-path deployment prefix (empty for root)
 - `VITE_ROOT_PATH` — must mirror `ROOT_PATH` for Vite dev server proxy
 
@@ -99,6 +106,7 @@ Copy `.env.example` → `.env`:
 - **Frontend build output**: `vite.config.ts` outputs to `../backend/static` (not `frontend/dist`). This matters for Docker builds
 - **SQLite fallback**: If no `DATABASE_URI` or `SQL_*` vars are set, `db_config.py` defaults to `postgresql+psycopg2://postgres:postgres@localhost:5432/aidox` (note: DB name is `aidox`, not `opendox`)
 - **ruff known-first-party**: `pyproject.toml` has `known-first-party = ["dein_projektname"]` (template placeholder) — should be `["backend"]` for correct import sorting
+- **Session store mutations**: Never mutate session dicts directly in `record.py` — always use `session_store.set_live_state()`, `session_store.update_session()`, `session_store.append_audio()`. With Redis, dicts are not shared references
 
 ## Frontend Conventions
 

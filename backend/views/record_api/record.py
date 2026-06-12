@@ -21,24 +21,23 @@ import os
 import shutil
 import time
 
-import numpy as np
-
 # Third party
 import uuid
 from datetime import datetime
 
+import numpy as np
 from fastapi import File, Form, HTTPException, UploadFile, WebSocket
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
+from backend.components.llm.llm_model import OllamaModel
+from backend.components.models.categories import Categories
 from backend.components.models.record_model import (
     Record,
     RecordCreate,
     RecordRead,
     RecordUpdate,
 )
-from backend.components.llm.llm_model import OllamaModel
-from backend.components.models.categories import Categories
 from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
@@ -54,10 +53,13 @@ from backend.views.record_api import record_bp
 logger = get_logger(__name__)
 
 
-async def _run_periodic_cleanup(session: dict, session_id: str, websocket: WebSocket) -> None:
+async def _run_periodic_cleanup(session_id: str, websocket: WebSocket) -> None:
     """Smooth chunk-boundary punctuation in the live transcript via LLM (non-blocking)."""
     from backend.components.services.chunk_correction_service import smooth_transcript
 
+    session = session_store.get_by_session(session_id)
+    if not session:
+        return
     snapshot = session.get("live_text", "").strip()
     if not snapshot:
         return
@@ -65,15 +67,18 @@ async def _run_periodic_cleanup(session: dict, session_id: str, websocket: WebSo
         cleaned = await asyncio.to_thread(smooth_transcript, snapshot)
         if not cleaned or cleaned == snapshot:
             return
-        # Preserve text appended while the LLM was running
+        session = session_store.get_by_session(session_id)
+        if not session:
+            return
         current = session.get("live_text", "")
         if current.startswith(snapshot):
-            tail = current[len(snapshot):]
-            session["live_text"] = (cleaned + tail).strip()
+            tail = current[len(snapshot) :]
+            new_text = (cleaned + tail).strip()
         else:
-            session["live_text"] = cleaned
-        await websocket.send_json({"session_id": session_id, "cleanup": session["live_text"]})
-        logger.info("[SMOOTH] cleanup sent (%d chars)", len(session["live_text"]))
+            new_text = cleaned
+        session_store.set_live_state(session_id, session.get("last_index", 0), new_text)
+        await websocket.send_json({"session_id": session_id, "cleanup": new_text})
+        logger.info("[SMOOTH] cleanup sent (%d chars)", len(new_text))
     except Exception as e:
         logger.debug("[SMOOTH] failed: %s", e)
 
@@ -92,12 +97,22 @@ def _pcm_file_to_wav_file(pcm_path: str, wav_path: str) -> None:
     data_size = len(int16_arr) * 2
     header = struct.pack(
         "<4sI4s4sIHHIIHH4sI",
-        b"RIFF", 36 + data_size, b"WAVE", b"fmt ", 16,
-        1, 1, 16000, 32000, 2, 16, b"data", data_size,
+        b"RIFF",
+        36 + data_size,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        1,
+        16000,
+        32000,
+        2,
+        16,
+        b"data",
+        data_size,
     )
     with open(wav_path, "wb") as f:
         f.write(header + int16_arr.tobytes())
-
 
 
 def get_live_asr():
@@ -136,7 +151,7 @@ async def record_create(db: SessionDep, data: RecordCreate):
     db.commit()
     db.refresh(record)
 
-    # Register the active recording session in the store (Dict now, Redis later).
+    # Register the active recording session in the store.
     # This is the single source of truth for an "unfinished recording".
     session_store.create_session(
         user_id=data.user_id,
@@ -226,7 +241,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
     print(f"[WS-START] user={user_id}, session={session_id}")
 
-    # Get the active recording session (live state lives in the store / Dict).
+    # Get the active recording session (live state lives in the store).
     # On a resume the session already exists and carries the prior live text.
     session = session_store.get_by_session(session_id)
     if session is None:
@@ -252,7 +267,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     if session and session.get("live_text"):
         try:
             await websocket.send_json(
-                {"session_id": session_id, "text": session["live_text"], "restored": True}
+                {
+                    "session_id": session_id,
+                    "text": session["live_text"],
+                    "restored": True,
+                }
             )
         except Exception as e:
             print(f"[WS-RESTORE-ERROR] {e}")
@@ -290,10 +309,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 if session is None:
                     continue
 
-                # Audio auf Disk schreiben (kein RAM-Anstieg bei langen Aufnahmen)
-                with open(session["audio_file_path"], "ab") as _f:
-                    _f.write(chunk)
-                session["audio_file_size"] += len(chunk)
+                session_store.append_audio(session_id, chunk)
+                session = session_store.get_by_session(session_id)
+                if session is None:
+                    continue
 
                 # Live ASR
                 try:
@@ -324,18 +343,20 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         with open(session["audio_file_path"], "rb") as _f:
                             _f.seek(start)
                             audio_slice = _f.read(bytes_per_chunk)
-                        session["last_index"] = start + bytes_per_chunk - bytes_per_overlap
+                        new_index = start + bytes_per_chunk - bytes_per_overlap
 
                         # Normalize quiet audio so Whisper doesn't hallucinate
                         # filler phrases instead of returning silence.
                         _pcm = np.frombuffer(audio_slice, dtype=np.float32)
                         _peak = np.abs(_pcm).max()
                         if 0 < _peak < 0.05:
-                            audio_slice = (_pcm / _peak * 0.8).astype(np.float32).tobytes()
+                            audio_slice = (
+                                (_pcm / _peak * 0.8).astype(np.float32).tobytes()
+                            )
 
                         # Whisper tends to repeat text from the prompt, causing
-                        # duplication in the live transcript. Skip the prompt entirely.
-                        live_prompt = None
+                        # duplication in the live transcript. Skip the prompt.
+                        _ = None  # live_prompt intentionally unused
 
                         logger.info(
                             "[ASR] chunk %.1fs | overlap %.1fs | params=%s",
@@ -353,9 +374,13 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         )
 
                         if result_text:
-                            session["live_text"] = (
-                                session["live_text"] + " " + result_text
+                            live_text = (
+                                session.get("live_text", "") + " " + result_text
                             ).strip()
+                            session_store.set_live_state(
+                                session_id, new_index, live_text
+                            )
+                            session = session_store.get_by_session(session_id)
 
                             try:
                                 record = db.exec(
@@ -385,17 +410,26 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                                     client_connected = False
 
                             # Periodic LLM cleanup every 30s
-                            _now = time.monotonic()
-                            if (
-                                client_connected
-                                and _now - session.get("last_cleanup_time", 0.0) >= 30.0
-                                and len(session["live_text"]) > session.get("last_cleanup_len", 0)
-                            ):
-                                session["last_cleanup_time"] = _now
-                                session["last_cleanup_len"] = len(session["live_text"])
-                                asyncio.create_task(
-                                    _run_periodic_cleanup(session, session_id, websocket)
-                                )
+                            if session:
+                                _now = time.monotonic()
+                                last_cleanup = session.get("last_cleanup_time", 0.0)
+                                live_len = len(session.get("live_text", ""))
+                                prev_len = session.get("last_cleanup_len", 0)
+                                if (
+                                    client_connected
+                                    and _now - last_cleanup >= 30.0
+                                    and live_len > prev_len
+                                ):
+                                    session_store.update_session(
+                                        session["user_id"],
+                                        {
+                                            "last_cleanup_time": _now,
+                                            "last_cleanup_len": live_len,
+                                        },
+                                    )
+                                    asyncio.create_task(
+                                        _run_periodic_cleanup(session_id, websocket)
+                                    )
 
                 except Exception as e:
                     print(f"[LIVE-ASR-ERROR] {e}")
@@ -422,12 +456,12 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
     # Stop event -> finalize the recording and run the transcription workflow.
     if session is not None:
-        # Detach the PCM file from the session before deleting it.
-        # _remove_user_session deletes audio_file_path if still set → null it out so
+        pcm_path = session.get("audio_file_path")
+        audio_size = session.get("audio_file_size", 0)
+
+        # Null out audio_file_path so delete_session won't remove the PCM file —
         # the finalize task owns cleanup instead.
-        pcm_path = session["audio_file_path"]
-        session["audio_file_path"] = None
-        audio_size = session["audio_file_size"]
+        session_store.update_session(user_id_int, {"audio_file_path": ""})
 
         session_store.delete_session(user_id_int)
 
@@ -482,11 +516,16 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         async def finalize():
             wav_path = os.path.splitext(pcm_path)[0] + ".wav"
             try:
-                print(f"[FINAL] Converting {pcm_path} ({audio_size // 1024} KB PCM) → WAV")
+                print(
+                    f"[FINAL] Converting {pcm_path} ({audio_size // 1024} KB PCM) → WAV"
+                )
                 await asyncio.to_thread(_pcm_file_to_wav_file, pcm_path, wav_path)
                 # background_transcription_task deletes wav_path after transcription
                 await asyncio.to_thread(
-                    background_transcription_task, task.id, session_id, None,
+                    background_transcription_task,
+                    task.id,
+                    session_id,
+                    None,
                     file_path=wav_path,
                 )
             except Exception as e:
@@ -645,7 +684,9 @@ async def regenerate_summary(record_id: int, db: SessionDep):
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     if not record.content:
-        raise HTTPException(status_code=400, detail="Record has no transcription content")
+        raise HTTPException(
+            status_code=400, detail="Record has no transcription content"
+        )
 
     category_prompt = None
     category_llm_override = None
@@ -667,7 +708,9 @@ async def regenerate_summary(record_id: int, db: SessionDep):
             )
         else:
             model = OllamaModel()
-        return model.generate_response(record.content, custom_system_prompt=category_prompt)
+        return model.generate_response(
+            record.content, custom_system_prompt=category_prompt
+        )
 
     try:
         summary = await asyncio.to_thread(run_llm)
@@ -677,7 +720,9 @@ async def regenerate_summary(record_id: int, db: SessionDep):
         db.refresh(record)
         return {"summarize": record.summarize}
     except Exception as e:
-        logger.error(f"[SUMMARIZE] Error re-generating summary for record {record_id}: {e}")
+        logger.error(
+            f"[SUMMARIZE] Error re-generating summary for record {record_id}: {e}"
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 

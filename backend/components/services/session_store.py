@@ -17,23 +17,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """In-memory session store for active recordings.
 
-TODO: Replace with Redis for production/multi-instance deployments.
+Used as fallback when REDIS_URL is not configured.
+For production/multi-instance deployments, set REDIS_URL to use RedisSessionStore.
 """
 
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
+
+from backend.components.modules.env import env_or_file
+from backend.components.modules.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class SessionStore:
     """Manages active recording sessions in memory."""
-    
+
     def __init__(self):
-        # user_id -> session_data mapping
         self._sessions: Dict[int, Dict[str, Any]] = {}
-        # session_id -> user_id reverse mapping for cleanup
         self._session_to_user: Dict[str, int] = {}
-    
+
     def create_session(
         self,
         user_id: int,
@@ -47,14 +51,12 @@ class SessionStore:
 
         Replaces any existing session for this user.
         """
-        # Remove old session if exists
         self._remove_user_session(user_id)
 
-        # Create a PCM file on disk for audio storage (avoids RAM accumulation).
         _audio_dir = audio_dir or "."
         os.makedirs(_audio_dir, exist_ok=True)
         _audio_path = os.path.join(_audio_dir, f"session_{session_id}.pcm")
-        open(_audio_path, "wb").close()  # create empty file
+        open(_audio_path, "wb").close()
 
         session_data = {
             "session_id": session_id,
@@ -64,8 +66,7 @@ class SessionStore:
             "category_id": category_id,
             "created_at": datetime.now(),
             "last_activity": datetime.now(),
-            "status": "recording",  # recording, paused
-            # Audio is written to disk; audio_file_size tracks total bytes written.
+            "status": "recording",
             "audio_file_path": _audio_path,
             "audio_file_size": 0,
             "last_index": 0,
@@ -73,42 +74,43 @@ class SessionStore:
             "last_cleanup_time": 0.0,
             "last_cleanup_len": 0,
         }
-        
+
         self._sessions[user_id] = session_data
         self._session_to_user[session_id] = user_id
-        
+
         return session_data
-    
+
     def get_session(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Get active session for a user."""
         session = self._sessions.get(user_id)
         if session:
-            # Update last activity
             session["last_activity"] = datetime.now()
         return session
-    
-    def update_session(self, user_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+
+    def update_session(
+        self, user_id: int, updates: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Update session data."""
         session = self._sessions.get(user_id)
         if session:
             session.update(updates)
             session["last_activity"] = datetime.now()
         return session
-    
+
     def pause_session(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Mark session as paused."""
         return self.update_session(user_id, {"status": "paused"})
-    
+
     def resume_session(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Mark session as recording and update activity."""
         return self.update_session(user_id, {"status": "recording"})
-    
+
     def delete_session(self, user_id: int) -> bool:
         """Delete user's session."""
         return self._remove_user_session(user_id)
-    
+
     def _remove_user_session(self, user_id: int) -> bool:
-        """Internal: Remove session, clean up reverse mapping, and delete PCM file."""
+        """Remove session, clean up reverse mapping, and delete PCM file."""
         session = self._sessions.pop(user_id, None)
         if session:
             self._session_to_user.pop(session.get("session_id"), None)
@@ -120,13 +122,13 @@ class SessionStore:
                     pass
             return True
         return False
-    
+
     def get_user_by_session(self, session_id: str) -> Optional[int]:
         """Get user_id for a given session_id."""
         return self._session_to_user.get(session_id)
 
     def get_by_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """Get session data by session_id (convenience reverse lookup)."""
+        """Get session data by session_id."""
         user_id = self._session_to_user.get(session_id)
         if user_id is None:
             return None
@@ -143,31 +145,49 @@ class SessionStore:
                 f.write(chunk)
             session["audio_file_size"] += len(chunk)
 
-    def set_live_state(
-        self, session_id: str, last_index: int, live_text: str
-    ) -> None:
+    def set_live_state(self, session_id: str, last_index: int, live_text: str) -> None:
         """Update live transcription progress for a session."""
         session = self.get_by_session(session_id)
         if session is not None:
             session["last_index"] = last_index
             session["live_text"] = live_text
-    
+
     def cleanup_stale_sessions(self, max_age_minutes: int = 30) -> int:
-        """Remove sessions inactive for longer than max_age_minutes.
-        
-        Returns number of cleaned up sessions.
-        """
+        """Remove sessions inactive for longer than max_age_minutes."""
         cutoff = datetime.now() - timedelta(minutes=max_age_minutes)
         to_remove = [
-            user_id for user_id, session in self._sessions.items()
+            user_id
+            for user_id, session in self._sessions.items()
             if session.get("last_activity", datetime.now()) < cutoff
         ]
-        
+
         for user_id in to_remove:
             self._remove_user_session(user_id)
-        
+
         return len(to_remove)
 
 
-# Global instance - will be replaced by Redis in production
-session_store = SessionStore()
+def _create_session_store():
+    """Factory: return RedisSessionStore if REDIS_URL is set, else In-Memory."""
+    redis_url = env_or_file("REDIS_URL")
+    if redis_url:
+        try:
+            from backend.components.services.session_store_redis import (
+                RedisSessionStore,
+            )
+
+            store = RedisSessionStore(redis_url)
+            store.ping()
+            logger.info("Session store: Redis (%s)", redis_url)
+            return store
+        except Exception as exc:
+            logger.warning(
+                "Redis unavailable (%s), falling back to in-memory: %s",
+                redis_url,
+                exc,
+            )
+    logger.info("Session store: In-Memory (no REDIS_URL configured)")
+    return SessionStore()
+
+
+session_store = _create_session_store()

@@ -7,13 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY parakeet_server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Download model at build time for faster container starts (~300MB)
 RUN python -c "import onnx_asr; onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3')"
 
-COPY main.py ./
+COPY parakeet_server/main.py .
 
 EXPOSE 5001
 

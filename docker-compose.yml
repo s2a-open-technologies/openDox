@@ -4,7 +4,7 @@
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU Affero General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
+#  any later version.
 
 services:
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -27,19 +27,39 @@ services:
       retries: 5
 
   # ═══════════════════════════════════════════════════════════════════════════════
+  # Redis (Session Store)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: opendox-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ═══════════════════════════════════════════════════════════════════════════════
   # Whisper Server (OpenAI-compatible API for transcription)
   # ═══════════════════════════════════════════════════════════════════════════════
   whisper:
-    image: hwdsl2/whisper-server:cuda
+    build:
+      context: .
+      dockerfile: whisper_server/Dockerfile
     container_name: opendox-whisper
     restart: always
+    ports:
+      - "9100:9000/tcp"
     volumes:
       - whisper-data:/var/lib/whisper
     environment:
-      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
-      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
-      WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
-    # GPU support - uncomment if you have NVIDIA Docker runtime
+      - WHISPER_MODEL=${WHISPER_MODEL:-large-v3-turbo}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
+      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8_float16}
+      - WHISPER_API_KEY=${WHISPER_API_KEY:-loc-123}
     deploy:
       resources:
         reservations:
@@ -52,7 +72,9 @@ services:
   # Parakeet Server (CPU, onnx-asr, OpenAI-compatible API for live ASR)
   # ═══════════════════════════════════════════════════════════════════════════════
   parakeet:
-    build: ./docker/parakeet-server
+    build: 
+      context: .
+      dockerfile: parakeet_server/Dockerfile
     container_name: opendox-parakeet
     restart: always
     ports:
@@ -87,6 +109,8 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Redis Session Store
+      REDIS_URL: redis://redis:6379/0
       # Whisper API (point to the whisper container — used for final transcription)
       WHISPER_API_ENDPOINT: http://whisper:9000/v1
       WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
@@ -102,12 +126,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       whisper:
         condition: service_started
 
 volumes:
   postgres-data:
     name: opendox-postgres-data
+  redis-data:
+    name: opendox-redis-data
   whisper-data:
     name: opendox-whisper-data
   app-logs:

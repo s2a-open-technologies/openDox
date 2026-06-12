@@ -30,10 +30,10 @@ from fastapi.responses import JSONResponse
 
 DEFAULT_MODEL = os.getenv("PARAKEET_MODEL", "nemo-parakeet-tdt-0.6b-v3")
 
-_models: dict[str, onnx_asr.Model] = {}
+_models: dict[str, "onnx_asr.adapters.TextResultsAsrAdapter"] = {}
 
 
-def get_model(name: str | None = None) -> onnx_asr.Model:
+def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapter":
     """Load and cache an ONNX ASR model by name.
 
     Models are loaded on first request and kept in memory for subsequent

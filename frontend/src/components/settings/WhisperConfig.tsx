@@ -140,7 +140,9 @@ const WhisperConfig = () => {
                     <TabsTrigger value="general">Allgemein</TabsTrigger>
                     <TabsTrigger value="live">Live</TabsTrigger>
                     <TabsTrigger value="final">Final</TabsTrigger>
-                    <TabsTrigger value="quality">Qualität</TabsTrigger>
+                    {config.live_backend === 'api' && (
+                        <TabsTrigger value="quality">Qualität</TabsTrigger>
+                    )}
                 </TabsList>
 
                 <TabsContent value="general">
@@ -199,19 +201,29 @@ const WhisperConfig = () => {
                         <CardContent className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <Label htmlFor="live-enabled">Live-Transkription aktiv</Label>
-                                <Switch 
-                                    id="live-enabled" 
-                                    checked={config.live_backend !== 'disabled'} 
-                                    onCheckedChange={(checked) => updateField('live_backend', checked ? 'api' : 'disabled')} 
-                                />
+                                <Select value={config.live_backend} onValueChange={(v) => updateField('live_backend', v)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Wählen..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="parakeet">Parakeet (empfohlen)</SelectItem>
+                                        <SelectItem value="api">Whisper API</SelectItem>
+                                        <SelectItem value="disabled">Deaktiviert</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             
                             {config.live_backend !== 'disabled' && (
                                 <>
+                                    {config.live_backend === 'parakeet' && (
+                                        <p className="text-sm text-muted-foreground">
+                                            Parakeet liefert Text mit Satzzeichen und ohne Halluzination — keine Korrektur nötig.
+                                        </p>
+                                    )}
                                     <div className="space-y-2">
                                         <Label>API Endpoint</Label>
                                         <Input 
-                                            placeholder="http://localhost:9000" 
+                                            placeholder={config.live_backend === 'parakeet' ? 'http://parakeet:5001/v1' : 'http://localhost:9000'} 
                                             value={config.live_api_endpoint} 
                                             onChange={(e) => updateField('live_api_endpoint', e.target.value)} 
                                         />

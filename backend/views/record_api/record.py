@@ -41,7 +41,6 @@ from backend.components.models.categories import Categories
 from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
-from backend.components.services.chunk_correction_service import correct_chunk
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
 )
@@ -56,6 +55,25 @@ logger = get_logger(__name__)
 
 OUTPUT_DIR = "chunks"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def _cleanup_orphan_chunks() -> None:
+    """Remove leftover chunk files from previous server runs.
+
+    At startup the session store is empty — any chunk files on disk belong to
+    sessions that no longer exist. Safe to delete since merge-and-process
+    cleans up after itself and cancel-session already removes its own files.
+    """
+    import glob
+
+    for path in glob.glob(os.path.join(OUTPUT_DIR, "*")):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+_cleanup_orphan_chunks()
 
 
 def _cleanup_session_files(
@@ -319,22 +337,14 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         if 0 < _peak < 0.05:
                             audio_slice = (_pcm / _peak * 0.8).astype(np.float32).tobytes()
 
-                        # Only pass a rolling prompt when there is no audio overlap.
-                        # Overlap already provides acoustic continuity; combining it
-                        # with a text prompt makes Whisper transcribe the overlapping
-                        # audio a second time (the prompt says "this was just said"
-                        # and the audio confirms it → repetition).
-                        live_prompt = (
-                            None
-                            if bytes_per_overlap > 0
-                            else (session["live_text"] or "")[-200:].strip() or None
-                        )
+                        # Whisper tends to repeat text from the prompt, causing
+                        # duplication in the live transcript. Skip the prompt entirely.
+                        live_prompt = None
 
                         logger.info(
-                            "[ASR] chunk %.1fs | overlap %.1fs | prompt=%s | params=%s",
+                            "[ASR] chunk %.1fs | overlap %.1fs | params=%s",
                             len(audio_slice) / (16000 * 4),
                             bytes_per_overlap / (16000 * 4),
-                            repr(live_prompt[:40]) if live_prompt else None,
                             whisper_params,
                         )
                         # Transcribe in background thread (non-blocking)
@@ -342,22 +352,15 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                             backend.transcribe,
                             audio=audio_slice,
                             language="de",
-                            prompt=live_prompt,
+                            prompt=None,
                             params=whisper_params,
                         )
-
-                        if result_text:
-                            context = (session["live_text"] or "")[-80:]
-                            result_text = await asyncio.to_thread(
-                                correct_chunk, result_text, context
-                            )
 
                         if result_text:
                             session["live_text"] = (
                                 session["live_text"] + " " + result_text
                             ).strip()
 
-                            # Persist partial transcription to DB
                             try:
                                 record = db.exec(
                                     select(Record).where(
@@ -382,9 +385,8 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                                         {"session_id": session_id, "text": result_text}
                                     )
                                 except Exception as e:
-                                    print(f"[WS-SEND-ERROR-PARTIAL] {e}")
+                                    print(f"[WS-SEND-ERROR] {e}")
                                     client_connected = False
-                                    break
 
                 except Exception as e:
                     print(f"[LIVE-ASR-ERROR] {e}")
@@ -485,8 +487,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     abs_path = os.path.abspath(chunk)
                     f.write(f"file '{abs_path}'\n")
 
-            # 3. Merge
-            output_filename = f"session_{session_id}_merged.webm"
+            # 3. Merge — decode each WebM chunk properly then output as 16kHz mono WAV.
+            # "-c copy" is broken for MediaRecorder WebM: only chunk 1 has the EBML
+            # header, so stream-copying produces a file Whisper can only partially read.
+            output_filename = f"session_{session_id}_merged.wav"
             output_path = f"{OUTPUT_DIR}/{output_filename}"
 
             cmd = [
@@ -497,13 +501,15 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 "0",
                 "-i",
                 list_file_path,
-                "-c",
-                "copy",
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
                 "-y",
                 output_path,
             ]
 
-            print(f"[FFMPEG] Merging {len(chunks)} chunks...")
+            print(f"[FFMPEG] Merging {len(chunks)} chunks into {output_filename}...")
             try:
                 process = await asyncio.to_thread(
                     subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -548,9 +554,19 @@ async def record(
     user_id: int = Form(...),
     session_id: str = Form(...),
 ):
-    """Upload audio chunk and append to session buffer"""
+    """Upload audio chunk and append to session buffer.
+
+    Rejects the upload if the session no longer exists (e.g. user cancelled),
+    preventing orphaned chunk files on disk.
+    """
+    session = session_store.get_session(user_id)
+    if not session or session.get("session_id") != session_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Session not found or already cancelled. Chunk rejected.",
+        )
+
     actual_date = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Write into OUTPUT_DIR matching the merge glob in websocket_record.
     chunk_filename = f"user{user_id}_session{session_id}_{actual_date}_chunk.webm"
     chunk_path = f"{OUTPUT_DIR}/{chunk_filename}"
 

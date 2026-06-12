@@ -24,42 +24,56 @@ from backend.components.services.settings_service import get_llm_settings
 logger = get_logger(__name__)
 
 _SYSTEM_PROMPT = (
-    "Du korrigierst deutschen Whisper-Transkriptions-Output für medizinische Diktiersoftware.\n"
-    "Aufgabe: Korrigiere NUR den neuen Chunk.\n"
-    "Erlaubte Korrekturen: falsche Satzzeichen bei Atempausen, abgehackte Wörter an "
-    "Chunk-Grenzen, einzelne offensichtliche Transkriptions-Artefakte.\n"
-    "VERBOTEN: Inhalt ändern, Wörter hinzufügen oder weglassen, umformulieren.\n"
-    "Gib NUR den korrigierten Text zurück — kein Kommentar, keine Erklärung."
+    "Du bereinigst deutschen Whisper-Transkriptionstext für medizinische Diktiersoftware.\n\n"
+    "Entferne diese bekannten Whisper-Artefakte aus dem Text:\n"
+    '- "Vielen Dank", "Danke schön", "Danke", "Bitte"\n'
+    '- "Tschüss", "Auf Wiedersehen", "Bis zum nächsten Mal"\n'
+    '- "Das ist ein Video", "Das ist ein Test"\n'
+    '- "Untertitel von", "Abonnieren", ♪, [Musik], [Applaus]\n\n'
+    "Erlaubte weitere Korrekturen: Satzzeichen, abgehackte Wörter an Chunk-Grenzen.\n\n"
+    "VERBOTEN: Erklärungen schreiben, Kommentare, neue Wörter erfinden, Inhalt ändern.\n"
+    "Gib NUR den bereinigten Text aus. Wenn nichts übrig bleibt, gib nichts aus."
 )
 
+# LLM meta-commentary patterns — small models sometimes explain instead of outputting empty.
+_META_PATTERNS = [
+    "kein medizinischer inhalt",
+    "kein inhalt",
+    "leises geräusch",
+    "keine sprache",
+    "stille erkannt",
+    "halluzination",
+    "keine transkription",
+    "es gibt keinen",
+    "der text enthält",
+    "dies ist kein",
+    "ich kann",
+    "unfortunately",
+    "there is no",
+]
 
-def correct_chunk(raw_text: str, context: str) -> str:
-    """Post-process a raw Whisper chunk with a fast LLM correction pass.
 
-    Uses the configured LLM endpoint (same as summarisation). Falls back to
-    raw_text on any error or timeout so near-live never blocks.
-    """
-    if not raw_text or not raw_text.strip():
-        return raw_text
+def _is_meta_commentary(text: str) -> bool:
+    lower = text.lower()
+    return any(p in lower for p in _META_PATTERNS)
 
+
+def _call_llm(system: str, user: str, max_tokens: int = 200) -> str | None:
+    """Call the configured LLM and return the response content, or None on failure."""
     try:
         settings = get_llm_settings()
         endpoint = (settings.llm_api_endpoint or "http://localhost:11434/v1").rstrip("/")
         model = settings.correction_model or settings.llm_model or "medgemma-4b-it:Q4_K_M"
         api_key = settings.llm_api_key or "loc-123"
 
-        system = _SYSTEM_PROMPT
-        if context:
-            system += f'\n\nKontext (bereits transkribiert): "{context}"'
-
         payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": raw_text},
+                {"role": "user", "content": user},
             ],
             "temperature": 0.0,
-            "max_tokens": 200,
+            "max_tokens": max_tokens,
         }
 
         response = requests.post(
@@ -71,12 +85,33 @@ def correct_chunk(raw_text: str, context: str) -> str:
 
         if response.status_code == 200:
             content = response.json()["choices"][0]["message"]["content"]
-            corrected = _strip_thinking(content).strip()
-            if corrected:
-                logger.debug("[CHUNK-FIX] %r → %r", raw_text[:60], corrected[:60])
-                return corrected
+            return _strip_thinking(content).strip()
 
     except Exception as e:
-        logger.debug("[CHUNK-FIX] fallback (%s)", e)
+        logger.debug("[CHUNK-FIX] LLM call failed: %s", e)
+
+    return None
+
+
+def correct_chunk(raw_text: str, context: str) -> str:
+    """Post-process a single raw Whisper chunk with a fast LLM correction pass.
+
+    Falls back to raw_text on any error or timeout so near-live never blocks.
+    """
+    if not raw_text or not raw_text.strip():
+        return raw_text
+
+    result = _call_llm(_SYSTEM_PROMPT, raw_text)
+    if result is not None:
+        if _is_meta_commentary(result):
+            logger.debug("[CHUNK-FIX] LLM meta-commentary filtered: %r", result[:80])
+            return ""
+        if result:
+            logger.debug("[CHUNK-FIX] %r → %r", raw_text[:60], result[:60])
+        else:
+            logger.debug("[CHUNK-FIX] hallucination removed: %r", raw_text[:60])
+        return result
 
     return raw_text
+
+

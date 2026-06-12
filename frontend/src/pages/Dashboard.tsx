@@ -16,9 +16,9 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
-import Recorder from "@/components/Recorder";
+import Recorder, { RecorderHandle } from "@/components/Recorder";
 import TranscriptView from "@/components/TranscriptView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,7 @@ interface Category {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const recorderRef = useRef<RecorderHandle>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -342,6 +343,7 @@ const Dashboard = () => {
         {activeSessionId ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Recorder
+              ref={recorderRef}
               userId={userId}
               title={newTitle}
               categoryId={categoryId}
@@ -356,8 +358,9 @@ const Dashboard = () => {
                 onClick={async () => {
                   const ok = confirm("Aufnahme wirklich abbrechen? Diese kann nicht wiederhergestellt werden.");
                   if (!ok) return;
-                  // Unmount Recorder first (stops streams/WS) so no more audio uploads
-                  // happen before the server deletes the chunk files.
+                  // Wait for pending chunk uploads before cancelling on the server,
+                  // so in-flight uploads don't create orphaned files after cleanup.
+                  try { await recorderRef.current?.waitForUploads(); } catch {}
                   setActiveSessionId(null);
                   setUnfinishedSessionId(null);
                   setSelectedRecording(null);

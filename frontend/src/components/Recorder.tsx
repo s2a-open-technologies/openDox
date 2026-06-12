@@ -16,7 +16,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -44,7 +44,11 @@ interface RecorderProps {
   resumeSessionId?: string;
 }
 
-const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }: RecorderProps) => {
+export interface RecorderHandle {
+  waitForUploads: () => Promise<void>;
+}
+
+const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }, ref) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -64,6 +68,14 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
   const isPausedRef = useRef(false);
 
   const [liveEnabled, setLiveEnabled] = useState(true);
+
+  useImperativeHandle(ref, () => ({
+    waitForUploads: async () => {
+      if (activeUploadsRef.current.size > 0) {
+        await Promise.allSettled(Array.from(activeUploadsRef.current));
+      }
+    },
+  }));
 
   const createRecord = async () => {
     const response = await fetch("/api/v1/records/create", {
@@ -106,7 +118,7 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
         setLiveTranscript(data.partial);
       }
 
-      if (data.text) {
+      if (data.text !== undefined) {
         if (data.restored) {
           // Resume: backend replays the accumulated transcript - set, don't append.
           setStableTranscript(data.text);
@@ -200,8 +212,8 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
 
       // Float32 → WebSocket
       worklet.port.onmessage = (e) => {
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
-          socketRef.current.send(e.data); // ArrayBuffer (Float32)
+        if (socketRef.current?.readyState === WebSocket.OPEN && !isPausedRef.current) {
+          socketRef.current.send(e.data);
         }
       };
 
@@ -218,8 +230,7 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
       activeUploadsRef.current.clear();
 
       mediaRecorder.ondataavailable = (e) => {
-        // Use the ref - the sessionId state may not be set yet right after start/resume.
-        if (e.data.size > 0 && sessionIdRef.current) {
+        if (e.data.size > 0 && sessionIdRef.current && !isPausedRef.current) {
           uploadChunk(e.data, sessionIdRef.current);
         }
       };
@@ -515,6 +526,6 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
     </div>
   );
 
-};
+});
 
 export default Recorder;

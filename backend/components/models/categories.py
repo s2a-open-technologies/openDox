@@ -25,12 +25,24 @@ class Categories(SQLModel, table=True):
     name: str = Field(index=True)
     description: str
     system_prompt: str
+    llm_override_enabled: bool = Field(default=False)
+    llm_model: Optional[str] = Field(default=None)
+    llm_api_endpoint: Optional[str] = Field(default=None)
+    llm_api_key: Optional[str] = Field(default=None)
+    llm_temperature: Optional[float] = Field(default=None)
+    llm_max_tokens: Optional[int] = Field(default=None)
 
 
 class CategoriesCreate(SQLModel):
     name: str
     description: str
     system_prompt: str
+    llm_override_enabled: bool = False
+    llm_model: Optional[str] = None
+    llm_api_endpoint: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_temperature: Optional[float] = None
+    llm_max_tokens: Optional[int] = None
 
 
 class CategoriesRead(SQLModel):
@@ -38,3 +50,9 @@ class CategoriesRead(SQLModel):
     name: str
     description: str
     system_prompt: str
+    llm_override_enabled: bool
+    llm_model: Optional[str]
+    llm_api_endpoint: Optional[str]
+    llm_api_key: Optional[str]
+    llm_temperature: Optional[float]
+    llm_max_tokens: Optional[int]

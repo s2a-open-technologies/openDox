@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
@@ -30,16 +31,30 @@ interface CategorySettingsData {
     name: string;
     description: string;
     system_prompt: string;
+    llm_override_enabled: boolean;
+    llm_model: string | null;
+    llm_api_endpoint: string | null;
+    llm_api_key: string | null;
+    llm_temperature: number | null;
+    llm_max_tokens: number | null;
 }
+
+const emptyForm = (): CategorySettingsData => ({
+    name: '',
+    description: '',
+    system_prompt: '',
+    llm_override_enabled: false,
+    llm_model: null,
+    llm_api_endpoint: null,
+    llm_api_key: null,
+    llm_temperature: null,
+    llm_max_tokens: null,
+});
 
 const CategorySettings = () => {
     const { authFetch } = useAuth();
     const [categories, setCategories] = useState<CategorySettingsData[]>([]);
-    const [settings, setSettings] = useState<CategorySettingsData>({
-        name: '',
-        description: '',
-        system_prompt: '',
-    });
+    const [settings, setSettings] = useState<CategorySettingsData>(emptyForm());
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -69,12 +84,22 @@ const CategorySettings = () => {
 
             const method = isEditing && settings.id ? 'PUT' : 'POST';
 
+            // When override is disabled, clear the LLM fields before sending
+            const payload = settings.llm_override_enabled
+                ? settings
+                : {
+                    ...settings,
+                    llm_model: null,
+                    llm_api_endpoint: null,
+                    llm_api_key: null,
+                    llm_temperature: null,
+                    llm_max_tokens: null,
+                };
+
             const res = await authFetch(url, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(settings),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
 
             if (res.ok) {
@@ -113,11 +138,7 @@ const CategorySettings = () => {
     };
 
     const resetForm = () => {
-        setSettings({
-            name: '',
-            description: '',
-            system_prompt: '',
-        });
+        setSettings(emptyForm());
         setIsEditing(false);
     };
 
@@ -138,6 +159,11 @@ const CategorySettings = () => {
                                 <div className="space-y-1">
                                     <div className="font-medium">{category.name}</div>
                                     <div className="text-sm text-muted-foreground">{category.description}</div>
+                                    {category.llm_override_enabled && category.llm_model && (
+                                        <div className="text-xs text-blue-500">
+                                            LLM: {category.llm_model}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-2">
                                     <Button
@@ -205,6 +231,89 @@ const CategorySettings = () => {
                                 required
                             />
                         </div>
+
+                        <div className="border rounded-lg p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label className="text-base">Eigenes LLM verwenden</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Überschreibt die globalen LLM-Einstellungen für diese Kategorie
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={settings.llm_override_enabled}
+                                    onCheckedChange={(checked) =>
+                                        setSettings({ ...settings, llm_override_enabled: checked })
+                                    }
+                                />
+                            </div>
+
+                            {settings.llm_override_enabled && (
+                                <div className="space-y-4 pt-2 border-t">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Modell</Label>
+                                            <Input
+                                                value={settings.llm_model ?? ''}
+                                                onChange={e => setSettings({ ...settings, llm_model: e.target.value || null })}
+                                                placeholder="z.B. deepseek-r1:14b"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>API Endpunkt</Label>
+                                            <Input
+                                                value={settings.llm_api_endpoint ?? ''}
+                                                onChange={e => setSettings({ ...settings, llm_api_endpoint: e.target.value || null })}
+                                                placeholder="http://localhost:11434/v1"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>API Key</Label>
+                                        <Input
+                                            value={settings.llm_api_key ?? ''}
+                                            onChange={e => setSettings({ ...settings, llm_api_key: e.target.value || null })}
+                                            placeholder="Optional"
+                                            type="password"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Temperature</Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={1}
+                                                step={0.1}
+                                                value={settings.llm_temperature ?? ''}
+                                                onChange={e => setSettings({
+                                                    ...settings,
+                                                    llm_temperature: e.target.value ? parseFloat(e.target.value) : null,
+                                                })}
+                                                placeholder="Standard aus globalen Einstellungen"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Max Tokens</Label>
+                                            <Input
+                                                type="number"
+                                                min={128}
+                                                max={32768}
+                                                step={128}
+                                                value={settings.llm_max_tokens ?? ''}
+                                                onChange={e => setSettings({
+                                                    ...settings,
+                                                    llm_max_tokens: e.target.value ? parseInt(e.target.value) : null,
+                                                })}
+                                                placeholder="Standard aus globalen Einstellungen"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex gap-2">
                             <Button type="submit" disabled={loading}>
                                 {loading ? 'Speichern...' : (isEditing ? 'Aktualisieren' : 'Erstellen')}

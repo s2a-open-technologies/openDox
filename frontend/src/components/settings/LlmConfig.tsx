@@ -120,7 +120,7 @@ const LlmConfig = () => {
                             onChange={(e) => updateField('correction_model', e.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Kleines schnelles Modell für Near-Live-Korrektur, z.B. qwen2.5:0.5b
+                            Kleines schnelles Modell für Near-Live-Korrektur bie Verwendung von Whisper, z.B. qwen2.5:0.5b
                         </p>
                     </div>
 

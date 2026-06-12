@@ -217,7 +217,7 @@ const WhisperConfig = () => {
                                 <>
                                     {config.live_backend === 'parakeet' && (
                                         <p className="text-sm text-muted-foreground">
-                                            Parakeet liefert Text mit Satzzeichen und ohne Halluzination — keine Korrektur nötig.
+                                            Parakeet liefert Text mit Satzzeichen und ohne Halluzination.
                                         </p>
                                     )}
                                     <div className="space-y-2">

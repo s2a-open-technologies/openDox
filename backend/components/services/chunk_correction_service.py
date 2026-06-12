@@ -58,7 +58,7 @@ def _is_meta_commentary(text: str) -> bool:
     return any(p in lower for p in _META_PATTERNS)
 
 
-def _call_llm(system: str, user: str, max_tokens: int = 200) -> str | None:
+def _call_llm(system: str, user: str, max_tokens: int = 200, timeout: int = 4) -> str | None:
     """Call the configured LLM and return the response content, or None on failure."""
     try:
         settings = get_llm_settings()
@@ -80,7 +80,7 @@ def _call_llm(system: str, user: str, max_tokens: int = 200) -> str | None:
             f"{endpoint}/chat/completions",
             json=payload,
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=4,
+            timeout=timeout,
         )
 
         if response.status_code == 200:
@@ -91,6 +91,33 @@ def _call_llm(system: str, user: str, max_tokens: int = 200) -> str | None:
         logger.debug("[CHUNK-FIX] LLM call failed: %s", e)
 
     return None
+
+
+_SMOOTH_PROMPT = (
+    "Du glättest die Interpunktion eines deutschen Medizindiktats.\n"
+    "Das Diktat wurde in kurzen Chunks transkribiert; an den Grenzen wurden "
+    "mechanisch Punkte gesetzt, die mitten in Sätze fallen.\n\n"
+    "Korrigiere diese falschen Satzenden: Verbinde unterbrochene Sätze, "
+    "passe Groß-/Kleinschreibung entsprechend an.\n"
+    "Echte Satzenden und Pausen bleiben erhalten.\n\n"
+    "VERBOTEN: Wörter hinzufügen, entfernen, umformulieren oder Inhalt ändern.\n"
+    "Gib NUR den korrigierten Text aus."
+)
+
+
+def smooth_transcript(text: str) -> str:
+    """Smooth chunk-boundary punctuation in an accumulated Parakeet transcript.
+
+    Returns cleaned text on success, original text on LLM failure.
+    """
+    if not text or not text.strip():
+        return text
+    max_tokens = max(200, len(text.split()) * 2)
+    result = _call_llm(_SMOOTH_PROMPT, text, max_tokens=max_tokens, timeout=20)
+    if result and not _is_meta_commentary(result):
+        logger.debug("[SMOOTH] %d → %d chars", len(text), len(result))
+        return result
+    return text
 
 
 def correct_chunk(raw_text: str, context: str) -> str:

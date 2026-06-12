@@ -70,7 +70,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
                 </TabsTrigger>
                 <TabsTrigger value="llm" className="flex items-center gap-2">
                   <Brain className="w-4 h-4" />
-                  <span>LLM / Ollama</span>
+                  <span>LLM</span>
                 </TabsTrigger>
               </TabsList>
 

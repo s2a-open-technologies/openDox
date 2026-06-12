@@ -115,6 +115,12 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
         setLiveTranscript(data.partial);
       }
 
+      if (data.cleanup !== undefined) {
+        // Periodic LLM cleanup replaced the full stable transcript
+        setStableTranscript(data.cleanup);
+        setLiveTranscript("");
+      }
+
       if (data.text !== undefined) {
         if (data.restored) {
           // Resume: backend replays the accumulated transcript - set, don't append.

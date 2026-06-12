@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import os
 import shutil
+import time
 
 import numpy as np
 
@@ -51,6 +52,30 @@ from backend.components.sql.sql_engine import SessionDep
 from backend.views.record_api import record_bp
 
 logger = get_logger(__name__)
+
+
+async def _run_periodic_cleanup(session: dict, session_id: str, websocket: WebSocket) -> None:
+    """Smooth chunk-boundary punctuation in the live transcript via LLM (non-blocking)."""
+    from backend.components.services.chunk_correction_service import smooth_transcript
+
+    snapshot = session.get("live_text", "").strip()
+    if not snapshot:
+        return
+    try:
+        cleaned = await asyncio.to_thread(smooth_transcript, snapshot)
+        if not cleaned or cleaned == snapshot:
+            return
+        # Preserve text appended while the LLM was running
+        current = session.get("live_text", "")
+        if current.startswith(snapshot):
+            tail = current[len(snapshot):]
+            session["live_text"] = (cleaned + tail).strip()
+        else:
+            session["live_text"] = cleaned
+        await websocket.send_json({"session_id": session_id, "cleanup": session["live_text"]})
+        logger.info("[SMOOTH] cleanup sent (%d chars)", len(session["live_text"]))
+    except Exception as e:
+        logger.debug("[SMOOTH] failed: %s", e)
 
 
 OUTPUT_DIR = "chunks"
@@ -359,6 +384,19 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                                     print(f"[WS-SEND-ERROR] {e}")
                                     client_connected = False
 
+                            # Periodic LLM cleanup every 30s
+                            _now = time.monotonic()
+                            if (
+                                client_connected
+                                and _now - session.get("last_cleanup_time", 0.0) >= 30.0
+                                and len(session["live_text"]) > session.get("last_cleanup_len", 0)
+                            ):
+                                session["last_cleanup_time"] = _now
+                                session["last_cleanup_len"] = len(session["live_text"])
+                                asyncio.create_task(
+                                    _run_periodic_cleanup(session, session_id, websocket)
+                                )
+
                 except Exception as e:
                     print(f"[LIVE-ASR-ERROR] {e}")
 
@@ -610,13 +648,25 @@ async def regenerate_summary(record_id: int, db: SessionDep):
         raise HTTPException(status_code=400, detail="Record has no transcription content")
 
     category_prompt = None
+    category_llm_override = None
     if record.category_id:
         cat = db.get(Categories, record.category_id)
         if cat:
             category_prompt = cat.system_prompt
+            if cat.llm_override_enabled and cat.llm_model:
+                category_llm_override = cat
 
     def run_llm():
-        model = OllamaModel()
+        if category_llm_override:
+            model = OllamaModel(
+                model_name=category_llm_override.llm_model,
+                base_url=category_llm_override.llm_api_endpoint,
+                api_key=category_llm_override.llm_api_key,
+                temperature=category_llm_override.llm_temperature,
+                max_tokens=category_llm_override.llm_max_tokens,
+            )
+        else:
+            model = OllamaModel()
         return model.generate_response(record.content, custom_system_prompt=category_prompt)
 
     try:

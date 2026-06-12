@@ -70,6 +70,8 @@ class SessionStore:
             "audio_file_size": 0,
             "last_index": 0,
             "live_text": "",
+            "last_cleanup_time": 0.0,
+            "last_cleanup_len": 0,
         }
         
         self._sessions[user_id] = session_data

@@ -46,12 +46,15 @@ def background_transcription_task(
     smt = select(Record).where(Record.session_id == session_id)
     record = db.exec(smt).one_or_none()
 
-    # Get category prompt if set
+    # Get category config if set
     category_prompt = None
+    category_llm_override = None
     if record and record.category_id:
         cat = db.get(Categories, record.category_id)
         if cat:
             category_prompt = cat.system_prompt
+            if cat.llm_override_enabled and cat.llm_model:
+                category_llm_override = cat
 
     try:
         backend = get_final_backend()
@@ -82,9 +85,17 @@ def background_transcription_task(
 
         update_task_status(db, task_id, "processing_llm")
 
-        # LLM summarization with category system_prompt if available
-        # Create fresh instance per task to pick up latest settings
-        model = OllamaModel()
+        # LLM summarization — use category-specific LLM if override is active
+        if category_llm_override:
+            model = OllamaModel(
+                model_name=category_llm_override.llm_model,
+                base_url=category_llm_override.llm_api_endpoint,
+                api_key=category_llm_override.llm_api_key,
+                temperature=category_llm_override.llm_temperature,
+                max_tokens=category_llm_override.llm_max_tokens,
+            )
+        else:
+            model = OllamaModel()
         summary = model.generate_response(text, custom_system_prompt=category_prompt)
         logger.info(f"[TASK {task_id}] Summarization completed ({len(summary)} chars)")
 

@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: whisper_server/Dockerfile
-    container_name: whisper
+    container_name: opendox-whisper
     restart: always
     ports:
       - "9100:9000/tcp"

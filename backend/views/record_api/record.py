@@ -57,52 +57,22 @@ OUTPUT_DIR = "chunks"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def _cleanup_orphan_chunks() -> None:
-    """Remove leftover chunk files from previous server runs.
+def _pcm_file_to_wav_file(pcm_path: str, wav_path: str) -> None:
+    """Convert a float32 raw PCM file to a 16-bit 16 kHz mono WAV file."""
+    import struct
 
-    At startup the session store is empty — any chunk files on disk belong to
-    sessions that no longer exist. Safe to delete since merge-and-process
-    cleans up after itself and cancel-session already removes its own files.
-    """
-    import glob
+    with open(pcm_path, "rb") as f:
+        float_arr = np.frombuffer(f.read(), dtype=np.float32)
+    int16_arr = (float_arr * 32767).astype(np.int16)
+    data_size = len(int16_arr) * 2
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + data_size, b"WAVE", b"fmt ", 16,
+        1, 1, 16000, 32000, 2, 16, b"data", data_size,
+    )
+    with open(wav_path, "wb") as f:
+        f.write(header + int16_arr.tobytes())
 
-    for path in glob.glob(os.path.join(OUTPUT_DIR, "*")):
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-
-
-_cleanup_orphan_chunks()
-
-
-def _cleanup_session_files(
-    user_id: int | str, session_id: str, include_merged: bool = True
-) -> None:
-    """Remove on-disk audio artifacts for a session from the chunks directory.
-
-    Args:
-        user_id: The recording user id.
-        session_id: The session whose files should be removed.
-        include_merged: Also delete the merged webm. Set False when the merged
-            file is still needed for transcription (it is deleted later by the
-            background task itself).
-    """
-    import glob
-
-    patterns = [
-        f"{OUTPUT_DIR}/user{user_id}_session{session_id}_*_chunk.webm",
-        f"{OUTPUT_DIR}/session_{user_id}_{session_id}_list.txt",
-    ]
-    if include_merged:
-        patterns.append(f"{OUTPUT_DIR}/session_{session_id}_merged.webm")
-
-    for pattern in patterns:
-        for path in glob.glob(pattern):
-            try:
-                os.remove(path)
-            except OSError as e:
-                logger.warning("[CLEANUP] Could not remove %s: %s", path, e)
 
 
 def get_live_asr():
@@ -149,6 +119,7 @@ async def record_create(db: SessionDep, data: RecordCreate):
         record_id=record.id,
         title=record.title,
         category_id=record.category_id,
+        audio_dir=OUTPUT_DIR,
     )
 
     return record
@@ -195,10 +166,7 @@ async def cancel_session(user_id: int, db: SessionDep):
             db.delete(record)
             db.commit()
 
-    # 2. Clean up all audio files on disk for this session
-    _cleanup_session_files(user_id, session_id, include_merged=True)
-
-    # 3. Remove the live session from the store (Dict / Redis later)
+    # 2. Remove the live session from the store — also deletes the PCM file on disk
     session_store.delete_session(user_id)
 
     return {"status": "cancelled", "session_id": session_id}
@@ -249,6 +217,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 record_id=record.id,
                 title=record.title,
                 category_id=record.category_id,
+                audio_dir=OUTPUT_DIR,
             )
 
     client_connected = True
@@ -296,8 +265,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 if session is None:
                     continue
 
-                # Buffer für finale Whisper-Transkription (im Store gehalten)
-                session["audio_buffer"].extend(chunk)
+                # Audio auf Disk schreiben (kein RAM-Anstieg bei langen Aufnahmen)
+                with open(session["audio_file_path"], "ab") as _f:
+                    _f.write(chunk)
+                session["audio_file_size"] += len(chunk)
 
                 # Live ASR
                 try:
@@ -320,15 +291,15 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     except Exception:
                         pass
 
-                    buffer_len = len(session["audio_buffer"])
+                    buffer_len = session["audio_file_size"]
                     new_data_len = buffer_len - session["last_index"]
 
                     if new_data_len >= bytes_per_chunk:
-                        # Extract slice of new audio data
                         start = session["last_index"]
-                        end = start + bytes_per_chunk
-                        audio_slice = bytes(session["audio_buffer"][start:end])
-                        session["last_index"] = end - bytes_per_overlap
+                        with open(session["audio_file_path"], "rb") as _f:
+                            _f.seek(start)
+                            audio_slice = _f.read(bytes_per_chunk)
+                        session["last_index"] = start + bytes_per_chunk - bytes_per_overlap
 
                         # Normalize quiet audio so Whisper doesn't hallucinate
                         # filler phrases instead of returning silence.
@@ -413,13 +384,20 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
     # Stop event -> finalize the recording and run the transcription workflow.
     if session is not None:
-        pcm_buffer = bytes(session["audio_buffer"])
-        print(f"[FINAL-BUFFER] size={len(pcm_buffer)}")
+        # Detach the PCM file from the session before deleting it.
+        # _remove_user_session deletes audio_file_path if still set → null it out so
+        # the finalize task owns cleanup instead.
+        pcm_path = session["audio_file_path"]
+        session["audio_file_path"] = None
+        audio_size = session["audio_file_size"]
 
-        # Finished recording -> clear the live session from the store (Dict).
         session_store.delete_session(user_id_int)
 
-        if len(pcm_buffer) == 0:
+        if audio_size == 0:
+            try:
+                os.remove(pcm_path)
+            except OSError:
+                pass
             print("[WARNING] Empty audio buffer received")
             if client_connected:
                 try:
@@ -457,86 +435,31 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         else:
             print("[WS] Background Whisper processing launched (Client disconnected)")
 
-        # Socket schliessen (falls noch offen)
         try:
             if client_connected:
                 await websocket.close()
         except Exception:
-            pass  # Socket might be already closed
+            pass
 
-        # FFMPEG Merge Logic
-        async def merge_and_process():
-            import glob
-            import subprocess
-
-            # 1. Find all chunks for this session
-            chunk_pattern = (
-                f"{OUTPUT_DIR}/user{user_id}_session{session_id}_*_chunk.webm"
-            )
-            chunks = sorted(glob.glob(chunk_pattern))
-
-            if not chunks:
-                print(f"[ERROR] No chunks found for session {session_id}")
-                background_transcription_task(task.id, session_id, pcm_buffer)
-                return
-
-            # 2. Create file list for ffmpeg
-            list_file_path = f"{OUTPUT_DIR}/session_{user_id}_{session_id}_list.txt"
-            with open(list_file_path, "w") as f:
-                for chunk in chunks:
-                    abs_path = os.path.abspath(chunk)
-                    f.write(f"file '{abs_path}'\n")
-
-            # 3. Merge — decode each WebM chunk properly then output as 16kHz mono WAV.
-            # "-c copy" is broken for MediaRecorder WebM: only chunk 1 has the EBML
-            # header, so stream-copying produces a file Whisper can only partially read.
-            output_filename = f"session_{session_id}_merged.wav"
-            output_path = f"{OUTPUT_DIR}/{output_filename}"
-
-            cmd = [
-                "ffmpeg",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                list_file_path,
-                "-ar",
-                "16000",
-                "-ac",
-                "1",
-                "-y",
-                output_path,
-            ]
-
-            print(f"[FFMPEG] Merging {len(chunks)} chunks into {output_filename}...")
+        async def finalize():
+            wav_path = os.path.splitext(pcm_path)[0] + ".wav"
             try:
-                process = await asyncio.to_thread(
-                    subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                print(f"[FINAL] Converting {pcm_path} ({audio_size // 1024} KB PCM) → WAV")
+                await asyncio.to_thread(_pcm_file_to_wav_file, pcm_path, wav_path)
+                # background_transcription_task deletes wav_path after transcription
+                await asyncio.to_thread(
+                    background_transcription_task, task.id, session_id, None,
+                    file_path=wav_path,
                 )
-                if process.returncode != 0:
-                    print(f"[FFMPEG-ERROR] {process.stderr.decode()}")
-                    background_transcription_task(task.id, session_id, pcm_buffer)
-                else:
-                    print(f"[FFMPEG] Merge successful: {output_path}")
-                    await asyncio.to_thread(
-                        background_transcription_task,
-                        task.id,
-                        session_id,
-                        None,
-                        file_path=output_path,
-                    )
-
             except Exception as e:
-                print(f"[FFMPEG-EXCEPTION] {e}")
-                background_transcription_task(task.id, session_id, pcm_buffer)
+                print(f"[FINALIZE-ERROR] {e}")
+            finally:
+                try:
+                    os.remove(pcm_path)
+                except OSError:
+                    pass
 
-            # Transcription is done — remove the now-obsolete chunks + list file.
-            # The merged webm is deleted separately by background_transcription_task.
-            _cleanup_session_files(user_id, session_id, include_merged=False)
-
-        # Background task starten (via helper to do ffmpeg first)
-        asyncio.create_task(merge_and_process())
+        asyncio.create_task(finalize())
 
     else:
         print("[ERROR] Session not found during final processing")

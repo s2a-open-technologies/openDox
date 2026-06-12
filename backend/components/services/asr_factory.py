@@ -98,6 +98,7 @@ class ASRFactory:
             endpoint=settings.final_api_endpoint,
             api_key=settings.final_api_key,
             model=settings.final_api_model or "whisper-1",
+            timeout=300,
         )
 
     def reset_backends(self) -> None:

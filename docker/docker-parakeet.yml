@@ -8,7 +8,9 @@
 
 services:
   parakeet:
-    build: ./parakeet-server
+    build: 
+      context: ..
+      dockerfile: parakeet-server/Dockerfile
     container_name: opendox-parakeet
     restart: always
     ports:

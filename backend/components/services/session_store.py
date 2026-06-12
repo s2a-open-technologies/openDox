@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 TODO: Replace with Redis for production/multi-instance deployments.
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any
 
@@ -34,20 +35,27 @@ class SessionStore:
         self._session_to_user: Dict[str, int] = {}
     
     def create_session(
-        self, 
-        user_id: int, 
-        session_id: str, 
+        self,
+        user_id: int,
+        session_id: str,
         record_id: int,
         title: str,
-        category_id: Optional[int] = None
+        category_id: Optional[int] = None,
+        audio_dir: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new recording session for a user.
-        
+
         Replaces any existing session for this user.
         """
         # Remove old session if exists
         self._remove_user_session(user_id)
-        
+
+        # Create a PCM file on disk for audio storage (avoids RAM accumulation).
+        _audio_dir = audio_dir or "."
+        os.makedirs(_audio_dir, exist_ok=True)
+        _audio_path = os.path.join(_audio_dir, f"session_{session_id}.pcm")
+        open(_audio_path, "wb").close()  # create empty file
+
         session_data = {
             "session_id": session_id,
             "user_id": user_id,
@@ -57,9 +65,9 @@ class SessionStore:
             "created_at": datetime.now(),
             "last_activity": datetime.now(),
             "status": "recording",  # recording, paused
-            # Live transcription state - kept here so a resumed recording
-            # gets its live stream back (will live in Redis later).
-            "audio_buffer": bytearray(),
+            # Audio is written to disk; audio_file_size tracks total bytes written.
+            "audio_file_path": _audio_path,
+            "audio_file_size": 0,
             "last_index": 0,
             "live_text": "",
         }
@@ -98,10 +106,16 @@ class SessionStore:
         return self._remove_user_session(user_id)
     
     def _remove_user_session(self, user_id: int) -> bool:
-        """Internal: Remove session and clean up reverse mapping."""
+        """Internal: Remove session, clean up reverse mapping, and delete PCM file."""
         session = self._sessions.pop(user_id, None)
         if session:
             self._session_to_user.pop(session.get("session_id"), None)
+            pcm_path = session.get("audio_file_path")
+            if pcm_path:
+                try:
+                    os.remove(pcm_path)
+                except OSError:
+                    pass
             return True
         return False
     
@@ -120,10 +134,12 @@ class SessionStore:
         return session
 
     def append_audio(self, session_id: str, chunk: bytes) -> None:
-        """Append raw audio bytes to the session's live buffer."""
+        """Append raw audio bytes to the session's on-disk PCM file."""
         session = self.get_by_session(session_id)
-        if session is not None:
-            session["audio_buffer"].extend(chunk)
+        if session is not None and session.get("audio_file_path"):
+            with open(session["audio_file_path"], "ab") as f:
+                f.write(chunk)
+            session["audio_file_size"] += len(chunk)
 
     def set_live_state(
         self, session_id: str, last_index: int, live_text: str

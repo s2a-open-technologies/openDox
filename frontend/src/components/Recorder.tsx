@@ -59,21 +59,18 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
   const sessionIdRef = useRef<string | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
-  const activeUploadsRef = useRef<Set<Promise<any>>>(new Set());
   const isPausedRef = useRef(false);
 
   const [liveEnabled, setLiveEnabled] = useState(true);
 
   useImperativeHandle(ref, () => ({
     waitForUploads: async () => {
-      if (activeUploadsRef.current.size > 0) {
-        await Promise.allSettled(Array.from(activeUploadsRef.current));
-      }
+      // No uploads needed — audio is sent via WebSocket PCM
     },
   }));
 
@@ -168,15 +165,16 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
 
       openWebSocket(userId, record.session_id);
 
-      // 1) User Audio holen
+      // 1) User-Audio holen
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          channelCount: 1,      // Zwingend Mono für Whisper
-          sampleRate: 16000,    // Versuch, direkt 16kHz zu bekommen
+          channelCount: 1,
+          sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
         }
       });
+      streamRef.current = stream;
 
       // 2) AudioContext + Worklet + Visualizer
       const audioCtx = new AudioContext({ sampleRate: 16000 });
@@ -224,42 +222,6 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       source.connect(worklet);
       // We don't connect to destination (speakers) to avoid feedback loop unless desired
 
-      // MediaRecorder für finale Datei
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      mediaRecorderRef.current = mediaRecorder;
-      activeUploadsRef.current.clear();
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && sessionIdRef.current && !isPausedRef.current) {
-          uploadChunk(e.data, sessionIdRef.current);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        // If paused, do NOT send stop event and do NOT show processing
-        if (isPausedRef.current) {
-          console.log("Recording paused - waiting for resume");
-          return;
-        }
-
-        setIsProcessing(true); // Start showing spinner immediately
-
-        // CRITICAL FIX: Wait for all uploads to complete before sending stop
-        console.log(`Waiting for ${activeUploadsRef.current.size} active uploads...`);
-        try {
-          await Promise.all(Array.from(activeUploadsRef.current));
-          console.log("All uploads finished.");
-        } catch (err) {
-          console.error("Some uploads failed, proceeding anyway", err);
-          // Proceed anyway to at least try to finalize
-        }
-
-        socketRef.current?.send(JSON.stringify({ event: "stop" }));
-      };
-
-      // alle 10s Chunk für finale Datei (Upload)
-      mediaRecorder.start(10000);
-
       audioContextRef.current = audioCtx;
       workletRef.current = worklet;
       setIsRecording(true);
@@ -275,73 +237,30 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
   const stopRecording = () => {
     if (!isRecording) return;
 
-    // Explicitly mark as NOT paused (we are stopping)
     isPausedRef.current = false;
 
-    // MediaRecorder stoppen → triggert onstop logic (wait for chunks -> send ws stop)
-    mediaRecorderRef.current?.stop();
-
-    // Aufräumen
-    try {
-      workletRef.current?.disconnect();
-    } catch (_) { }
-
-    // Stop tracks
-    mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
-
+    try { workletRef.current?.disconnect(); } catch (_) {}
+    streamRef.current?.getTracks().forEach(track => track.stop());
     audioContextRef.current?.close();
-    setAnalyser(null); // Clear visuals
+    setAnalyser(null);
 
     setIsRecording(false);
     setIsPaused(false);
     isPausedRef.current = false;
+    setIsProcessing(true);
+
+    socketRef.current?.send(JSON.stringify({ event: "stop" }));
   };
-
-  // Function for uploading Wav chunks to the background
-  const uploadChunk = (chunk: Blob, sessionId: string) => {
-    const formData = new FormData();
-    formData.append("file", chunk, `chunk_${Date.now()}_${sessionId}_${userId}.webm`);
-    formData.append("session_id", sessionId);
-    formData.append("user_id", userId);
-
-    // Track promise
-    const promise = fetch("/api/v1/records/upload-chunk", {
-      method: "POST",
-      body: formData
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Chunk upload failed");
-        // Remove self from set
-        activeUploadsRef.current.delete(promise);
-      })
-      .catch((err) => {
-        console.error("Error sending chunk: ", err);
-        toast.error("Fehler beim Senden eines Audio-Teils");
-        activeUploadsRef.current.delete(promise); // Ensure removal on error
-      });
-
-    activeUploadsRef.current.add(promise);
-  }
 
   const pauseSession = () => {
     if (!isRecording) return;
     isPausedRef.current = true;
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-      mediaRecorderRef.current.pause();
-    }
-    if (audioContextRef.current && audioContextRef.current.state === "running") {
-      audioContextRef.current.suspend();
-    }
+    audioContextRef.current?.suspend();
     setIsPaused(true);
   };
 
   const resumeSession = () => {
-    if (audioContextRef.current?.state === "suspended") {
-      audioContextRef.current.resume();
-    }
-    if (mediaRecorderRef.current?.state === "paused") {
-      mediaRecorderRef.current.resume();
-    }
+    audioContextRef.current?.resume();
     setIsPaused(false);
     isPausedRef.current = false;
   };
@@ -375,19 +294,12 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     return () => {
       // On unmount without stopping (e.g. "Zur Übersicht"): tear down capture and
       // close the socket as a plain disconnect -> backend keeps the session so it
-      // can be resumed later. Guard onstop against sending a stop event.
+      // can be resumed later.
       isPausedRef.current = true;
-      try {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
-        }
-      } catch (_) { }
-      try {
-        mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
-      } catch (_) { }
-      try { workletRef.current?.disconnect(); } catch (_) { }
-      try { audioContextRef.current?.close(); } catch (_) { }
-      try { socketRef.current?.close(); } catch (_) { }
+      try { workletRef.current?.disconnect(); } catch (_) {}
+      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch (_) {}
+      try { audioContextRef.current?.close(); } catch (_) {}
+      try { socketRef.current?.close(); } catch (_) {}
     };
   }, []);
 

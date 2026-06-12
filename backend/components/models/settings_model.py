@@ -38,4 +38,18 @@ class WhisperSettingsModel(SQLModel, table=True):
     # Common Settings
     language: str = Field(default="de")
     chunk_length_s: int = Field(default=3)
-    overlap_s: float = Field(default=0.5)
+    overlap_s: float = Field(default=0.0)
+
+    # Anti-hallucination / faster-whisper tuning (sent to the Whisper server
+    # as transcription parameters). Defaults mirror the proven config that was
+    # lost when switching to an off-the-shelf container.
+    temperature: float = Field(default=0.0)
+    vad_filter: bool = Field(default=True)
+    vad_min_silence_ms: int = Field(default=500)
+    condition_on_previous_text: bool = Field(default=False)
+    no_speech_threshold: float = Field(default=0.6)
+    compression_ratio_threshold: float = Field(default=2.4)
+    log_prob_threshold: float = Field(default=-1.0)
+    hallucination_silence_threshold: Optional[float] = Field(default=2.0)
+    live_beam_size: int = Field(default=1)
+    final_beam_size: int = Field(default=5)

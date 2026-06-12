@@ -24,6 +24,7 @@ from backend.components.models.categories import Categories  # noqa: E402
 from backend.components.models.record_model import Record
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend
+from backend.components.services.settings_service import get_whisper_params
 from backend.components.services.task_service import update_task_status
 from backend.components.sql.sql_engine import get_session_factory
 
@@ -60,10 +61,15 @@ def background_transcription_task(
 
         update_task_status(db, task_id, "transcribing")
 
+        final_params = get_whisper_params(live=False)
         if file_path:
-            text = backend.transcribe(file_path, prompt=category_prompt)
+            text = backend.transcribe(
+                file_path, prompt=category_prompt, params=final_params
+            )
         elif pcm_buffer:
-            text = backend.transcribe(pcm_buffer, prompt=category_prompt)
+            text = backend.transcribe(
+                pcm_buffer, prompt=category_prompt, params=final_params
+            )
         else:
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
 

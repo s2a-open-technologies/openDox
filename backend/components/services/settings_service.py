@@ -26,7 +26,7 @@ from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.modules.logger import get_logger
 from backend.components.sql.sql_engine import get_session_factory
-from config import env_or_file
+from backend.components.modules.env import env_or_file
 
 logger = get_logger(__name__)
 
@@ -158,6 +158,27 @@ def get_settings_service() -> SettingsService:
 def get_settings() -> WhisperSettingsModel:
     """Convenience function to get current Whisper settings."""
     return get_settings_service().get_settings()
+
+
+def get_whisper_params(live: bool) -> dict:
+    """Build the anti-hallucination parameter dict for a transcription call.
+
+    Args:
+        live: True for live (chunked) transcription, False for the final pass.
+              Only the beam size differs between the two.
+    """
+    s = get_settings()
+    return {
+        "temperature": s.temperature,
+        "vad_filter": s.vad_filter,
+        "vad_min_silence_ms": s.vad_min_silence_ms,
+        "condition_on_previous_text": s.condition_on_previous_text,
+        "no_speech_threshold": s.no_speech_threshold,
+        "compression_ratio_threshold": s.compression_ratio_threshold,
+        "log_prob_threshold": s.log_prob_threshold,
+        "hallucination_silence_threshold": s.hallucination_silence_threshold,
+        "beam_size": s.live_beam_size if live else s.final_beam_size,
+    }
 
 
 def get_llm_settings() -> LlmSettingsModel:

@@ -16,24 +16,27 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Leerer base-Pfad für relative Asset-Referenzen
-  // Der Root-Pfad wird durch FastAPI-Middleware realisiert
-  const base = "";
-  
+  const env = loadEnv(mode, process.cwd(), "");
+  const rootPath = env.ROOT_PATH ?? "";
+
   return {
-    base,
+    base: "",
+    build: {
+      outDir: path.resolve(__dirname, "../backend/static"),
+      emptyOutDir: true,
+    },
     server: {
       host: "::",
-      port: 3000,    
+      port: 3000,
       proxy: {
-        "/api/v1/": {
+        [`${rootPath}/api/v1/`]: {
           target: "http://localhost:5000",
           changeOrigin: true,
           secure: false,

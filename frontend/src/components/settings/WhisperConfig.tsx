@@ -49,6 +49,17 @@ interface WhisperSettings {
     language: string;
     chunk_length_s: number;
     overlap_s: number;
+    // Anti-hallucination / faster-whisper tuning
+    temperature: number;
+    vad_filter: boolean;
+    vad_min_silence_ms: number;
+    condition_on_previous_text: boolean;
+    no_speech_threshold: number;
+    compression_ratio_threshold: number;
+    log_prob_threshold: number;
+    hallucination_silence_threshold: number | null;
+    live_beam_size: number;
+    final_beam_size: number;
 }
 
 const WhisperConfig = () => {
@@ -65,6 +76,16 @@ const WhisperConfig = () => {
         language: 'de',
         chunk_length_s: 3,
         overlap_s: 0,
+        temperature: 0.0,
+        vad_filter: true,
+        vad_min_silence_ms: 500,
+        condition_on_previous_text: false,
+        no_speech_threshold: 0.6,
+        compression_ratio_threshold: 2.4,
+        log_prob_threshold: -1.0,
+        hallucination_silence_threshold: null,
+        live_beam_size: 1,
+        final_beam_size: 5,
     });
 
     useEffect(() => {
@@ -83,6 +104,16 @@ const WhisperConfig = () => {
                     language: data.language || 'de',
                     chunk_length_s: data.chunk_length_s ?? 3,
                     overlap_s: data.overlap_s ?? 0,
+                    temperature: data.temperature ?? 0.0,
+                    vad_filter: data.vad_filter ?? true,
+                    vad_min_silence_ms: data.vad_min_silence_ms ?? 500,
+                    condition_on_previous_text: data.condition_on_previous_text ?? false,
+                    no_speech_threshold: data.no_speech_threshold ?? 0.6,
+                    compression_ratio_threshold: data.compression_ratio_threshold ?? 2.4,
+                    log_prob_threshold: data.log_prob_threshold ?? -1.0,
+                    hallucination_silence_threshold: data.hallucination_silence_threshold ?? null,
+                    live_beam_size: data.live_beam_size ?? 1,
+                    final_beam_size: data.final_beam_size ?? 5,
                 });
             })
             .catch(console.error);
@@ -105,10 +136,11 @@ const WhisperConfig = () => {
             <h3 className="text-lg font-medium">Transkriptionsserver Konfiguration</h3>
             
             <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="general">Allgemein</TabsTrigger>
                     <TabsTrigger value="live">Live</TabsTrigger>
                     <TabsTrigger value="final">Final</TabsTrigger>
+                    <TabsTrigger value="quality">Qualität</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="general">
@@ -151,7 +183,7 @@ const WhisperConfig = () => {
                                     min={0} 
                                     max={2} 
                                     value={config.overlap_s} 
-                                    onChange={(e) => updateField('overlap_s', parseInt(e.target.value) || 0)} 
+                                    onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
                                 />
                             </div>
                         </CardContent>
@@ -238,6 +270,103 @@ const WhisperConfig = () => {
                                     value={config.final_api_model} 
                                     onChange={(e) => updateField('final_api_model', e.target.value)} 
                                 />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="quality">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Qualität & Anti-Halluzination</CardTitle>
+                            <CardDescription>
+                                Verhindert erfundene Füllwörter bei Stille. Werden an den
+                                Whisper-Server übergeben.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="vad-filter">VAD-Filter (Stille entfernen)</Label>
+                                <Switch
+                                    id="vad-filter"
+                                    checked={config.vad_filter}
+                                    onCheckedChange={(checked) => updateField('vad_filter', checked)}
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="cond-prev">Auf vorherigen Text bedingen</Label>
+                                <Switch
+                                    id="cond-prev"
+                                    checked={config.condition_on_previous_text}
+                                    onCheckedChange={(checked) => updateField('condition_on_previous_text', checked)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>VAD min. Stille (ms)</Label>
+                                <Input
+                                    type="number" min={0} max={5000} step={50}
+                                    value={config.vad_min_silence_ms}
+                                    onChange={(e) => updateField('vad_min_silence_ms', parseInt(e.target.value) || 0)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Temperatur (0 = deterministisch)</Label>
+                                <Input
+                                    type="number" min={0} max={1} step={0.1}
+                                    value={config.temperature}
+                                    onChange={(e) => updateField('temperature', parseFloat(e.target.value) || 0)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>No-Speech-Schwelle</Label>
+                                <Input
+                                    type="number" min={0} max={1} step={0.05}
+                                    value={config.no_speech_threshold}
+                                    onChange={(e) => updateField('no_speech_threshold', parseFloat(e.target.value) || 0)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Compression-Ratio-Schwelle</Label>
+                                <Input
+                                    type="number" min={0} max={10} step={0.1}
+                                    value={config.compression_ratio_threshold}
+                                    onChange={(e) => updateField('compression_ratio_threshold', parseFloat(e.target.value) || 0)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Log-Prob-Schwelle</Label>
+                                <Input
+                                    type="number" min={-10} max={0} step={0.1}
+                                    value={config.log_prob_threshold}
+                                    onChange={(e) => updateField('log_prob_threshold', parseFloat(e.target.value) || 0)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Halluzinations-Stille-Schwelle (Sek., optional)</Label>
+                                <Input
+                                    type="number" min={0} max={60} step={0.5}
+                                    placeholder="aus"
+                                    value={config.hallucination_silence_threshold ?? ''}
+                                    onChange={(e) => updateField('hallucination_silence_threshold', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Beam-Size Live</Label>
+                                    <Input
+                                        type="number" min={1} max={10}
+                                        value={config.live_beam_size}
+                                        onChange={(e) => updateField('live_beam_size', parseInt(e.target.value) || 1)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Beam-Size Final</Label>
+                                    <Input
+                                        type="number" min={1} max={10}
+                                        value={config.final_beam_size}
+                                        onChange={(e) => updateField('final_beam_size', parseInt(e.target.value) || 5)}
+                                    />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

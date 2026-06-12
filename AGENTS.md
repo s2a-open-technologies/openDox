@@ -64,6 +64,8 @@ alembic upgrade head
 
 **Static Files**: `backend/run.py` mounts `StaticFiles(directory="static", html=True)` on `/`. The `html=True` handles SPA routing (serves `index.html` for 404s). Exception handler skips `/api/` routes.
 
+**ROOT_PATH (Sub-path Deployment)**: Set `ROOT_PATH=/opendox` in `.env` or Docker env. The backend injects `window.__ROOT_PATH__` into `index.html` at startup — no frontend rebuild needed. `api.ts` reads this at runtime and patches `window.fetch` to prefix all `/api/` calls. The WebSocket in `Recorder.tsx` imports `BASE_PATH` from `api.ts`. Do NOT use `VITE_ROOT_PATH` build arg — it's runtime-injected now.
+
 **Auth**: JWT tokens in `localStorage`. Frontend fetches `/api/v1/auth/me` on mount. NEVER hardcode `userId="1"`.
 
 **Transcription Pipeline**:
@@ -85,7 +87,7 @@ Copy `.env.example` → `.env`:
 - **Dev server**: Always `python -m uvicorn main:app`, never `uv run main.py`
 - **Port 9000**: Often occupied (Jupyter). Use `9100:9000` in `docker-whisper.yml`
 - **Whisper settings**: DB values take precedence over `.env`. Clear DB or use Settings UI if stale.
-- **WebSocket**: Frontend uses `window.location.host`. Vite proxy handles `ws: true`.
+- **WebSocket**: Frontend uses `BASE_PATH` from `api.ts` + `window.location.host`. Vite proxy handles `ws: true`.
 - **Microphone**: Requires HTTPS (except localhost). `Permissions-Policy` header set in middleware.
 - **LLM**: Fresh `OllamaModel()` instance per task (in `background_transcription_service.py`), not singleton.
 

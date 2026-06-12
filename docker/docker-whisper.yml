@@ -1,6 +1,8 @@
 services:
   whisper:
-    image: hwdsl2/whisper-server:cuda
+    build:
+      context: ..
+      dockerfile: whisper_server/Dockerfile
     container_name: whisper
     restart: always
     ports:
@@ -10,6 +12,7 @@ services:
     environment:
     - WHISPER_MODEL=large-v3-turbo
     - WHISPER_DEVICE=cuda
+    - WHISPER_COMPUTE_TYPE=int8_float16
     - WHISPER_API_KEY=loc-123
     deploy:
       resources:

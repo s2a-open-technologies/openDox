@@ -10,6 +10,7 @@ chunks/
 ffmpeg/
 models_cache/
 node_modules
+.ruff_cache/
 
 # Virtual environments
 .venv

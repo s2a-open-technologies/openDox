@@ -29,6 +29,7 @@ interface LlmSettings {
     llm_model: string;
     llm_temperature: number;
     llm_max_tokens: number;
+    correction_model: string;
 }
 
 const LlmConfig = () => {
@@ -39,6 +40,7 @@ const LlmConfig = () => {
         llm_model: 'medgemma-4b-it:Q4_K_M',
         llm_temperature: 0.2,
         llm_max_tokens: 2048,
+        correction_model: '',
     });
 
     useEffect(() => {
@@ -51,6 +53,7 @@ const LlmConfig = () => {
                     llm_model: data.llm_model || 'medgemma-4b-it:Q4_K_M',
                     llm_temperature: data.llm_temperature ?? 0.2,
                     llm_max_tokens: data.llm_max_tokens ?? 2048,
+                    correction_model: data.correction_model || '',
                 });
             })
             .catch(console.error);
@@ -107,6 +110,18 @@ const LlmConfig = () => {
                             value={config.llm_model} 
                             onChange={(e) => updateField('llm_model', e.target.value)} 
                         />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Korrektions-Modell (optional)</Label>
+                        <Input
+                            placeholder="leer = gleich wie Zusammenfassungs-Modell"
+                            value={config.correction_model}
+                            onChange={(e) => updateField('correction_model', e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Kleines schnelles Modell für Near-Live-Korrektur, z.B. qwen2.5:0.5b
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

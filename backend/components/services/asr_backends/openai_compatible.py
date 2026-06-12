@@ -128,14 +128,19 @@ class OpenAICompatibleBackend(ASRBackend):
         language: str = "de",
         beam_size: int = 5,
         prompt: str | None = None,
+        params: dict | None = None,
     ) -> str:
         """Transcribe audio using OpenAI-compatible API.
 
         Args:
             audio: Audio data (PCM bytes, numpy array) or file path
             language: Language code
-            beam_size: Ignored for API backends
+            beam_size: Beam size forwarded to the server
             prompt: Optional prompt for context continuation
+            params: Extra anti-hallucination / faster-whisper parameters sent as
+                form fields (vad_filter, temperature, condition_on_previous_text,
+                no_speech_threshold, …). Unknown fields are ignored by servers
+                that don't support them.
 
         Returns:
             Transcribed text
@@ -151,11 +156,24 @@ class OpenAICompatibleBackend(ASRBackend):
             "model": (None, self.model),
         }
 
+        # beam_size from the params dict (if provided) takes precedence
+        if not (params and "beam_size" in params):
+            files["beam_size"] = (None, str(beam_size))
+
         if language and language.lower() != "auto":
             files["language"] = (None, language)
 
         if prompt:
             files["prompt"] = (None, prompt)
+
+        # Forward tuning parameters as form fields (booleans as "true"/"false",
+        # None values skipped so the server keeps its own default).
+        for key, value in (params or {}).items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                value = "true" if value else "false"
+            files[key] = (None, str(value))
 
         try:
             response = requests.post(

@@ -29,3 +29,7 @@ class LlmSettingsModel(SQLModel, table=True):
     llm_model: Optional[str] = Field(default="medgemma-4b-it:Q4_K_M")
     llm_temperature: float = Field(default=0.2)
     llm_max_tokens: int = Field(default=2048)
+
+    # Optional dedicated model for near-live chunk correction.
+    # Leave empty to use llm_model (same model for both correction and summary).
+    correction_model: Optional[str] = Field(default=None)

@@ -17,13 +17,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Standard Library
 import logging
-import os
-from datetime import datetime
 
-# Ensure project root is on sys.path for config import
-import sys  # noqa: E402
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from config import env_or_file  # noqa: E402
+from backend.components.modules.env import env_or_file
 
 LOG_LEVEL = env_or_file("LOG_LEVEL", "INFO")
 

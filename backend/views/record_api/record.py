@@ -20,6 +20,8 @@ import asyncio
 import os
 import shutil
 
+import numpy as np
+
 # Third party
 import uuid
 from datetime import datetime
@@ -39,6 +41,7 @@ from backend.components.models.categories import Categories
 from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
+from backend.components.services.chunk_correction_service import correct_chunk
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
 )
@@ -53,6 +56,35 @@ logger = get_logger(__name__)
 
 OUTPUT_DIR = "chunks"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def _cleanup_session_files(
+    user_id: int | str, session_id: str, include_merged: bool = True
+) -> None:
+    """Remove on-disk audio artifacts for a session from the chunks directory.
+
+    Args:
+        user_id: The recording user id.
+        session_id: The session whose files should be removed.
+        include_merged: Also delete the merged webm. Set False when the merged
+            file is still needed for transcription (it is deleted later by the
+            background task itself).
+    """
+    import glob
+
+    patterns = [
+        f"{OUTPUT_DIR}/user{user_id}_session{session_id}_*_chunk.webm",
+        f"{OUTPUT_DIR}/session_{user_id}_{session_id}_list.txt",
+    ]
+    if include_merged:
+        patterns.append(f"{OUTPUT_DIR}/session_{session_id}_merged.webm")
+
+    for pattern in patterns:
+        for path in glob.glob(pattern):
+            try:
+                os.remove(path)
+            except OSError as e:
+                logger.warning("[CLEANUP] Could not remove %s: %s", path, e)
 
 
 def get_live_asr():
@@ -131,8 +163,6 @@ async def cancel_session(user_id: int, db: SessionDep):
     Deletes the live session from the store, the DB record and the audio files
     on disk for that session.
     """
-    import glob
-
     session = session_store.get_session(user_id)
     if not session:
         return {"status": "no_active_session"}
@@ -147,18 +177,8 @@ async def cancel_session(user_id: int, db: SessionDep):
             db.delete(record)
             db.commit()
 
-    # 2. Clean up audio files on disk for this session
-    patterns = [
-        f"{OUTPUT_DIR}/user{user_id}_session{session_id}_*_chunk.webm",
-        f"{OUTPUT_DIR}/session_{user_id}_{session_id}_list.txt",
-        f"{OUTPUT_DIR}/session_{session_id}_merged.webm",
-    ]
-    for pattern in patterns:
-        for path in glob.glob(pattern):
-            try:
-                os.remove(path)
-            except OSError as e:
-                print(f"[CANCEL-CLEANUP-ERROR] {path}: {e}")
+    # 2. Clean up all audio files on disk for this session
+    _cleanup_session_files(user_id, session_id, include_merged=True)
 
     # 3. Remove the live session from the store (Dict / Redis later)
     session_store.delete_session(user_id)
@@ -268,14 +288,17 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     # chunk_length_s * 16000 samples/s * 4 bytes/sample (float32)
                     bytes_per_chunk = 3 * 16000 * 4  # default 3s chunks
                     bytes_per_overlap = 0
+                    whisper_params = None
                     try:
                         from backend.components.services.settings_service import (
                             get_settings,
+                            get_whisper_params,
                         )
 
                         settings = get_settings()
                         bytes_per_chunk = settings.chunk_length_s * 16000 * 4
                         bytes_per_overlap = int(settings.overlap_s * 16000 * 4)
+                        whisper_params = get_whisper_params(live=True)
                     except Exception:
                         pass
 
@@ -289,13 +312,45 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         audio_slice = bytes(session["audio_buffer"][start:end])
                         session["last_index"] = end - bytes_per_overlap
 
+                        # Normalize quiet audio so Whisper doesn't hallucinate
+                        # filler phrases instead of returning silence.
+                        _pcm = np.frombuffer(audio_slice, dtype=np.float32)
+                        _peak = np.abs(_pcm).max()
+                        if 0 < _peak < 0.05:
+                            audio_slice = (_pcm / _peak * 0.8).astype(np.float32).tobytes()
+
+                        # Only pass a rolling prompt when there is no audio overlap.
+                        # Overlap already provides acoustic continuity; combining it
+                        # with a text prompt makes Whisper transcribe the overlapping
+                        # audio a second time (the prompt says "this was just said"
+                        # and the audio confirms it → repetition).
+                        live_prompt = (
+                            None
+                            if bytes_per_overlap > 0
+                            else (session["live_text"] or "")[-200:].strip() or None
+                        )
+
+                        logger.info(
+                            "[ASR] chunk %.1fs | overlap %.1fs | prompt=%s | params=%s",
+                            len(audio_slice) / (16000 * 4),
+                            bytes_per_overlap / (16000 * 4),
+                            repr(live_prompt[:40]) if live_prompt else None,
+                            whisper_params,
+                        )
                         # Transcribe in background thread (non-blocking)
                         result_text = await asyncio.to_thread(
                             backend.transcribe,
                             audio=audio_slice,
                             language="de",
-                            prompt=session["live_text"] or None,
+                            prompt=live_prompt,
+                            params=whisper_params,
                         )
+
+                        if result_text:
+                            context = (session["live_text"] or "")[-80:]
+                            result_text = await asyncio.to_thread(
+                                correct_chunk, result_text, context
+                            )
 
                         if result_text:
                             session["live_text"] = (
@@ -469,6 +524,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             except Exception as e:
                 print(f"[FFMPEG-EXCEPTION] {e}")
                 background_transcription_task(task.id, session_id, pcm_buffer)
+
+            # Transcription is done — remove the now-obsolete chunks + list file.
+            # The merged webm is deleted separately by background_transcription_task.
+            _cleanup_session_files(user_id, session_id, include_merged=False)
 
         # Background task starten (via helper to do ffmpeg first)
         asyncio.create_task(merge_and_process())

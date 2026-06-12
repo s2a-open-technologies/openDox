@@ -36,6 +36,7 @@ class DisabledBackend(ASRBackend):
         language: str = "de",
         beam_size: int = 5,
         prompt: str | None = None,
+        params: dict | None = None,
     ) -> str:
         """Return empty string (transcription disabled)."""
         return ""

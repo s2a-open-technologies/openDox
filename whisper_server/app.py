@@ -1,0 +1,132 @@
+"""openDox - Standalone Whisper transcription server.
+
+OpenAI-compatible faster-whisper server exposing POST /v1/audio/transcriptions.
+Unlike off-the-shelf images, this server accepts the full set of faster-whisper
+anti-hallucination parameters (vad_filter, condition_on_previous_text,
+temperature, no_speech_threshold, …) as multipart form fields so the main
+application can tune transcription per request via its settings.
+
+Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+import logging
+import os
+import tempfile
+
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from faster_whisper import WhisperModel
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("whisper_server")
+
+MODEL_NAME = os.getenv("WHISPER_MODEL", "large-v3-turbo")
+DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
+COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
+API_KEY = os.getenv("WHISPER_API_KEY")  # optional Bearer auth
+
+app = FastAPI(title="openDox Whisper Server")
+
+logger.info(
+    "Loading faster-whisper model '%s' (device=%s, compute_type=%s)…",
+    MODEL_NAME,
+    DEVICE,
+    COMPUTE_TYPE,
+)
+whisper_model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
+logger.info("Model loaded — ready.")
+
+
+def _check_auth(authorization: str | None) -> None:
+    """Enforce Bearer auth when WHISPER_API_KEY is configured."""
+    if not API_KEY:
+        return
+    expected = f"Bearer {API_KEY}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+@app.get("/v1/models")
+async def list_models():
+    """Minimal OpenAI-compatible models endpoint (used by health checks)."""
+    return {"object": "list", "data": [{"id": MODEL_NAME, "object": "model"}]}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "model": MODEL_NAME}
+
+
+@app.post("/v1/audio/transcriptions")
+async def transcribe(
+    file: UploadFile = File(...),
+    model: str = Form(None),  # accepted for OpenAI compat, ignored (server-fixed)
+    language: str = Form("de"),
+    prompt: str | None = Form(None),
+    temperature: float = Form(0.0),
+    vad_filter: bool = Form(True),
+    vad_min_silence_ms: int = Form(500),
+    condition_on_previous_text: bool = Form(False),
+    no_speech_threshold: float = Form(0.6),
+    compression_ratio_threshold: float = Form(2.4),
+    log_prob_threshold: float = Form(-1.0),
+    hallucination_silence_threshold: float | None = Form(None),
+    beam_size: int = Form(5),
+    authorization: str | None = Header(None),
+):
+    """Transcribe an uploaded audio file with full anti-hallucination control."""
+    _check_auth(authorization)
+
+    audio_bytes = await file.read()
+    if not audio_bytes:
+        return {"text": ""}
+
+    # faster-whisper needs a path/file-like; write to a temp file (server decodes)
+    suffix = os.path.splitext(file.filename or "audio.wav")[1] or ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(audio_bytes)
+        tmp_path = tmp.name
+
+    try:
+        lang = None if (not language or language.lower() == "auto") else language
+        segments, info = whisper_model.transcribe(
+            tmp_path,
+            language=lang,
+            initial_prompt=prompt or None,
+            beam_size=beam_size,
+            temperature=temperature,
+            vad_filter=vad_filter,
+            vad_parameters=dict(min_silence_duration_ms=vad_min_silence_ms),
+            condition_on_previous_text=condition_on_previous_text,
+            no_speech_threshold=no_speech_threshold,
+            compression_ratio_threshold=compression_ratio_threshold,
+            log_prob_threshold=log_prob_threshold,
+            hallucination_silence_threshold=hallucination_silence_threshold,
+        )
+        text = "".join(segment.text for segment in segments).strip()
+        logger.info(
+            "Transcribed %d bytes | lang=%s vad=%s cond_prev=%s -> %d chars",
+            len(audio_bytes),
+            info.language if info else lang,
+            vad_filter,
+            condition_on_previous_text,
+            len(text),
+        )
+        return {"text": text}
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass

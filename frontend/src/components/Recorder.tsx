@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BASE_PATH } from "@/api";
 import {
   Dialog,
   DialogContent,
@@ -90,7 +91,7 @@ const Recorder = ({ userId, title, categoryId, patient, subject, onFinalTranscri
   const openWebSocket = (userId: string, session_id: string) => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(
-      `${protocol}//${window.location.host}/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}`
+      `${protocol}//${window.location.host}${BASE_PATH}/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}`
     );
     socketRef.current = ws;
 

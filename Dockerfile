@@ -14,9 +14,6 @@ FROM node:22-slim AS frontend-builder
 
 WORKDIR /app/frontend
 
-ARG VITE_ROOT_PATH=""
-ENV VITE_ROOT_PATH=${VITE_ROOT_PATH}
-
 COPY frontend/package*.json ./
 RUN npm ci
 
@@ -46,12 +43,11 @@ RUN uv pip install --system -r pyproject.toml
 # Copy backend code
 COPY backend/ ./backend/
 COPY main.py ./
-COPY config.py ./
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
 # Copy built frontend static files
-COPY --from=frontend-builder /app/frontend/dist ./static/
+COPY --from=frontend-builder /app/frontend/dist ./backend/static/
 
 # Create runtime directories
 RUN mkdir -p logs chunks models_cache certs

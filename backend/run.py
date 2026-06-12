@@ -15,139 +15,133 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-# Standard library
 import os
+import re
 
-from dotenv import load_dotenv
-
-# Third party
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-# Load environment variables befor importing the modules
-load_dotenv(override=True)
+from backend.components.modules.env import env_or_file
+from backend.components.modules.logger import get_logger, initialize_logging
+from backend.components.sql.db_config import SQLALCHEMY_URI
+from backend.views.auth_api import auth_bp
+from backend.views.record_api import record_bp
+from backend.views.settings_api import settings_bp
 
-# Custom import (after load_dotenv for env vars to be available)
-from backend.components.modules.logger import get_logger, initialize_logging  # noqa: E402
-from backend.components.sql.db_config import SQLALCHEMY_URI  # noqa: E402
-from backend.views.auth_api import auth_bp  # noqa: E402
-from backend.views.record_api import record_bp  # noqa: E402
-from backend.views.settings_api import settings_bp  # noqa: E402
+
+class SPAStaticFiles(StaticFiles):
+    """StaticFiles that falls back to index.html for unknown paths.
+
+    Serves real files (assets) directly, but returns the SPA shell for any
+    path without a matching file (e.g. /login, /dashboard) so client-side
+    routing works on reload and deep links.
+    """
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
 
 
 def _run_alembic_migrations(logger):
-    """Run pending Alembic migrations on startup."""
     try:
         from alembic.command import upgrade
         from alembic.config import Config as AlembicConfig
 
-        # Load alembic.ini from project root
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         alembic_cfg = AlembicConfig(os.path.join(project_root, "alembic.ini"))
-        # Override sqlalchemy.url to match current env
         alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_URI)
-
-        # Run migrations to head
         upgrade(alembic_cfg, "head")
         logger.info("Alembic migrations applied successfully")
-
     except Exception as e:
         logger.error("Alembic migration failed: %s", e)
-        # Don't crash the app - tables might already exist or be managed manually
+
+
+def _inject_root_path(static_dir: str, root_path: str) -> None:
+    """Write window.__ROOT_PATH__ into index.html on disk at startup.
+
+    StaticFiles with html=True serves the file directly — injection must be
+    on disk so every response (root, deep links, reloads) gets the value.
+    """
+    index_path = os.path.join(static_dir, "index.html")
+    if not os.path.isfile(index_path):
+        return
+    with open(index_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    script = f"<script>window.__ROOT_PATH__='{root_path}';</script>"
+    html = re.sub(r"<script>window\.__ROOT_PATH__='.*?';</script>", "", html)
+    html = html.replace("</head>", f"{script}</head>", 1) if "</head>" in html else script + html
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 def create_app():
-
-    # Initialize logging
     initialize_logging()
     logger = get_logger()
 
-    # Run Alembic migrations (replaces create_db_and_tables)
     logger.info("Running Alembic migrations...")
     _run_alembic_migrations(logger)
 
-    # Read root path from environment (e.g. /app for sub-path deployment)
-    root_path = os.getenv("ROOT_PATH", "")
+    root_path = env_or_file("ROOT_PATH", "") or ""
     if root_path:
         logger.info(f"Serving under root path: {root_path}")
 
-    # Initialize app
+    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "static"))
+    if not os.path.isdir(static_dir):
+        logger.warning("Static directory '%s' does not exist.", static_dir)
+        os.makedirs(static_dir, exist_ok=True)
+
+    # Bake ROOT_PATH into index.html so StaticFiles (html=True) serves it correctly
+    _inject_root_path(static_dir, root_path)
+
+    # NOTE: do NOT pass root_path= here. Routes are prefixed manually below;
+    # setting FastAPI(root_path=...) makes Starlette strip the prefix before
+    # matching, which would double-count it and 404 everything.
     app = FastAPI()
     logger.info("App successfully started")
 
-    # Configure CORS to allow frontend access
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # In production restrict this to your frontend URL
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Custom middleware for Permissions-Policy header (allows microphone access)
     @app.middleware("http")
     async def add_permissions_policy(request: Request, call_next):
         response = await call_next(request)
-        # Allow microphone in cross-origin contexts
         response.headers["Permissions-Policy"] = "microphone=(self), camera=(self)"
         return response
 
-    # Health check endpoint for Docker / load balancers
     health_prefix = f"{root_path}/api/endpoint" if root_path else "/api/endpoint"
 
     @app.get(health_prefix)
     async def health_check():
         return {"status": "ok"}
 
-    # Register routers with optional root prefix - MUST be registered BEFORE static files
     router_prefix = root_path or ""
     app.include_router(record_bp, prefix=router_prefix)
     app.include_router(auth_bp, prefix=router_prefix)
     app.include_router(settings_bp, prefix=router_prefix)
 
-    # Mount static files (built React frontend) on root path
-    # This allows relative asset references like "./assets/..." to work correctly
-    # MUST be mounted AFTER API routes so that API routes take precedence
-    from fastapi.staticfiles import StaticFiles
+    # /opendox → /opendox/ so the browser resolves relative asset paths correctly
+    if root_path:
+        @app.get(root_path, include_in_schema=False)
+        async def redirect_to_root():
+            return RedirectResponse(url=f"{root_path}/", status_code=301)
 
-    static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
-    if not os.path.isdir(static_dir):
-        # Fallback: if running from project root
-        static_dir = "static"
-    if not os.path.isdir(static_dir):
-        logger.warning(
-            "Static directory '%s' does not exist. Creating empty directory.",
-            static_dir,
-        )
-        os.makedirs(static_dir, exist_ok=True)
-    # Mount on root so relative paths in index.html resolve correctly
-    # html=True serves index.html for 404s (SPA catch-all)
     static_prefix = f"{root_path}/" if root_path else "/"
     app.mount(
-        static_prefix, StaticFiles(directory=static_dir, html=True), name="static"
+        static_prefix,
+        SPAStaticFiles(directory=static_dir, html=True),
+        name="static",
     )
-
-    # SPA Catch-All: Handle 404s by serving index.html for client-side routing
-    # This must be registered as exception handler, not as a route
-    from starlette.exceptions import HTTPException as StarletteHTTPException
-
-    @app.exception_handler(StarletteHTTPException)
-    async def custom_http_exception_handler(
-        request: Request, exc: StarletteHTTPException
-    ):
-        # Only handle 404s that are NOT API routes
-        if exc.status_code == 404:
-            path = request.url.path
-            # Skip API routes - return original 404
-            api_prefix = f"{root_path}/api/" if root_path else "/api/"
-            if path.startswith(api_prefix):
-                raise exc
-            # Serve index.html for SPA routing
-            index_path = os.path.join(static_dir, "index.html")
-            if os.path.isfile(index_path):
-                return FileResponse(index_path)
-        # Re-raise other exceptions
-        raise exc
 
     return app

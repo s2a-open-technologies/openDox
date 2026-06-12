@@ -15,17 +15,13 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
-import sys
 from datetime import datetime, timedelta, timezone
 from typing import Union
 
-# Ensure project root is on sys.path for config import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from config import env_or_file
+from backend.components.modules.env import env_or_file
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

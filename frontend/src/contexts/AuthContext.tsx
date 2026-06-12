@@ -17,7 +17,7 @@
 */
 
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-
+import { BASE_PATH } from '../api';
 
 // Typen definieren
 type User = {
@@ -51,8 +51,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (parts.length === 2) return parts.pop()?.split(";").shift();
   };
 
-  const BASE_PATH = import.meta.env.VITE_ROOT_PATH || "";
-
   // Authentifizierten Fetch mit Token und CSRF
   const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
     const token = localStorage.getItem("access_token");
@@ -62,9 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       "X-CSRF-TOKEN": csrfToken,
       Authorization: token ? `Bearer ${token}` : "",
     };
-    // Prepend BASE_PATH to API calls if set
-    const fullUrl = url.startsWith("/api/") && BASE_PATH ? `${BASE_PATH}${url}` : url;
-    return fetch(fullUrl, { ...options, headers, credentials: "include" });
+    return fetch(url, { ...options, headers, credentials: "include" });
   };
 
   // User-Daten vom Server abrufen

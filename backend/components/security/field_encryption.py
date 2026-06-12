@@ -16,16 +16,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import logging
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import String
 from sqlalchemy.types import TypeDecorator
 
-from config import env_or_file
+from backend.components.modules.env import env_or_file
 
 logger = logging.getLogger(__name__)
 

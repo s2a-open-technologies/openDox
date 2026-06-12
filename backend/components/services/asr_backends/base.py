@@ -33,6 +33,7 @@ class ASRBackend(ABC):
         language: str = "de",
         beam_size: int = 5,
         prompt: str | None = None,
+        params: dict | None = None,
     ) -> str:
         """Transcribe audio to text.
 
@@ -41,6 +42,8 @@ class ASRBackend(ABC):
             language: Language code (e.g., 'de', 'en')
             beam_size: Beam size for decoding (lower = faster)
             prompt: Optional text prompt for context continuation (Whisper / API backends)
+            params: Optional extra transcription parameters (vad_filter,
+                temperature, …) forwarded to backends that support them.
 
         Returns:
             Transcribed text

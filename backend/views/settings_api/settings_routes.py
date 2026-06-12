@@ -74,6 +74,20 @@ async def update_whisper_settings(settings_in: WhisperSettingsModel, db: Session
     settings.chunk_length_s = settings_in.chunk_length_s
     settings.overlap_s = settings_in.overlap_s
 
+    # Anti-hallucination / faster-whisper tuning
+    settings.temperature = settings_in.temperature
+    settings.vad_filter = settings_in.vad_filter
+    settings.vad_min_silence_ms = settings_in.vad_min_silence_ms
+    settings.condition_on_previous_text = settings_in.condition_on_previous_text
+    settings.no_speech_threshold = settings_in.no_speech_threshold
+    settings.compression_ratio_threshold = settings_in.compression_ratio_threshold
+    settings.log_prob_threshold = settings_in.log_prob_threshold
+    settings.hallucination_silence_threshold = (
+        settings_in.hallucination_silence_threshold
+    )
+    settings.live_beam_size = settings_in.live_beam_size
+    settings.final_beam_size = settings_in.final_beam_size
+
     db.add(settings)
     db.commit()
     db.refresh(settings)
@@ -109,6 +123,7 @@ async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
     settings.llm_model = settings_in.llm_model
     settings.llm_temperature = settings_in.llm_temperature
     settings.llm_max_tokens = settings_in.llm_max_tokens
+    settings.correction_model = settings_in.correction_model or None
 
     db.add(settings)
     db.commit()

@@ -26,12 +26,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #   DATABASE_URI=sqlite3:///test.sqlite3
 #   SQL_USER_FILE=/run/secrets/db_user   SQL_PASS_FILE=/run/secrets/db_pass
 
-import os
-import sys
-
-# Ensure project root is on sys.path for config import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from config import env_or_file
+from backend.components.modules.env import env_or_file
 
 _SQL_USER = env_or_file("SQL_USER", "postgres")
 _SQL_PASS = env_or_file("SQL_PASS", "postgres")

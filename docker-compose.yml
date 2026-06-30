@@ -13,7 +13,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: opendox-postgres
-    restart: always
+    #restart: always
     environment:
       POSTGRES_USER: ${SQL_USER:-postgres}
       POSTGRES_PASSWORD: ${SQL_PASS:-postgres}
@@ -32,7 +32,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: opendox-redis
-    restart: always
+    #restart: always
     command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
@@ -51,13 +51,11 @@ services:
       dockerfile: whisper_server/Dockerfile
     container_name: opendox-whisper
     restart: always
-    ports:
-      - "9100:9000/tcp"
     volumes:
       - whisper-data:/var/lib/whisper
     environment:
       - WHISPER_MODEL=${WHISPER_MODEL:-large-v3-turbo}
-      - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
       - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8_float16}
       - WHISPER_API_KEY=${WHISPER_API_KEY:-loc-123}
     deploy:
@@ -77,8 +75,6 @@ services:
       dockerfile: parakeet_server/Dockerfile
     container_name: opendox-parakeet
     restart: always
-    ports:
-      - "5001:5001"
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # openDox Application (FastAPI + React)
@@ -90,7 +86,7 @@ services:
     container_name: opendox-app
     restart: always
     ports:
-      - "${APP_PORT:-5000}:5000"
+      - "${APP_PORT:-20000}:5000"
     environment:
       # Database (service name as host inside Docker network)
       SQL_USER: ${SQL_USER:-postgres}

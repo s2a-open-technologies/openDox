@@ -65,6 +65,8 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const isPausedRef = useRef(false);
+  const wsFinishedRef = useRef(false);
+  const processingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [liveEnabled, setLiveEnabled] = useState(true);
 
@@ -134,6 +136,11 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       }
 
       if (data.status === "finished" || data.status === "error") {
+        wsFinishedRef.current = true;
+        if (processingTimeoutRef.current) {
+          clearTimeout(processingTimeoutRef.current);
+          processingTimeoutRef.current = null;
+        }
         setIsProcessing(false);
         if (data.status === "finished") {
           toast.success("Aufnahme wird verarbeitet...");
@@ -151,6 +158,17 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
 
     ws.onclose = () => {
       console.log("WebSocket geschlossen");
+      if (!wsFinishedRef.current) {
+        // Unexpected disconnect (e.g. Apache proxy dropped the connection)
+        setIsRecording(false);
+        setIsProcessing(false);
+        if (processingTimeoutRef.current) {
+          clearTimeout(processingTimeoutRef.current);
+          processingTimeoutRef.current = null;
+        }
+        toast.error("Verbindung unterbrochen – bitte Aufnahme neu starten");
+      }
+      wsFinishedRef.current = false;
     };
   };
 
@@ -255,7 +273,18 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     isPausedRef.current = false;
     setIsProcessing(true);
 
-    socketRef.current?.send(JSON.stringify({ event: "stop" }));
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      wsFinishedRef.current = false;
+      socketRef.current.send(JSON.stringify({ event: "stop" }));
+      // Safety timeout: reset spinner if backend never responds
+      processingTimeoutRef.current = setTimeout(() => {
+        setIsProcessing(false);
+        toast.error("Zeitüberschreitung – Aufnahme konnte nicht verarbeitet werden");
+      }, 90_000);
+    } else {
+      setIsProcessing(false);
+      toast.error("Verbindung bereits unterbrochen");
+    }
   };
 
   const pauseSession = () => {

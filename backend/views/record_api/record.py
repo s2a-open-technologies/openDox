@@ -383,9 +383,12 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                             params=whisper_params,
                         )
 
+                        # Always advance the index — even on empty result — so the
+                        # same audio slice is never re-transcribed in the next loop.
+                        local_last_index = new_index
+
                         if result_text:
                             local_live_text = (local_live_text + " " + result_text).strip()
-                            local_last_index = new_index
                             # Persist to Redis only after transcription (~every 3s)
                             session_store.set_live_state(
                                 session_id, new_index, local_live_text

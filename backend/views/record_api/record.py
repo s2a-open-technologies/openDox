@@ -263,6 +263,17 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     client_connected = True
     stopped = False
 
+    # Cache session state locally to avoid Redis round-trips on every audio chunk.
+    # Per-chunk Redis calls (10+ ops at ~0.5–2ms each) saturate the event loop at
+    # 125 chunks/second and cause the WebSocket to stall under the proxy.
+    local_audio_path: str = session["audio_file_path"] if session else ""
+    local_audio_size: int = session["audio_file_size"] if session else 0
+    local_last_index: int = session["last_index"] if session else 0
+    local_live_text: str = session.get("live_text", "") if session else ""
+    local_user_id: int = session["user_id"] if session else user_id_int
+    last_cleanup_time: float = session.get("last_cleanup_time", 0.0) if session else 0.0
+    last_cleanup_len: int = session.get("last_cleanup_len", 0) if session else 0
+
     # On resume: push the accumulated transcript back so the client gets it again.
     if session and session.get("live_text"):
         try:
@@ -306,13 +317,13 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     print("[WARNING] Empty binary chunk received")
                     continue
 
-                if session is None:
+                if not local_audio_path:
                     continue
 
-                session_store.append_audio(session_id, chunk)
-                session = session_store.get_by_session(session_id)
-                if session is None:
-                    continue
+                # Write audio directly to disk — no Redis round-trip per chunk.
+                with open(local_audio_path, "ab") as _af:
+                    _af.write(chunk)
+                local_audio_size += len(chunk)
 
                 # Live ASR
                 try:
@@ -335,12 +346,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     except Exception:
                         pass
 
-                    buffer_len = session["audio_file_size"]
-                    new_data_len = buffer_len - session["last_index"]
+                    new_data_len = local_audio_size - local_last_index
 
                     if new_data_len >= bytes_per_chunk:
-                        start = session["last_index"]
-                        with open(session["audio_file_path"], "rb") as _f:
+                        start = local_last_index
+                        with open(local_audio_path, "rb") as _f:
                             _f.seek(start)
                             audio_slice = _f.read(bytes_per_chunk)
                         new_index = start + bytes_per_chunk - bytes_per_overlap
@@ -374,13 +384,12 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         )
 
                         if result_text:
-                            live_text = (
-                                session.get("live_text", "") + " " + result_text
-                            ).strip()
+                            local_live_text = (local_live_text + " " + result_text).strip()
+                            local_last_index = new_index
+                            # Persist to Redis only after transcription (~every 3s)
                             session_store.set_live_state(
-                                session_id, new_index, live_text
+                                session_id, new_index, local_live_text
                             )
-                            session = session_store.get_by_session(session_id)
 
                             try:
                                 record = db.exec(
@@ -410,26 +419,25 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                                     client_connected = False
 
                             # Periodic LLM cleanup every 30s
-                            if session:
-                                _now = time.monotonic()
-                                last_cleanup = session.get("last_cleanup_time", 0.0)
-                                live_len = len(session.get("live_text", ""))
-                                prev_len = session.get("last_cleanup_len", 0)
-                                if (
-                                    client_connected
-                                    and _now - last_cleanup >= 30.0
-                                    and live_len > prev_len
-                                ):
-                                    session_store.update_session(
-                                        session["user_id"],
-                                        {
-                                            "last_cleanup_time": _now,
-                                            "last_cleanup_len": live_len,
-                                        },
-                                    )
-                                    asyncio.create_task(
-                                        _run_periodic_cleanup(session_id, websocket)
-                                    )
+                            _now = time.monotonic()
+                            live_len = len(local_live_text)
+                            if (
+                                client_connected
+                                and _now - last_cleanup_time >= 30.0
+                                and live_len > last_cleanup_len
+                            ):
+                                last_cleanup_time = _now
+                                last_cleanup_len = live_len
+                                session_store.update_session(
+                                    local_user_id,
+                                    {
+                                        "last_cleanup_time": _now,
+                                        "last_cleanup_len": live_len,
+                                    },
+                                )
+                                asyncio.create_task(
+                                    _run_periodic_cleanup(session_id, websocket)
+                                )
 
                 except Exception as e:
                     print(f"[LIVE-ASR-ERROR] {e}")
@@ -445,9 +453,14 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         client_connected = False
 
     # Plain disconnect without a "stop" event -> keep the session in the store as
-    # an unfinished recording so it can be resumed later. Nothing else to do.
+    # an unfinished recording so it can be resumed later.
+    # Sync the local audio size back to Redis so resume knows where to continue.
     if not stopped:
         print(f"[WS] Session {session_id} left unfinished (kept for resume)")
+        session_store.update_session(
+            local_user_id,
+            {"audio_file_size": local_audio_size, "last_index": local_last_index},
+        )
         try:
             await websocket.close()
         except Exception:
@@ -455,9 +468,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         return
 
     # Stop event -> finalize the recording and run the transcription workflow.
-    if session is not None:
-        pcm_path = session.get("audio_file_path")
-        audio_size = session.get("audio_file_size", 0)
+    # Use local_audio_path / local_audio_size because session may be stale —
+    # audio data was written directly to disk without Redis updates per chunk.
+    if local_audio_path:
+        pcm_path = local_audio_path
+        audio_size = local_audio_size
 
         # Null out audio_file_path so delete_session won't remove the PCM file —
         # the finalize task owns cleanup instead.

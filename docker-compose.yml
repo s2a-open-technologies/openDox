@@ -119,6 +119,8 @@ services:
       - app-chunks:/app/chunks
       - app-models-cache:/app/models_cache
       - app-certs:/app/certs
+    extra_hosts:
+      - "host.docker.internal:docker-gateway"
     depends_on:
       postgres:
         condition: service_healthy

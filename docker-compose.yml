@@ -108,7 +108,7 @@ services:
       # Redis Session Store
       REDIS_URL: redis://redis:6379/0
       # Whisper API (point to the whisper container — used for final transcription)
-      WHISPER_API_ENDPOINT: http://whisper:9000/v1
+      WHISPER_API_ENDPOINT: http://whisper:5002/v1
       WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
       # Parakeet API (CPU, used for live transcription)
       PARAKEET_API_ENDPOINT: http://parakeet:5001/v1

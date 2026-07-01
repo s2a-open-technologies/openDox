@@ -15,9 +15,11 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import asyncio
 import os
 import shutil
 
+import requests as _requests
 from fastapi import File, HTTPException, UploadFile
 from sqlmodel import select
 
@@ -130,6 +132,41 @@ async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
     db.refresh(settings)
 
     return settings
+
+
+@settings_bp.get("/llm-test/")
+async def test_llm_connection(db: SessionDep):
+    """Ping the configured LLM endpoint and return available models."""
+    settings = db.exec(select(LlmSettingsModel)).first()
+    if not settings or not settings.llm_api_endpoint:
+        raise HTTPException(status_code=400, detail="Kein LLM-Endpoint konfiguriert")
+
+    base = settings.llm_api_endpoint.rstrip("/")
+    # Strip trailing /v1 so we can reconstruct the models URL cleanly
+    if base.endswith("/v1"):
+        base = base[:-3]
+    models_url = f"{base}/v1/models"
+
+    headers = {}
+    if settings.llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+
+    def _fetch():
+        return _requests.get(models_url, headers=headers, timeout=5)
+
+    try:
+        response = await asyncio.to_thread(_fetch)
+        if response.status_code == 200:
+            data = response.json()
+            models = [m.get("id", m) for m in data.get("data", [])]
+            return {"ok": True, "models": models, "url": models_url}
+        return {"ok": False, "error": f"HTTP {response.status_code}", "url": models_url}
+    except _requests.exceptions.ConnectionError:
+        return {"ok": False, "error": "Verbindung abgelehnt – Endpoint nicht erreichbar", "url": models_url}
+    except _requests.exceptions.Timeout:
+        return {"ok": False, "error": "Timeout (5s)", "url": models_url}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "url": models_url}
 
 
 # LDAP Endpoints

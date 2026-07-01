@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from '@/contexts/AuthContext';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 interface LlmSettings {
     llm_api_endpoint: string;
@@ -34,6 +35,9 @@ interface LlmSettings {
 
 const LlmConfig = () => {
     const { authFetch } = useAuth();
+    const [testStatus, setTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
+    const [testing, setTesting] = useState(false);
+
     const [config, setConfig] = useState<LlmSettings>({
         llm_api_endpoint: 'http://localhost:11434/v1',
         llm_api_key: '',
@@ -69,6 +73,27 @@ const LlmConfig = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
         });
+    };
+
+    const testConnection = async () => {
+        setTesting(true);
+        setTestStatus(null);
+        try {
+            const res = await authFetch('/api/v1/settings/llm-test/');
+            const data = await res.json();
+            if (data.ok) {
+                const modelList = data.models?.length
+                    ? data.models.join(', ')
+                    : 'keine Modelle gelistet';
+                setTestStatus({ ok: true, message: `Verbunden · ${modelList}` });
+            } else {
+                setTestStatus({ ok: false, message: data.error || 'Unbekannter Fehler' });
+            }
+        } catch {
+            setTestStatus({ ok: false, message: 'Anfrage fehlgeschlagen' });
+        } finally {
+            setTesting(false);
+        }
     };
 
     return (
@@ -151,7 +176,26 @@ const LlmConfig = () => {
                 </CardContent>
             </Card>
 
-            <Button onClick={saveConfig} className="w-full">Einstellungen speichern</Button>
+            <div className="flex gap-2">
+                <Button onClick={saveConfig} className="flex-1">Einstellungen speichern</Button>
+                <Button onClick={testConnection} variant="outline" disabled={testing} className="gap-2">
+                    {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Verbindung testen
+                </Button>
+            </div>
+
+            {testStatus && (
+                <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
+                    testStatus.ok
+                        ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300'
+                        : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
+                }`}>
+                    {testStatus.ok
+                        ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
+                    <span>{testStatus.message}</span>
+                </div>
+            )}
         </div>
     );
 };

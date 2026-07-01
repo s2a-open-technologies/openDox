@@ -31,4 +31,4 @@ ENV HF_HOME=/var/lib/whisper \
 
 EXPOSE 9000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "9000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]

@@ -15,15 +15,25 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+# Standard library
+import json
 import os
 
+# Third party
 from sqlmodel import select
 
+# Custom imports
 from backend.components.llm.llm_model import OllamaModel
 from backend.components.models.categories import Categories  # noqa: E402
+from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import Record
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend
+from backend.components.services.sanitizing_service import (
+    _PRESERVE_TOKENS_INSTRUCTION,
+    reinject,
+    sanitize,
+)
 from backend.components.services.settings_service import get_whisper_params
 from backend.components.services.task_service import update_task_status
 from backend.components.sql.sql_engine import get_session_factory
@@ -85,6 +95,25 @@ def background_transcription_task(
 
         update_task_status(db, task_id, "processing_llm")
 
+        # Sanitize PII before LLM if EntityGuard is configured
+        llm_settings = db.exec(select(LlmSettingsModel)).first()
+        text_for_llm = text
+        entity_mapping: dict[str, str] = {}
+
+        if llm_settings and llm_settings.sanitizer_enabled and llm_settings.sanitizer_endpoint:
+            logger.info(f"[TASK {task_id}] Running EntityGuard sanitizer")
+            text_for_llm, entity_mapping = sanitize(
+                text=text,
+                endpoint=llm_settings.sanitizer_endpoint,
+                api_key=llm_settings.sanitizer_api_key,
+                department=llm_settings.sanitizer_department or "standard",
+            )
+            logger.info(f"[TASK {task_id}] Sanitized {len(entity_mapping)} entities")
+            if record and entity_mapping:
+                record.pii_mapping = json.dumps(entity_mapping, ensure_ascii=False)
+                db.add(record)
+                db.commit()
+
         # LLM summarization — use category-specific LLM if override is active
         if category_llm_override:
             model = OllamaModel(
@@ -96,7 +125,19 @@ def background_transcription_task(
             )
         else:
             model = OllamaModel()
-        summary = model.generate_response(text, custom_system_prompt=category_prompt)
+
+        effective_prompt = (category_prompt or "") + (
+            _PRESERVE_TOKENS_INSTRUCTION if entity_mapping else ""
+        )
+        summary = model.generate_response(
+            text_for_llm,
+            custom_system_prompt=effective_prompt or None,
+        )
+
+        if entity_mapping:
+            summary = reinject(summary, entity_mapping)
+            logger.info(f"[TASK {task_id}] Re-injected PII into summary")
+
         logger.info(f"[TASK {task_id}] Summarization completed ({len(summary)} chars)")
 
         if record:

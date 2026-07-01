@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
@@ -31,6 +32,10 @@ interface LlmSettings {
     llm_temperature: number;
     llm_max_tokens: number;
     correction_model: string;
+    sanitizer_enabled: boolean;
+    sanitizer_endpoint: string;
+    sanitizer_api_key: string;
+    sanitizer_department: string;
 }
 
 const LlmConfig = () => {
@@ -45,6 +50,10 @@ const LlmConfig = () => {
         llm_temperature: 0.2,
         llm_max_tokens: 2048,
         correction_model: '',
+        sanitizer_enabled: false,
+        sanitizer_endpoint: '',
+        sanitizer_api_key: '',
+        sanitizer_department: 'standard',
     });
 
     useEffect(() => {
@@ -58,6 +67,10 @@ const LlmConfig = () => {
                     llm_temperature: data.llm_temperature ?? 0.2,
                     llm_max_tokens: data.llm_max_tokens ?? 2048,
                     correction_model: data.correction_model || '',
+                    sanitizer_enabled: data.sanitizer_enabled ?? false,
+                    sanitizer_endpoint: data.sanitizer_endpoint || '',
+                    sanitizer_api_key: data.sanitizer_api_key || '',
+                    sanitizer_department: data.sanitizer_department || 'standard',
                 });
             })
             .catch(console.error);
@@ -173,6 +186,58 @@ const LlmConfig = () => {
                             />
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>PII-Sanitizer (EntityGuard)</CardTitle>
+                    <CardDescription>
+                        Anonymisiert sensible Daten im Transkript bevor sie an das LLM gesendet werden
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <Switch
+                            id="sanitizer-enabled"
+                            checked={config.sanitizer_enabled}
+                            onCheckedChange={(v) => updateField('sanitizer_enabled', v)}
+                        />
+                        <Label htmlFor="sanitizer-enabled">Sanitizer aktivieren</Label>
+                    </div>
+
+                    {config.sanitizer_enabled && (
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>EntityGuard Endpoint</Label>
+                                <Input
+                                    placeholder="http://entityguard:6000"
+                                    value={config.sanitizer_endpoint}
+                                    onChange={(e) => updateField('sanitizer_endpoint', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>API Key (optional)</Label>
+                                <Input
+                                    type="password"
+                                    placeholder="Bearer Token"
+                                    value={config.sanitizer_api_key}
+                                    onChange={(e) => updateField('sanitizer_api_key', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Department</Label>
+                                <Input
+                                    placeholder="standard"
+                                    value={config.sanitizer_department}
+                                    onChange={(e) => updateField('sanitizer_department', e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Abteilungsspezifische Regeln in EntityGuard (z.B. "kardiologie", "standard")
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

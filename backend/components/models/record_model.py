@@ -36,6 +36,11 @@ class Record(SQLModel, table=True):
     file: str = Field()
     archived: bool = Field(default=False)
     task_id: Optional[int] = Field(default=None, foreign_key="task.id")
+    
+    pii_mapping: Optional[str] = Field(
+        default=None,
+        sa_column=Column(EncryptedString, nullable=True)
+    )
 
     def to_dict(self):
         return {

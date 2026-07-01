@@ -127,6 +127,11 @@ async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
     settings.llm_max_tokens = settings_in.llm_max_tokens
     settings.correction_model = settings_in.correction_model or None
 
+    settings.sanitizer_enabled = settings_in.sanitizer_enabled
+    settings.sanitizer_endpoint = settings_in.sanitizer_endpoint or None
+    settings.sanitizer_api_key = settings_in.sanitizer_api_key or None
+    settings.sanitizer_department = settings_in.sanitizer_department or "standard"
+
     db.add(settings)
     db.commit()
     db.refresh(settings)

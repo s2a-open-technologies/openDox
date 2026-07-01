@@ -41,13 +41,13 @@ class OpenAICompatibleBackend(ASRBackend):
         self,
         endpoint: str,
         api_key: str | None = None,
-        model: str = "whisper-1",
+        model: str = "large-v3-turbo",
         timeout: int = 60,
     ):
         """Initialize OpenAI-compatible backend.
 
         Args:
-            endpoint: Base API URL (e.g., "http://localhost:9000")
+            endpoint: Base API URL (e.g., "http://localhost:5002")
             api_key: API key for authentication (if required)
             model: Model identifier for the API
             timeout: Request timeout in seconds

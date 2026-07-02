@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #  openDox - Standalone Whisper transcription server
-#  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+#  Copyright (C) 2026 Christopher Abanilla <christopher.abanilla@gmx.de>
 #
 #  CUDA + cuDNN runtime base — required by CTranslate2 (faster-whisper) for GPU.
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04

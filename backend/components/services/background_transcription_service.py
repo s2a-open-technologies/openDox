@@ -57,12 +57,14 @@ def background_transcription_task(
     record = db.exec(smt).one_or_none()
 
     # Get category config if set
-    category_prompt = None
+    category_prompt = None          # → LLM system prompt
+    category_whisper_prompt = None  # → Whisper initial_prompt (vocabulary hints)
     category_llm_override = None
     if record and record.category_id:
         cat = db.get(Categories, record.category_id)
         if cat:
             category_prompt = cat.system_prompt
+            category_whisper_prompt = cat.whisper_prompt or None
             if cat.llm_override_enabled and cat.llm_model:
                 category_llm_override = cat
 
@@ -77,11 +79,11 @@ def background_transcription_task(
         final_params = get_whisper_params(live=False)
         if file_path:
             text = backend.transcribe(
-                file_path, prompt=category_prompt, params=final_params
+                file_path, prompt=category_whisper_prompt, params=final_params
             )
         elif pcm_buffer:
             text = backend.transcribe(
-                pcm_buffer, prompt=category_prompt, params=final_params
+                pcm_buffer, prompt=category_whisper_prompt, params=final_params
             )
         else:
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
@@ -160,7 +162,11 @@ def background_transcription_task(
         logger.error(
             f"[TASK {task_id}] Error during transcription/llm: {e}", exc_info=True
         )
-        update_task_status(db, task_id, "error", error=str(e))
+        try:
+            db.rollback()
+            update_task_status(db, task_id, "error", error=str(e))
+        except Exception as inner:
+            logger.error(f"[TASK {task_id}] Failed to set error status: {inner}")
 
     finally:
         db.close()

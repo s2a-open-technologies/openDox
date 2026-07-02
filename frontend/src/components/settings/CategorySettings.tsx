@@ -31,6 +31,7 @@ interface CategorySettingsData {
     name: string;
     description: string;
     system_prompt: string;
+    whisper_prompt: string | null;
     llm_override_enabled: boolean;
     llm_model: string | null;
     llm_api_endpoint: string | null;
@@ -43,6 +44,7 @@ const emptyForm = (): CategorySettingsData => ({
     name: '',
     description: '',
     system_prompt: '',
+    whisper_prompt: null,
     llm_override_enabled: false,
     llm_model: null,
     llm_api_endpoint: null,
@@ -222,14 +224,26 @@ const CategorySettings = () => {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label>System Prompt</Label>
+                            <Label>System Prompt (LLM)</Label>
                             <Textarea
                                 value={settings.system_prompt}
                                 onChange={e => setSettings({ ...settings, system_prompt: e.target.value })}
-                                placeholder="System Prompt"
+                                placeholder="Anweisungen für die Zusammenfassung, z.B. Format, Struktur, Fokus..."
                                 className="min-h-[100px]"
                                 required
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Transkriptions-Hint (Whisper)</Label>
+                            <Textarea
+                                value={settings.whisper_prompt ?? ''}
+                                onChange={e => setSettings({ ...settings, whisper_prompt: e.target.value || null })}
+                                placeholder="Kardiologie, Echokardiographie, Sinusbradykardie, Dr. Müller, EKG, Herzinsuffizienz ..."
+                                className="min-h-[80px]"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Fachvokabular für die Spracherkennung. Kommagetrennte Begriffe helfen Whisper Fachbegriffe korrekt zu erkennen. Optional.
+                            </p>
                         </div>
 
                         <div className="border rounded-lg p-4 space-y-4">

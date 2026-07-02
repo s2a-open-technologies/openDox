@@ -46,6 +46,7 @@ services:
   # Whisper Server (OpenAI-compatible API for transcription)
   # ═══════════════════════════════════════════════════════════════════════════════
   whisper:
+    image: registry.nutsolution.de/opendox-whisper:latest
     build:
       context: .
       dockerfile: whisper_server/Dockerfile
@@ -70,7 +71,8 @@ services:
   # Parakeet Server (CPU, onnx-asr, OpenAI-compatible API for live ASR)
   # ═══════════════════════════════════════════════════════════════════════════════
   parakeet:
-    build: 
+    image: registry.nutsolution.de/opendox-parakeet:latest
+    build:
       context: .
       dockerfile: parakeet_server/Dockerfile
     container_name: opendox-parakeet
@@ -80,6 +82,7 @@ services:
   # openDox Application (FastAPI + React)
   # ═══════════════════════════════════════════════════════════════════════════════
   app:
+    image: registry.nutsolution.de/opendox:demo
     build:
       context: .
       dockerfile: Dockerfile

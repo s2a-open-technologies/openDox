@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Standard library
 import asyncio
+import json
 import os
 import shutil
 import time
@@ -32,6 +33,7 @@ from sqlmodel import select
 
 from backend.components.llm.llm_model import OllamaModel
 from backend.components.models.categories import Categories
+from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import (
     Record,
     RecordCreate,
@@ -43,6 +45,11 @@ from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
+)
+from backend.components.services.sanitizing_service import (
+    _PRESERVE_TOKENS_INSTRUCTION,
+    reinject,
+    sanitize,
 )
 from backend.components.services.session_store import session_store
 from backend.components.sql.sql_engine import SessionDep
@@ -342,6 +349,8 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         settings = get_settings()
                         bytes_per_chunk = settings.chunk_length_s * 16000 * 4
                         bytes_per_overlap = int(settings.overlap_s * 16000 * 4)
+                        if settings.live_backend == "parakeet":
+                            bytes_per_overlap = 0
                         whisper_params = get_whisper_params(live=True)
                     except Exception:
                         pass
@@ -715,7 +724,24 @@ async def regenerate_summary(record_id: int, db: SessionDep):
             if cat.llm_override_enabled and cat.llm_model:
                 category_llm_override = cat
 
+    llm_settings = db.exec(select(LlmSettingsModel)).first()
+
     def run_llm():
+        text = record.content
+        entity_mapping: dict[str, str] = {}
+
+        if llm_settings and llm_settings.sanitizer_enabled and llm_settings.sanitizer_endpoint:
+            text, entity_mapping = sanitize(
+                text=text,
+                endpoint=llm_settings.sanitizer_endpoint,
+                api_key=llm_settings.sanitizer_api_key,
+                department=llm_settings.sanitizer_department or "standard",
+            )
+
+        effective_prompt = (category_prompt or "") + (
+            _PRESERVE_TOKENS_INSTRUCTION if entity_mapping else ""
+        )
+
         if category_llm_override:
             model = OllamaModel(
                 model_name=category_llm_override.llm_model,
@@ -726,13 +752,19 @@ async def regenerate_summary(record_id: int, db: SessionDep):
             )
         else:
             model = OllamaModel()
-        return model.generate_response(
-            record.content, custom_system_prompt=category_prompt
-        )
+
+        result = model.generate_response(text, custom_system_prompt=effective_prompt or None)
+
+        if entity_mapping:
+            result = reinject(result, entity_mapping)
+
+        return result, entity_mapping
 
     try:
-        summary = await asyncio.to_thread(run_llm)
+        summary, entity_mapping = await asyncio.to_thread(run_llm)
         record.summarize = summary
+        if entity_mapping:
+            record.pii_mapping = json.dumps(entity_mapping, ensure_ascii=False)
         db.add(record)
         db.commit()
         db.refresh(record)

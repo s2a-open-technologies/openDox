@@ -185,7 +185,6 @@ async def list_users(
 async def create_user(
     user_in: UserCreate,
     db: SessionDep,
-    is_superuser: bool = False,
     current_user: User = Depends(get_current_user),
 ):
     _require_superuser(current_user)
@@ -197,7 +196,7 @@ async def create_user(
     db_user = User(
         name=user_in.name,
         hashed_password=get_password_hash(user_in.password),
-        is_superuser=is_superuser,
+        is_superuser=user_in.is_superuser,
     )
     db.add(db_user)
     db.commit()

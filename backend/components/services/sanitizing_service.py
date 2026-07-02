@@ -28,7 +28,7 @@ def sanitize(text: str, endpoint: str, api_key: str | None, department: str) -> 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     base = endpoint.rstrip("/")
     response = requests.post(
-        f"{base}/sanitize",
+        f"{base}/api/v1/entityguard/sanitize",
         json={"text": text, "department": department},
         headers=headers,
         timeout=10

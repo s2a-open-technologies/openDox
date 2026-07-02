@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface LlmSettings {
     llm_api_endpoint: string;
@@ -81,11 +82,20 @@ const LlmConfig = () => {
     };
 
     const saveConfig = async () => {
-        await authFetch('/api/v1/settings/llm-settings/', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
+        try {
+            const res = await authFetch('/api/v1/settings/llm-settings/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config),
+            });
+            if (res.ok) {
+                toast.success('Einstellungen gespeichert');
+            } else {
+                toast.error('Speichern fehlgeschlagen');
+            }
+        } catch {
+            toast.error('Verbindungsfehler');
+        }
     };
 
     const testConnection = async () => {
@@ -224,17 +234,6 @@ const LlmConfig = () => {
                                     value={config.sanitizer_api_key}
                                     onChange={(e) => updateField('sanitizer_api_key', e.target.value)}
                                 />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Department</Label>
-                                <Input
-                                    placeholder="standard"
-                                    value={config.sanitizer_department}
-                                    onChange={(e) => updateField('sanitizer_department', e.target.value)}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Abteilungsspezifische Regeln in EntityGuard (z.B. "kardiologie", "standard")
-                                </p>
                             </div>
                         </div>
                     )}

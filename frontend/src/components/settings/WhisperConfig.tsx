@@ -149,7 +149,7 @@ const WhisperConfig = () => {
                     <Card>
                         <CardHeader>
                             <CardTitle>Allgemeine Einstellungen</CardTitle>
-                            <CardDescription>Sprache und Chunk-Verhalten</CardDescription>
+                            <CardDescription>Sprache</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
@@ -167,26 +167,6 @@ const WhisperConfig = () => {
                                     <SelectItem value="auto">Automatisch (Spracherkennung)</SelectItem>
                                     </SelectContent>
                                 </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Chunk-Länge (Sekunden)</Label>
-                                <Input 
-                                    type="number" 
-                                    min={1} 
-                                    max={10} 
-                                    value={config.chunk_length_s} 
-                                    onChange={(e) => updateField('chunk_length_s', parseInt(e.target.value) || 3)} 
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Überlappung (Sekunden)</Label>
-                                <Input 
-                                    type="number" 
-                                    min={0} 
-                                    max={2} 
-                                    value={config.overlap_s} 
-                                    onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
-                                />
                             </div>
                         </CardContent>
                     </Card>
@@ -222,28 +202,48 @@ const WhisperConfig = () => {
                                     )}
                                     <div className="space-y-2">
                                         <Label>API Endpoint</Label>
-                                        <Input 
-                                            placeholder={config.live_backend === 'parakeet' ? 'http://parakeet:5001/v1' : 'http://localhost:9000'} 
-                                            value={config.live_api_endpoint} 
-                                            onChange={(e) => updateField('live_api_endpoint', e.target.value)} 
+                                        <Input
+                                            placeholder={config.live_backend === 'parakeet' ? 'http://parakeet:5001/v1' : 'http://localhost:9000'}
+                                            value={config.live_api_endpoint}
+                                            onChange={(e) => updateField('live_api_endpoint', e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>API Key (optional)</Label>
-                                        <Input 
-                                            type="password" 
-                                            placeholder="Bearer Token" 
-                                            value={config.live_api_key} 
-                                            onChange={(e) => updateField('live_api_key', e.target.value)} 
+                                        <Input
+                                            type="password"
+                                            placeholder="Bearer Token"
+                                            value={config.live_api_key}
+                                            onChange={(e) => updateField('live_api_key', e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Modell</Label>
-                                        <Input 
-                                            placeholder="whisper-1" 
-                                            value={config.live_api_model} 
-                                            onChange={(e) => updateField('live_api_model', e.target.value)} 
+                                        <Input
+                                            placeholder="whisper-1"
+                                            value={config.live_api_model}
+                                            onChange={(e) => updateField('live_api_model', e.target.value)}
                                         />
+                                    </div>
+                                    <div className={`grid gap-4 ${config.live_backend === 'parakeet' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                        <div className="space-y-2">
+                                            <Label>Chunk-Länge (Sek.)</Label>
+                                            <Input
+                                                type="number" min={1} max={10}
+                                                value={config.chunk_length_s}
+                                                onChange={(e) => updateField('chunk_length_s', parseInt(e.target.value) || 3)}
+                                            />
+                                        </div>
+                                        {config.live_backend !== 'parakeet' && (
+                                            <div className="space-y-2">
+                                                <Label>Überlappung (Sek.)</Label>
+                                                <Input
+                                                    type="number" min={0} max={2} step={0.5}
+                                                    value={config.overlap_s}
+                                                    onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             )}

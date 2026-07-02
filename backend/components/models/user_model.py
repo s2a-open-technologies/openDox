@@ -35,6 +35,7 @@ class UserBase(SQLModel):
 
 class UserCreate(UserBase):
     password: str  # Klartext beim Eingang – wird gehasht gespeichert
+    is_superuser: bool = False
 
 
 class UserRead(UserBase):

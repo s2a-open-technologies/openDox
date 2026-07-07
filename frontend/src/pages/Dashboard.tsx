@@ -23,7 +23,8 @@ import TranscriptView from "@/components/TranscriptView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { AlertTriangle, Radio } from "lucide-react";
+import { AlertTriangle, Radio, Menu } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
@@ -77,6 +78,7 @@ const Dashboard = () => {
   const [unfinishedSessionId, setUnfinishedSessionId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const userId = user?.id?.toString() || "";
 
@@ -338,8 +340,18 @@ const Dashboard = () => {
         onUnarchiveRecording={handleUnarchive}
         showArchived={showArchived}
         onToggleArchived={setShowArchived}
+        mobileOpen={mobileSidebarOpen}
+        onMobileOpenChange={setMobileSidebarOpen}
       />
-      <main className="flex-1 overflow-auto bg-muted/30">
+      <main className="flex-1 min-w-0 overflow-auto bg-muted/30 flex flex-col">
+        <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
+          <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)}>
+            <Menu className="w-5 h-5" />
+            <span className="sr-only">Menü öffnen</span>
+          </Button>
+          <Logo className="h-8" />
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto">
         {activeSessionId ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Recorder
@@ -507,6 +519,7 @@ const Dashboard = () => {
             onSave={handleSaveRecording}
           />
         )}
+        </div>
       </main>
     </div>
   );

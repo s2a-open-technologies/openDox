@@ -20,6 +20,7 @@ import struct
 import numpy as np
 import requests
 
+from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
 
 from .base import ASRBackend
@@ -73,6 +74,8 @@ class OpenAICompatibleBackend(ASRBackend):
             float_array = np.frombuffer(audio, dtype=np.float32)
         else:
             float_array = np.asarray(audio, dtype=np.float32)
+
+        float_array = normalize_quiet_pcm(float_array)
 
         # Float32 (-1.0 to 1.0) -> int16
         int16_array = (float_array * 32767).astype(np.int16)

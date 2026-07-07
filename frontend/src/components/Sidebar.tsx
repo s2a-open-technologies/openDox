@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import type { Recording } from "@/pages/Dashboard";
 
@@ -41,6 +42,8 @@ interface SidebarProps {
   onUnarchiveRecording?: (id: string) => void;
   showArchived?: boolean;
   onToggleArchived?: (show: boolean) => void;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }
 
 const Sidebar = ({
@@ -53,9 +56,17 @@ const Sidebar = ({
   onUnarchiveRecording,
   showArchived = false,
   onToggleArchived,
+  mobileOpen = false,
+  onMobileOpenChange,
 }: SidebarProps) => {
-  return (
-    <aside className={cn("w-80 bg-background flex flex-col border-r border-border h-screen")}>
+  // Closing the drawer after selecting a recording is mobile-only UX; harmless no-op on desktop.
+  const handleSelectRecording = (recording: Recording) => {
+    onSelectRecording(recording);
+    onMobileOpenChange?.(false);
+  };
+
+  const content = (
+    <>
       <div className="p-4 border-b border-border z-10 relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex flex-col gap-2">
         <div className="flex items-center justify-center w-full">
           <Logo className="h-16 w-full px-2" />
@@ -107,7 +118,7 @@ const Sidebar = ({
                   )}
                 >
                   <button
-                    onClick={() => onSelectRecording(recording)}
+                    onClick={() => handleSelectRecording(recording)}
                     className="w-full text-left px-4 py-3 pr-10"
                   >
                     <div className="flex items-center gap-3">
@@ -183,7 +194,23 @@ const Sidebar = ({
       <div className="p-2 border-t border-border">
         <UserDropdown />
       </div>
-    </aside >
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop: static, always-visible sidebar */}
+      <aside className="hidden md:flex w-80 bg-background flex-col border-r border-border h-screen">
+        {content}
+      </aside>
+
+      {/* Mobile: off-canvas drawer, opened via the trigger button in Dashboard's mobile top bar */}
+      <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+        <SheetContent side="left" className="w-80 p-0 flex flex-col">
+          {content}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 };
 

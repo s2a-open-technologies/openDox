@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { VoiceVisualizer } from "@/components/ui/voice-visualizer";
+import { VoiceVisualizer, BarVisualizer } from "@/components/ui/voice-visualizer";
 
 interface RecorderProps {
   userId: string;
@@ -390,16 +390,18 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
               )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
-              <p className="text-lg font-light animate-pulse">Aufnahme läuft...</p>
+            <div className="h-full flex flex-col items-center justify-center">
+              {isRecording && !isPaused && (
+                <VoiceVisualizer analyser={analyser} />
+              )}
             </div>
           )}
         </div>
 
-        {/* Visualization Area */}
-        {isRecording && !isPaused && (
+        {/* Live bar spectrum, next to the live transcript */}
+        {liveEnabled && isRecording && !isPaused && (
           <div className="w-full flex justify-center pb-2 bg-gradient-to-t from-background/50 to-transparent">
-            <VoiceVisualizer analyser={analyser} />
+            <BarVisualizer analyser={analyser} />
           </div>
         )}
 

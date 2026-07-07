@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import re
+import tomllib
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -63,6 +64,15 @@ def _run_alembic_migrations(logger):
         logger.error("Alembic migration failed: %s", e)
 
 
+def _read_app_version(project_root: str) -> str:
+    """Read the app version from pyproject.toml's [project] table."""
+    try:
+        with open(os.path.join(project_root, "pyproject.toml"), "rb") as f:
+            return tomllib.load(f)["project"]["version"]
+    except Exception:
+        return "unknown"
+
+
 def _inject_root_path(static_dir: str, root_path: str) -> None:
     """Write window.__ROOT_PATH__ into index.html on disk at startup.
 
@@ -100,10 +110,13 @@ def create_app():
     # Bake ROOT_PATH into index.html so StaticFiles (html=True) serves it correctly
     _inject_root_path(static_dir, root_path)
 
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_version = _read_app_version(project_root)
+
     # NOTE: do NOT pass root_path= here. Routes are prefixed manually below;
     # setting FastAPI(root_path=...) makes Starlette strip the prefix before
     # matching, which would double-count it and 404 everything.
-    app = FastAPI()
+    app = FastAPI(title="openDox", version=app_version)
     logger.info("App successfully started")
 
     app.add_middleware(
@@ -125,6 +138,12 @@ def create_app():
     @app.get(health_prefix)
     async def health_check():
         return {"status": "ok"}
+
+    version_path = f"{root_path}/api/version" if root_path else "/api/version"
+
+    @app.get(version_path)
+    async def get_version():
+        return {"version": app_version}
 
     router_prefix = root_path or ""
     app.include_router(record_bp, prefix=router_prefix)

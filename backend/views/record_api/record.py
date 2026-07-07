@@ -41,6 +41,7 @@ from backend.components.models.record_model import (
     RecordUpdate,
 )
 from backend.components.models.task_model import Task
+from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
 from backend.components.services.background_transcription_service import (
@@ -100,6 +101,7 @@ def _pcm_file_to_wav_file(pcm_path: str, wav_path: str) -> None:
 
     with open(pcm_path, "rb") as f:
         float_arr = np.frombuffer(f.read(), dtype=np.float32)
+    float_arr = normalize_quiet_pcm(float_arr)
     int16_arr = (float_arr * 32767).astype(np.int16)
     data_size = len(int16_arr) * 2
     header = struct.pack(
@@ -367,11 +369,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         # Normalize quiet audio so Whisper doesn't hallucinate
                         # filler phrases instead of returning silence.
                         _pcm = np.frombuffer(audio_slice, dtype=np.float32)
-                        _peak = np.abs(_pcm).max()
-                        if 0 < _peak < 0.05:
-                            audio_slice = (
-                                (_pcm / _peak * 0.8).astype(np.float32).tobytes()
-                            )
+                        audio_slice = normalize_quiet_pcm(_pcm).tobytes()
 
                         # Whisper tends to repeat text from the prompt, causing
                         # duplication in the live transcript. Skip the prompt.
@@ -735,7 +733,6 @@ async def regenerate_summary(record_id: int, db: SessionDep):
                 text=text,
                 endpoint=llm_settings.sanitizer_endpoint,
                 api_key=llm_settings.sanitizer_api_key,
-                department=llm_settings.sanitizer_department or "standard",
             )
 
         effective_prompt = (category_prompt or "") + (

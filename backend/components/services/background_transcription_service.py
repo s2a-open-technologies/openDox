@@ -108,7 +108,6 @@ def background_transcription_task(
                 text=text,
                 endpoint=llm_settings.sanitizer_endpoint,
                 api_key=llm_settings.sanitizer_api_key,
-                department=llm_settings.sanitizer_department or "standard",
             )
             logger.info(f"[TASK {task_id}] Sanitized {len(entity_mapping)} entities")
             if record and entity_mapping:

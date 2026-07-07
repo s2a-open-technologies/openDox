@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 #  openDox - Medical transcription platform
 #  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
 #

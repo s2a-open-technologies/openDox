@@ -19,14 +19,18 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-interface VoiceVisualizerProps {
+interface VisualizerProps {
     analyser: AnalyserNode | null;
     className?: string;
 }
 
-export const VoiceVisualizer = ({ analyser, className }: VoiceVisualizerProps) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
+/** Sets up canvas sizing + a requestAnimationFrame loop, delegating the actual per-frame
+ *  drawing to `draw`. Shared by both the live bar spectrum and the orb visual. */
+function useCanvasLoop(
+    canvasRef: React.RefObject<HTMLCanvasElement>,
+    analyser: AnalyserNode | null,
+    draw: (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, bufferLength: number, displayWidth: number, displayHeight: number) => void
+) {
     useEffect(() => {
         if (!analyser || !canvasRef.current) return;
 
@@ -49,8 +53,8 @@ export const VoiceVisualizer = ({ analyser, className }: VoiceVisualizerProps) =
         resizeCanvas();
         window.addEventListener("resize", resizeCanvas);
 
-        const draw = () => {
-            animationId = requestAnimationFrame(draw);
+        const loop = () => {
+            animationId = requestAnimationFrame(loop);
 
             analyser.getByteFrequencyData(dataArray);
 
@@ -58,54 +62,136 @@ export const VoiceVisualizer = ({ analyser, className }: VoiceVisualizerProps) =
             const displayHeight = canvas.height / window.devicePixelRatio;
 
             ctx.clearRect(0, 0, displayWidth, displayHeight);
-
-            const relevantBufferLength = Math.floor(bufferLength / 2);
-            const barWidth = 4;
-            const gap = 2;
-            const totalBars = Math.floor(displayWidth / (barWidth + gap));
-
-            const gradient = ctx.createLinearGradient(0, displayHeight, 0, 0);
-            gradient.addColorStop(0, "rgba(239, 68, 68, 0.5)");
-            gradient.addColorStop(1, "rgba(239, 68, 68, 1)");
-
-            ctx.fillStyle = gradient;
-
-            const step = Math.max(1, Math.floor(relevantBufferLength / totalBars));
-
-            for (let i = 0; i < totalBars; i++) {
-                let value = 0;
-                const start = i * step;
-                const end = Math.min(start + step, relevantBufferLength);
-                for (let j = start; j < end; j++) {
-                    value += dataArray[j];
-                }
-                value = value / Math.max(1, end - start);
-
-                const height = (value / 255) * displayHeight;
-
-                const x = i * (barWidth + gap);
-                const y = displayHeight - height;
-
-                ctx.beginPath();
-                ctx.roundRect(x, y, barWidth, height, 2);
-                ctx.fill();
-            }
+            draw(ctx, dataArray, bufferLength, displayWidth, displayHeight);
         };
 
-        draw();
+        loop();
 
         return () => {
             cancelAnimationFrame(animationId);
             window.removeEventListener("resize", resizeCanvas);
         };
-    }, [analyser]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [analyser, draw]);
+}
+
+/** Reads an HSL design-system token (e.g. "185 65% 35%") so canvas strokeStyle/shadowColor,
+ *  which cannot resolve `hsl(var(--x))`, can still stay in sync with the current theme. */
+function readHslToken(name: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** Small red frequency-bar spectrum, shown alongside the live transcript. */
+export const BarVisualizer = ({ analyser, className }: VisualizerProps) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useCanvasLoop(canvasRef, analyser, (ctx, dataArray, bufferLength, displayWidth, displayHeight) => {
+        const relevantBufferLength = Math.floor(bufferLength / 2);
+        const barWidth = 4;
+        const gap = 2;
+        const totalBars = Math.floor(displayWidth / (barWidth + gap));
+
+        const gradient = ctx.createLinearGradient(0, displayHeight, 0, 0);
+        gradient.addColorStop(0, "rgba(239, 68, 68, 0.5)");
+        gradient.addColorStop(1, "rgba(239, 68, 68, 1)");
+
+        ctx.fillStyle = gradient;
+
+        const step = Math.max(1, Math.floor(relevantBufferLength / totalBars));
+
+        for (let i = 0; i < totalBars; i++) {
+            let value = 0;
+            const start = i * step;
+            const end = Math.min(start + step, relevantBufferLength);
+            for (let j = start; j < end; j++) {
+                value += dataArray[j];
+            }
+            value = value / Math.max(1, end - start);
+
+            const height = (value / 255) * displayHeight;
+
+            const x = i * (barWidth + gap);
+            const y = displayHeight - height;
+
+            ctx.beginPath();
+            ctx.roundRect(x, y, barWidth, height, 2);
+            ctx.fill();
+        }
+    });
 
     return (
         <div className={cn("w-full h-16 flex items-center justify-center", className)}>
-             <canvas
+            <canvas
                 ref={canvasRef}
                 className="h-full w-full max-w-md opacity-80"
             />
+        </div>
+    );
+};
+
+const NUM_ORB_POINTS = 32;
+
+/** Large, centered, sharply-spiking orb shown in place of the transcript when live
+ *  transcription is off. */
+export const VoiceVisualizer = ({ analyser, className }: VisualizerProps) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useCanvasLoop(canvasRef, analyser, (ctx, dataArray, bufferLength, displayWidth, displayHeight) => {
+        const [pH, pS, pL] = readHslToken("--primary").split(" ");
+
+        const cx = displayWidth / 2;
+        const cy = displayHeight / 2;
+        const baseRadius = Math.min(displayWidth, displayHeight) * 0.28;
+        const maxSpike = baseRadius * 0.9;
+
+        const relevantBufferLength = Math.floor(bufferLength / 2);
+        const bandSize = Math.max(1, Math.floor(relevantBufferLength / NUM_ORB_POINTS));
+        const t = performance.now() / 1000;
+
+        const points: { x: number; y: number }[] = [];
+        for (let i = 0; i < NUM_ORB_POINTS; i++) {
+            let sum = 0;
+            const start = i * bandSize;
+            const end = Math.min(start + bandSize, relevantBufferLength);
+            for (let j = start; j < end; j++) {
+                sum += dataArray[j];
+            }
+            const avg = sum / Math.max(1, end - start) / 255;
+            // Square the response so quiet bands stay close to baseRadius and only
+            // real transients shoot outward — sharp spikes instead of a gentle wobble.
+            const spike = avg * avg * maxSpike;
+
+            // Tiny idle jitter so the outline isn't a perfectly static circle in silence.
+            const idleJitter = Math.sin(t * 1.5 + i) * 0.02 * baseRadius;
+
+            const radius = baseRadius + spike + idleJitter;
+            const angle = (i / NUM_ORB_POINTS) * Math.PI * 2;
+            points.push({
+                x: cx + Math.cos(angle) * radius,
+                y: cy + Math.sin(angle) * radius,
+            });
+        }
+
+        // Straight lines between points (no curve smoothing) so peaks stay sharp and pointed.
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.closePath();
+
+        ctx.save();
+        ctx.shadowColor = `hsla(${pH}, ${pS}, ${pL}, 0.6)`;
+        ctx.shadowBlur = 20;
+        ctx.strokeStyle = `hsla(${pH}, ${pS}, ${pL}, 0.9)`;
+        ctx.lineWidth = Math.max(2, baseRadius * 0.04);
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    return (
+        <div className={cn("h-56 w-56 mx-auto flex items-center justify-center", className)}>
+            <canvas ref={canvasRef} className="h-full w-full" />
         </div>
     );
 };

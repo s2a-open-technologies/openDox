@@ -38,4 +38,3 @@ class LlmSettingsModel(SQLModel, table=True):
     sanitizer_enabled: Optional[bool] = Field(default=False)
     sanitizer_endpoint: Optional[str] = Field(default=None)
     sanitizer_api_key: Optional[str] = Field(default=None)
-    sanitizer_department: Optional[str] = Field(default="standard")

@@ -36,8 +36,15 @@ from backend.components.models.languages import (
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
-from backend.components.services.asr_factory import reset_asr_backends
+from backend.components.services.asr_backends import DisabledBackend
+from backend.components.services.asr_factory import (
+    get_final_backend,
+    get_live_backend,
+    reset_asr_backends,
+)
 from backend.components.services.ldap import LdapService
+from backend.components.services.session_store import session_store
+from backend.components.services.session_store_redis import RedisSessionStore
 from backend.components.services.settings_service import get_settings_service
 from backend.components.sql.sql_engine import SessionDep
 from backend.views.settings_api import settings_bp
@@ -130,7 +137,6 @@ async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
     settings.sanitizer_enabled = settings_in.sanitizer_enabled
     settings.sanitizer_endpoint = settings_in.sanitizer_endpoint or None
     settings.sanitizer_api_key = settings_in.sanitizer_api_key or None
-    settings.sanitizer_department = settings_in.sanitizer_department or "standard"
 
     db.add(settings)
     db.commit()
@@ -172,6 +178,82 @@ async def test_llm_connection(db: SessionDep):
         return {"ok": False, "error": "Timeout (5s)", "url": models_url}
     except Exception as e:
         return {"ok": False, "error": str(e), "url": models_url}
+
+
+# Services Health Endpoint
+
+
+@settings_bp.get("/services-health/")
+async def get_services_health(db: SessionDep):
+    """Check reachability of every service in the deployment stack.
+
+    Runs one lightweight check per service concurrently. No Docker access
+    is involved — each check probes the service over the network the same
+    way the app itself would (DB connection, Redis PING, HTTP calls).
+
+    Returns:
+        Dict with a "services" list of {name, status} entries, where status
+        is "online", "offline", or "disabled" (service not configured/enabled).
+    """
+    llm_settings = db.exec(select(LlmSettingsModel)).first()
+
+    async def check_postgres():
+        try:
+            db.exec(select(1))
+            return {"name": "Postgres", "status": "online"}
+        except Exception:
+            return {"name": "Postgres", "status": "offline"}
+
+    async def check_redis():
+        if not isinstance(session_store, RedisSessionStore):
+            return {"name": "Redis", "status": "disabled"}
+        try:
+            await asyncio.to_thread(session_store.ping)
+            return {"name": "Redis", "status": "online"}
+        except Exception:
+            return {"name": "Redis", "status": "offline"}
+
+    async def check_whisper():
+        backend = get_final_backend()
+        if isinstance(backend, DisabledBackend):
+            return {"name": "Whisper", "status": "disabled"}
+        ok = await asyncio.to_thread(backend.health_check)
+        return {"name": "Whisper", "status": "online" if ok else "offline"}
+
+    async def check_parakeet():
+        backend = get_live_backend()
+        if isinstance(backend, DisabledBackend):
+            return {"name": "Parakeet", "status": "disabled"}
+        ok = await asyncio.to_thread(backend.health_check)
+        return {"name": "Parakeet", "status": "online" if ok else "offline"}
+
+    async def check_entityguard():
+        sanitizer_configured = (
+            llm_settings
+            and llm_settings.sanitizer_enabled
+            and llm_settings.sanitizer_endpoint
+        )
+        if not sanitizer_configured:
+            return {"name": "EntityGuard", "status": "disabled"}
+        try:
+            await asyncio.to_thread(
+                _requests.post,
+                llm_settings.sanitizer_endpoint.rstrip("/"),
+                json={},
+                timeout=5,
+            )
+            return {"name": "EntityGuard", "status": "online"}
+        except (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout):
+            return {"name": "EntityGuard", "status": "offline"}
+
+    services = await asyncio.gather(
+        check_postgres(),
+        check_redis(),
+        check_whisper(),
+        check_parakeet(),
+        check_entityguard(),
+    )
+    return {"services": [{"name": "App", "status": "online"}, *services]}
 
 
 # LDAP Endpoints

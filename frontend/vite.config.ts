@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
       host: "::",
       port: 3000,
       proxy: {
-        [`${rootPath}/api/v1/`]: {
+        [`${rootPath}/api/`]: {
           target: "http://localhost:5000",
           changeOrigin: true,
           secure: false,

@@ -36,7 +36,6 @@ interface LlmSettings {
     sanitizer_enabled: boolean;
     sanitizer_endpoint: string;
     sanitizer_api_key: string;
-    sanitizer_department: string;
 }
 
 const LlmConfig = () => {
@@ -54,7 +53,6 @@ const LlmConfig = () => {
         sanitizer_enabled: false,
         sanitizer_endpoint: '',
         sanitizer_api_key: '',
-        sanitizer_department: 'standard',
     });
 
     useEffect(() => {
@@ -71,7 +69,6 @@ const LlmConfig = () => {
                     sanitizer_enabled: data.sanitizer_enabled ?? false,
                     sanitizer_endpoint: data.sanitizer_endpoint || '',
                     sanitizer_api_key: data.sanitizer_api_key || '',
-                    sanitizer_department: data.sanitizer_department || 'standard',
                 });
             })
             .catch(console.error);
@@ -219,9 +216,9 @@ const LlmConfig = () => {
                     {config.sanitizer_enabled && (
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label>EntityGuard Endpoint</Label>
+                                <Label>Sanitizer Endpoint (vollständige URL)</Label>
                                 <Input
-                                    placeholder="http://entityguard:6000"
+                                    placeholder="http://entityguard:9500/api/v1/sanitize"
                                     value={config.sanitizer_endpoint}
                                     onChange={(e) => updateField('sanitizer_endpoint', e.target.value)}
                                 />

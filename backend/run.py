@@ -148,6 +148,7 @@ def create_app():
     router_prefix = root_path or ""
     app.include_router(record_bp, prefix=router_prefix)
     app.include_router(auth_bp, prefix=router_prefix)
+    app.include_router(oidc_bp, prefix=router_prefix)
     app.include_router(settings_bp, prefix=router_prefix)
 
     # /opendox → /opendox/ so the browser resolves relative asset paths correctly

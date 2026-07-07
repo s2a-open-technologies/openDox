@@ -111,6 +111,9 @@ const Dashboard = () => {
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
+        // Pre-select the first category so the user never lands on an empty
+        // dropdown when starting a new recording.
+        setCategoryId(prev => prev ?? (data.length > 0 ? data[0].id.toString() : null));
       }
     } catch (err) {
       console.error('Failed to fetch categories:', err);
@@ -489,6 +492,11 @@ const Dashboard = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {categories.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Legen Sie zuerst eine Kategorie unter Einstellungen an.
+                      </p>
+                    )}
                   </div>
 
                   <Alert variant="destructive" className="mt-2">
@@ -506,7 +514,12 @@ const Dashboard = () => {
                   <DialogClose asChild>
                     <Button type="button" variant="secondary">Abbrechen</Button>
                   </DialogClose>
-                  <Button onClick={handleStartRecordingSession}>Aufnahme starten</Button>
+                  <Button
+                    onClick={handleStartRecordingSession}
+                    disabled={!categoryId}
+                  >
+                    Aufnahme starten
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

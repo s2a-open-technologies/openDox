@@ -6,7 +6,7 @@
 
 openDox ist eine webbasierte Plattform für die medizinische Dokumentation. Ärzte und medizinisches Fachpersonal können Audioaufnahmen (z. B. Patienten-Anamnesen) aufzeichnen, automatisch transkribieren, korrigieren und von einem externen Sprachmodell (LLM) zusammenfassen lassen.
 
-**Wichtig:** openDox ist **kein Medizinprodukt** gemäß MPG. Alle maschinell erstellten Texte müssen von qualifiziertem Personal überprüft werden.
+**Wichtig:** openDox ist **kein Medizinprodukt** gemäß MPG. Alle maschinell erstellten Texte müssen von qualifiziertem Personal überprüft werden. Wer eine eigene Instanz betreibt, trägt die Verantwortung für regulatorische Konformität in der eigenen Jurisdiktion — siehe [`DISCLAIMER.md`](DISCLAIMER.md).
 
 ## Stack
 

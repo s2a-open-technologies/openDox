@@ -19,6 +19,7 @@
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BASE_PATH } from '@/api';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -26,11 +27,12 @@ import { ThemeToggle } from '@/components/settings/ThemeToggle';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
+import DisclaimerGate from '@/components/DisclaimerGate';
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -40,7 +42,15 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user && !user.disclaimer_accepted_at) {
+    return <DisclaimerGate />;
+  }
+
+  return <>{children}</>;
 };
 
 const App = () => (
@@ -65,6 +75,7 @@ const App = () => (
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>
+      <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
   </QueryClientProvider>
 );

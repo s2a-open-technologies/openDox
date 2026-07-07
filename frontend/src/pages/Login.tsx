@@ -17,25 +17,47 @@
 */
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic } from "lucide-react";
+import { Mic, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 const Login = () => {
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
+  const [oidcEnabled, setOidcEnabled] = useState(false);
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, navigate]);
+
+  // OIDC callback: tokens arrive as query params after the provider redirect.
+  useEffect(() => {
+    const access = searchParams.get("access_token");
+    const refresh = searchParams.get("refresh_token");
+    if (access) {
+      localStorage.setItem("access_token", access);
+      if (refresh) localStorage.setItem("refresh_token", refresh);
+      // Clean the URL so tokens don't linger in the address bar / history.
+      navigate("/dashboard", { replace: true });
+    }
+  }, [searchParams, navigate]);
+
+  // Show SSO button only if the admin has enabled OIDC.
+  useEffect(() => {
+    fetch("/api/v1/auth/oidc/status")
+      .then((res) => res.json())
+      .then((data) => setOidcEnabled(data.enabled === true))
+      .catch(() => setOidcEnabled(false));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +71,12 @@ const Login = () => {
     } catch (error) {
       toast.error("Anmeldung fehlgeschlagen");
     }
+  };
+
+  const handleOidcLogin = () => {
+    // Full-page redirect to the backend OIDC login endpoint; the provider
+    // redirect chain ends with the browser returning here with tokens.
+    window.location.href = "/api/v1/auth/oidc/login";
   };
 
   return (
@@ -86,6 +114,28 @@ const Login = () => {
             <Button type="submit" className="w-full">
               Anmelden
             </Button>
+
+            {oidcEnabled && (
+              <>
+                <div className="relative my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">oder</span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={handleOidcLogin}
+                >
+                  <KeyRound className="w-4 h-4" />
+                  Mit Single Sign-On anmelden
+                </Button>
+              </>
+            )}
           </form>
         </CardContent>
       </Card>

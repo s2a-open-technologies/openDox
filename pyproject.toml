@@ -81,6 +81,7 @@ dependencies = [
     "websockets==15.0.1",
     "xxhash==3.7.0",
     "zstandard==0.25.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [[tool.uv.index]]

@@ -62,8 +62,18 @@ class LdapService:
         try:
             conn = self.connect()
 
-            # Search for user
-            search_filter = f"({self.settings.user_dn}={username})"
+            # Build search filter: (user_dn=username) AND (search_filter)
+            user_filter = f"({self.settings.user_dn}={username})"
+            extra = self.settings.search_filter
+            if extra:
+                extra = extra.strip()
+                if extra.startswith("(") and extra.endswith(")"):
+                    search_filter = f"(&{user_filter}{extra})"
+                else:
+                    search_filter = f"(&{user_filter}({extra}))"
+            else:
+                search_filter = user_filter
+
             conn.search(
                 self.settings.base_dn, search_filter, attributes=[self.settings.user_dn]
             )

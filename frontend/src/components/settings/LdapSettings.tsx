@@ -32,6 +32,7 @@ interface LdapSettingsData {
     use_ssl: boolean;
     base_dn: string;
     user_dn: string;
+    search_filter: string;
     bind_user_dn: string;
     bind_user_password: string;
     cert_filename: string;
@@ -45,6 +46,7 @@ const LdapSettings = () => {
         use_ssl: false,
         base_dn: '',
         user_dn: '',
+        search_filter: '',
         bind_user_dn: '',
         bind_user_password: '',
         cert_filename: '',
@@ -65,6 +67,7 @@ const LdapSettings = () => {
                         use_ssl: data.use_ssl || false,
                         base_dn: data.base_dn || '',
                         user_dn: data.user_dn || '',
+                        search_filter: data.search_filter || '',
                         bind_user_dn: data.bind_user_dn || '',
                         bind_user_password: data.bind_user_password || '',
                         cert_filename: data.cert_filename || '',
@@ -221,6 +224,18 @@ const LdapSettings = () => {
                             onChange={e => setSettings({ ...settings, user_dn: e.target.value })}
                             placeholder="uid"
                         />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Suchfilter (optional)</Label>
+                        <Input
+                            value={settings.search_filter}
+                            onChange={e => setSettings({ ...settings, search_filter: e.target.value })}
+                            placeholder="(memberOf=cn=opendox,ou=groups,dc=example,dc=com)"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            LDAP-Filter, um Login auf bestimmte Gruppen einzuschränken. Wird mit der User-Suche per AND verknüpft.
+                        </p>
                     </div>
 
                     <div className="space-y-2">

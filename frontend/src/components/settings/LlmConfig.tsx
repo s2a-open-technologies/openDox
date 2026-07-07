@@ -165,7 +165,7 @@ const LlmConfig = () => {
                             onChange={(e) => updateField('correction_model', e.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Kleines schnelles Modell für Near-Live-Korrektur bie Verwendung von Whisper, z.B. qwen2.5:0.5b
+                            Kleines schnelles Modell für Live-Ansicht-Korrektur bei Verwendung von Whisper für Near-Live, z.B. qwen2.5:0.5b
                         </p>
                     </div>
 
@@ -198,7 +198,7 @@ const LlmConfig = () => {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>PII-Sanitizer (EntityGuard)</CardTitle>
+                    <CardTitle>PII-Sanitizer</CardTitle>
                     <CardDescription>
                         Anonymisiert sensible Daten im Transkript bevor sie an das LLM gesendet werden
                     </CardDescription>

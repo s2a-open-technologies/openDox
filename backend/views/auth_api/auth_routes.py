@@ -16,6 +16,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # routers/auth.py
+from datetime import datetime
+
 from fastapi import Depends, HTTPException, status
 from sqlmodel import select
 
@@ -154,6 +156,18 @@ async def refresh_token_endpoint(refresh_token: str):
 
 @auth_bp.get("/me", response_model=UserRead)
 async def read_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@auth_bp.post("/accept-disclaimer", response_model=UserRead)
+async def accept_disclaimer(
+    db: SessionDep, current_user: User = Depends(get_current_user)
+):
+    """Record that the current user accepted the medical-device disclaimer."""
+    current_user.disclaimer_accepted_at = datetime.utcnow()
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

@@ -27,11 +27,13 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import WhisperConfig from './settings/WhisperConfig';
 import LlmConfig from './settings/LlmConfig';
+import OidcSettings from './settings/OidcSettings';
 import { ThemeToggle } from './settings/ThemeToggle';
 import LdapSettings from './settings/LdapSettings';
 import UserSettings from './settings/UserSettings';
 import SystemSettings from './settings/SystemSettings';
 import CategorySettings from './settings/CategorySettings';
+import BackupSettings from './settings/BackupSettings';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -46,7 +48,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
     { id: 'users', label: 'Benutzer', icon: Users },
     { id: 'permissions', label: 'Berechtigungen', icon: Shield },
     { id: 'categories', label: 'Kategorien', icon: BookOpenCheck},
-    { id: 'ldap', label: 'LDAP', icon: GlobeLock },
+    { id: 'auth', label: 'Authentifizierung', icon: GlobeLock },
     { id: 'system', label: 'System', icon: Settings },
     { id: 'backup', label: 'Backup', icon: HardDrive },
   ];
@@ -106,11 +108,25 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             </div>
           </div>
         );
-      case 'ldap':
+      case 'auth':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">LDAP Integration</h3>
-            <LdapSettings />
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+              <GlobeLock className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-medium">Authentifizierung</h3>
+            </div>
+            <Tabs defaultValue="ldap" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="ldap">LDAP</TabsTrigger>
+                <TabsTrigger value="oidc">OIDC / SSO</TabsTrigger>
+              </TabsList>
+              <TabsContent value="ldap">
+                <LdapSettings />
+              </TabsContent>
+              <TabsContent value="oidc">
+                <OidcSettings />
+              </TabsContent>
+            </Tabs>
           </div>
         );
       case 'system':
@@ -130,16 +146,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Datensicherung</h3>
-            <div className="space-y-2">
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Sicherungsplan</h4>
-                <p className="text-sm text-muted-foreground">Planen Sie regelmäßige Sicherungen</p>
-              </div>
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Wiederherstellung</h4>
-                <p className="text-sm text-muted-foreground">Daten wiederherstellen</p>
-              </div>
-            </div>
+            <BackupSettings />
           </div>
         );
       case 'categories':

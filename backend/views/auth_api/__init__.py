@@ -21,3 +21,4 @@ auth_bp = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 # Import routes after creating router to avoid circular imports
 from backend.views.auth_api import auth_routes  # noqa: E402,F401
+from backend.views.auth_api.oidc_routes import oidc_bp  # noqa: E402,F401

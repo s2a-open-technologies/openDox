@@ -16,6 +16,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # models/user.py
+from datetime import datetime
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
@@ -27,6 +28,7 @@ class User(SQLModel, table=True):
     hashed_password: str
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
+    disclaimer_accepted_at: Optional[datetime] = Field(default=None)
 
 
 class UserBase(SQLModel):
@@ -42,6 +44,7 @@ class UserRead(UserBase):
     id: int
     is_active: bool
     is_superuser: bool
+    disclaimer_accepted_at: Optional[datetime] = None
 
 
 class UserLogin(SQLModel):

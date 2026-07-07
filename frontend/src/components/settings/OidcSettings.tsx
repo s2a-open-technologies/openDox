@@ -1,0 +1,195 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+
+interface OidcSettingsData {
+    id?: number;
+    enabled: boolean;
+    provider_url: string;
+    client_id: string;
+    client_secret: string;
+    scopes: string;
+    group_claim: string;
+    admin_groups: string;
+    username_claim: string;
+}
+
+const OidcSettings = () => {
+    const { authFetch } = useAuth();
+    const [settings, setSettings] = useState<OidcSettingsData>({
+        enabled: false,
+        provider_url: '',
+        client_id: '',
+        client_secret: '',
+        scopes: 'openid email profile',
+        group_claim: 'groups',
+        admin_groups: '',
+        username_claim: 'preferred_username',
+    });
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        authFetch('/api/v1/settings/oidc-settings/')
+            .then(res => res.json())
+            .then((data: any) => {
+                if (data && data.provider_url !== undefined) {
+                    setSettings({
+                        enabled: data.enabled ?? false,
+                        provider_url: data.provider_url || '',
+                        client_id: data.client_id || '',
+                        client_secret: data.client_secret || '',
+                        scopes: data.scopes || 'openid email profile',
+                        group_claim: data.group_claim || 'groups',
+                        admin_groups: data.admin_groups || '',
+                        username_claim: data.username_claim || 'preferred_username',
+                    });
+                }
+            })
+            .catch(console.error);
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const res = await authFetch('/api/v1/settings/oidc-settings/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings),
+            });
+            if (res.ok) {
+                toast.success('OIDC-Einstellungen gespeichert');
+            } else {
+                toast.error('Speichern fehlgeschlagen');
+            }
+        } catch {
+            toast.error('Verbindungsfehler');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>OpenID Connect (SSO)</CardTitle>
+                <CardDescription>
+                    Single Sign-On über einen OIDC-Provider (Keycloak, Authentik, Google, Microsoft, etc.)
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <Switch
+                            id="oidc-enabled"
+                            checked={settings.enabled}
+                            onCheckedChange={(v) => setSettings({ ...settings, enabled: v })}
+                        />
+                        <Label htmlFor="oidc-enabled">OIDC aktivieren</Label>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Provider URL (Issuer)</Label>
+                        <Input
+                            value={settings.provider_url}
+                            onChange={e => setSettings({ ...settings, provider_url: e.target.value })}
+                            placeholder="https://keycloak.example.com/realms/myrealm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Discovery erfolgt automatisch über /.well-known/openid-configuration
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Client ID</Label>
+                            <Input
+                                value={settings.client_id}
+                                onChange={e => setSettings({ ...settings, client_id: e.target.value })}
+                                placeholder="opendox"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Client Secret</Label>
+                            <Input
+                                type="password"
+                                value={settings.client_secret}
+                                onChange={e => setSettings({ ...settings, client_secret: e.target.value })}
+                                placeholder="••••••••"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Scopes</Label>
+                        <Input
+                            value={settings.scopes}
+                            onChange={e => setSettings({ ...settings, scopes: e.target.value })}
+                            placeholder="openid email profile"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Username-Claim</Label>
+                        <Input
+                            value={settings.username_claim}
+                            onChange={e => setSettings({ ...settings, username_claim: e.target.value })}
+                            placeholder="preferred_username"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Gruppen-Claim</Label>
+                            <Input
+                                value={settings.group_claim}
+                                onChange={e => setSettings({ ...settings, group_claim: e.target.value })}
+                                placeholder="groups"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Admin-Gruppen (Komma-getrennt)</Label>
+                            <Input
+                                value={settings.admin_groups}
+                                onChange={e => setSettings({ ...settings, admin_groups: e.target.value })}
+                                placeholder="opendox-admin"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                User in diesen Gruppen werden als Superuser angelegt
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="pt-2">
+                        <Button type="submit" disabled={loading}>Speichern</Button>
+                    </div>
+                </form>
+            </CardContent>
+        </Card>
+    );
+};
+
+export default OidcSettings;

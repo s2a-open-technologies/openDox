@@ -136,7 +136,7 @@ const WhisperConfig = () => {
             <h3 className="text-lg font-medium">Transkriptionsserver Konfiguration</h3>
             
             <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+                <TabsList className={`grid w-full ${config.live_backend === 'api' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
                     <TabsTrigger value="general">Allgemein</TabsTrigger>
                     <TabsTrigger value="live">Live</TabsTrigger>
                     <TabsTrigger value="final">Final</TabsTrigger>

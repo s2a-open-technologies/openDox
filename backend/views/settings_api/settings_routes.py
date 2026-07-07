@@ -16,8 +16,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import asyncio
+import json
 import os
 import shutil
+from datetime import datetime
+from typing import Any
 
 import requests as _requests
 from fastapi import File, HTTPException, UploadFile
@@ -35,7 +38,9 @@ from backend.components.models.languages import (
 )
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
+from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
+from backend.components.models.terminology import Terminology
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
     get_final_backend,
@@ -173,7 +178,11 @@ async def test_llm_connection(db: SessionDep):
             return {"ok": True, "models": models, "url": models_url}
         return {"ok": False, "error": f"HTTP {response.status_code}", "url": models_url}
     except _requests.exceptions.ConnectionError:
-        return {"ok": False, "error": "Verbindung abgelehnt – Endpoint nicht erreichbar", "url": models_url}
+        return {
+            "ok": False,
+            "error": "Verbindung abgelehnt – Endpoint nicht erreichbar",
+            "url": models_url,
+        }
     except _requests.exceptions.Timeout:
         return {"ok": False, "error": "Timeout (5s)", "url": models_url}
     except Exception as e:
@@ -200,32 +209,32 @@ async def get_services_health(db: SessionDep):
     async def check_postgres():
         try:
             db.exec(select(1))
-            return {"name": "Postgres", "status": "online"}
+            return {"name": "Datenbank", "status": "online"}
         except Exception:
-            return {"name": "Postgres", "status": "offline"}
+            return {"name": "Datenbank", "status": "offline"}
 
     async def check_redis():
         if not isinstance(session_store, RedisSessionStore):
-            return {"name": "Redis", "status": "disabled"}
+            return {"name": "Cache", "status": "disabled"}
         try:
             await asyncio.to_thread(session_store.ping)
-            return {"name": "Redis", "status": "online"}
+            return {"name": "Cache", "status": "online"}
         except Exception:
-            return {"name": "Redis", "status": "offline"}
+            return {"name": "Cache", "status": "offline"}
 
     async def check_whisper():
         backend = get_final_backend()
         if isinstance(backend, DisabledBackend):
-            return {"name": "Whisper", "status": "disabled"}
+            return {"name": "Transkription", "status": "disabled"}
         ok = await asyncio.to_thread(backend.health_check)
-        return {"name": "Whisper", "status": "online" if ok else "offline"}
+        return {"name": "Transkription", "status": "online" if ok else "offline"}
 
     async def check_parakeet():
         backend = get_live_backend()
         if isinstance(backend, DisabledBackend):
-            return {"name": "Parakeet", "status": "disabled"}
+            return {"name": "Live", "status": "disabled"}
         ok = await asyncio.to_thread(backend.health_check)
-        return {"name": "Parakeet", "status": "online" if ok else "offline"}
+        return {"name": "Live", "status": "online" if ok else "offline"}
 
     async def check_entityguard():
         sanitizer_configured = (
@@ -234,7 +243,7 @@ async def get_services_health(db: SessionDep):
             and llm_settings.sanitizer_endpoint
         )
         if not sanitizer_configured:
-            return {"name": "EntityGuard", "status": "disabled"}
+            return {"name": "PII", "status": "disabled"}
         try:
             await asyncio.to_thread(
                 _requests.post,
@@ -242,9 +251,9 @@ async def get_services_health(db: SessionDep):
                 json={},
                 timeout=5,
             )
-            return {"name": "EntityGuard", "status": "online"}
+            return {"name": "PII", "status": "online"}
         except (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout):
-            return {"name": "EntityGuard", "status": "offline"}
+            return {"name": "PII", "status": "offline"}
 
     services = await asyncio.gather(
         check_postgres(),
@@ -253,7 +262,7 @@ async def get_services_health(db: SessionDep):
         check_parakeet(),
         check_entityguard(),
     )
-    return {"services": [{"name": "App", "status": "online"}, *services]}
+    return {"services": [{"name": "Backend", "status": "online"}, *services]}
 
 
 # LDAP Endpoints
@@ -402,3 +411,171 @@ async def delete_language(language_id: int, db: SessionDep):
     db.delete(language)
     db.commit()
     return {"ok": True}
+
+
+# Backup / Restore Endpoints
+
+
+def _serialize_model(model) -> dict[str, Any]:
+    """Serialize a single SQLModel instance to a dict, excluding the PK."""
+    data = model.model_dump()
+    data.pop("id", None)
+    return data
+
+
+def _export_all_settings(db: SessionDep) -> dict[str, Any]:
+    """Collect all settings tables into a serializable dict.
+
+    Args:
+        db: Active database session.
+
+    Returns:
+        Dict with a "version" timestamp and a "settings" mapping, where each
+        key is a table name and the value is either a single dict (singleton
+        settings) or a list of dicts (list tables).
+    """
+    whisper = db.exec(select(WhisperSettingsModel)).first()
+    llm = db.exec(select(LlmSettingsModel)).first()
+    ldap = db.exec(select(LdapSettingsModel)).first()
+    categories = db.exec(select(Categories)).all()
+    languages = db.exec(select(Languages)).all()
+    terminology = db.exec(select(Terminology)).all()
+
+    return {
+        "version": "1.0",
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "settings": {
+            "whisper": _serialize_model(whisper) if whisper else None,
+            "llm": _serialize_model(llm) if llm else None,
+            "ldap": _serialize_model(ldap) if ldap else None,
+            "categories": [_serialize_model(c) for c in categories],
+            "languages": [_serialize_model(lang) for lang in languages],
+            "terminology": [_serialize_model(t) for t in terminology],
+        },
+    }
+
+
+def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
+    """Restore settings from a backup dict into the database.
+
+    Overwrites singleton rows in place (matching by first row) and replaces
+    all list-table rows (categories, languages, terminology) wholesale.
+
+    Args:
+        db: Active database session.
+        data: Backup dict as produced by ``_export_all_settings``.
+
+    Raises:
+        HTTPException: 400 if the backup structure is invalid.
+    """
+    settings = data.get("settings")
+    if not isinstance(settings, dict):
+        raise HTTPException(status_code=400, detail="Ungültiges Backup-Format")
+
+    # --- Singleton settings (upsert first row) ---
+    for model_cls, key in [
+        (WhisperSettingsModel, "whisper"),
+        (LlmSettingsModel, "llm"),
+        (LdapSettingsModel, "ldap"),
+    ]:
+        row_data = settings.get(key)
+        if not row_data or not isinstance(row_data, dict):
+            continue
+        existing = db.exec(select(model_cls)).first()
+        if existing:
+            for field, value in row_data.items():
+                setattr(existing, field, value)
+            db.add(existing)
+        else:
+            db.add(model_cls(**row_data))
+
+    # --- List tables (replace wholesale) ---
+    for model_cls, key in [
+        (Categories, "categories"),
+        (Languages, "languages"),
+        (Terminology, "terminology"),
+    ]:
+        rows_data = settings.get(key)
+        if not isinstance(rows_data, list):
+            continue
+        for row in db.exec(select(model_cls)).all():
+            db.delete(row)
+        for row_data in rows_data:
+            if isinstance(row_data, dict):
+                db.add(model_cls(**row_data))
+
+    db.commit()
+    get_settings_service().invalidate_cache()
+    reset_asr_backends()
+
+
+@settings_bp.get("/backup/")
+async def export_backup(db: SessionDep):
+    """Export all settings tables as a downloadable JSON file.
+
+    Returns:
+        JSON response with Content-Disposition attachment header. The
+        filename includes the export timestamp.
+    """
+    from fastapi import Response
+
+    data = _export_all_settings(db)
+    filename = f"opendox-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+    content = json.dumps(data, indent=2, ensure_ascii=False)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@settings_bp.post("/backup/restore/")
+async def import_backup(db: SessionDep, file: UploadFile = File(...)):
+    """Restore settings from an uploaded JSON backup file.
+
+    Args:
+        db: Active database session.
+        file: Uploaded JSON file produced by the export endpoint.
+
+    Returns:
+        Dict with an "ok" flag and a summary of restored tables.
+    """
+    raw = await file.read()
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Kein gültiges JSON: {exc}")
+    _import_all_settings(db, data)
+    return {"ok": True, "restored": list(data.get("settings", {}).keys())}
+
+
+# OIDC Endpoints
+
+
+@settings_bp.get("/oidc-settings/", response_model=OidcSettingsModel)
+async def get_oidc_settings(db: SessionDep):
+    """Return the current OIDC settings, creating a default row if none exists."""
+    settings = db.exec(select(OidcSettingsModel)).first()
+    if not settings:
+        settings = OidcSettingsModel()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@settings_bp.put("/oidc-settings/", response_model=OidcSettingsModel)
+async def update_oidc_settings(settings_in: OidcSettingsModel, db: SessionDep):
+    """Upsert OIDC settings from the admin UI."""
+    settings = db.exec(select(OidcSettingsModel)).first()
+    if not settings:
+        settings = OidcSettingsModel(**settings_in.dict(exclude={"id"}))
+        db.add(settings)
+    else:
+        settings_data = settings_in.dict(exclude_unset=True, exclude={"id"})
+        for key, value in settings_data.items():
+            setattr(settings, key, value)
+        db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return settings

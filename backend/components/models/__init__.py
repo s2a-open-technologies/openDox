@@ -28,6 +28,7 @@ from backend.components.models.languages import (
 )
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
+from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.record_model import (
     FinalizeRecord,
     Record,
@@ -51,6 +52,7 @@ __all__ = [
     "LanguagesRead",
     "LdapSettingsModel",
     "LlmSettingsModel",
+    "OidcSettingsModel",
     "Record",
     "RecordCreate",
     "RecordUpdate",

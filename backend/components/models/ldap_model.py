@@ -27,6 +27,7 @@ class LdapSettingsModel(SQLModel, table=True):
     use_ssl: bool = False
     base_dn: str
     user_dn: str
+    search_filter: Optional[str] = Field(default=None)
     bind_user_dn: Optional[str] = None
     bind_user_password: Optional[str] = None
     cert_filename: Optional[str] = None

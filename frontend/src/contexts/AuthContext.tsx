@@ -26,6 +26,7 @@ type User = {
   is_active: boolean;
   authenticated: boolean;
   is_superuser: boolean;
+  disclaimer_accepted_at: string | null;
 };
 
 type AuthContextType = {
@@ -35,6 +36,7 @@ type AuthContextType = {
   login: (name: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
+  acceptDisclaimer: () => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,6 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           is_active: data.is_active,
           authenticated: true,
           is_superuser: data.is_superuser,
+          disclaimer_accepted_at: data.disclaimer_accepted_at ?? null,
         });
         setIsAuthenticated(true);
       } else {
@@ -152,6 +155,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Disclaimer-Akzeptanz an den Server melden und lokalen User-State aktualisieren
+  const acceptDisclaimer = async (): Promise<boolean> => {
+    try {
+      const res = await authFetch("/api/v1/auth/accept-disclaimer", {
+        method: "POST",
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      setUser((prev) =>
+        prev ? { ...prev, disclaimer_accepted_at: data.disclaimer_accepted_at } : prev
+      );
+      return true;
+    } catch (error) {
+      console.error("Error accepting disclaimer:", error);
+      return false;
+    }
+  };
+
   // Beim Laden des Kontexts versuchen, den Benutzerstatus wiederherzustellen
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -169,6 +190,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     login,
     logout,
     authFetch,
+    acceptDisclaimer,
   };
 
   return (

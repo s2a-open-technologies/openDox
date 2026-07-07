@@ -55,7 +55,11 @@ number input to the Live tab, shown only when
 `config.live_backend === 'parakeet'` — the mirror image of the existing
 `overlap_s` field, which is only shown when `config.live_backend !==
 'parakeet'` (line ~247 today). Same styling/pattern as the existing
-`chunk_length_s`/`overlap_s` inputs.
+`chunk_length_s`/`overlap_s` inputs. Add a help-text hint recommending
+`0.5–2s` — a much larger value than the chunk length multiplies the audio
+re-transcribed per cycle (see "Tuning guidance" below) without a
+proportional accuracy benefit, but it isn't enforced; the field stays
+otherwise unbounded, matching `chunk_length_s`/`overlap_s` today.
 
 Needs an Alembic migration (`alembic revision --autogenerate`) for the new
 column, same pattern as recent single-column additions in this repo.
@@ -121,7 +125,7 @@ straight concatenation for the Parakeet path): route through
 
 ## Data flow
 
-```
+```text
 disk PCM file
   │  read [last_index - left_context_bytes, last_index + chunk_bytes)
   ▼
@@ -133,6 +137,22 @@ result_text (re-says some of the context, then the new part)
   ▼
 local_live_text (context duplication trimmed)  → sent to frontend
 ```
+
+## Tuning guidance
+
+`left_context_s` and `chunk_length_s` are independent settings — nothing
+stops an admin from setting, say, `chunk_length_s=2` with
+`left_context_s=10`. That combination works mechanically but is a bad
+trade: every cycle re-sends `left_context_s + chunk_length_s` seconds of
+audio (12s here) to transcribe just `chunk_length_s` seconds of *new*
+audio, so Parakeet (CPU-bound per AGENTS.md) does far more work per cycle
+than the chunk interval accounts for, risking the live transcript falling
+behind real time. It also makes the word-overlap dedup *less* reliable, not
+more: a larger context window gives the model more room to re-transcribe
+the already-emitted region with slightly different wording, which is
+exactly what the longest-common-word-overlap match in `merge_overlapping_text`
+depends on staying stable. The UI help text should nudge toward `0.5–2s`
+(see "Configuration" above) but this isn't enforced in code.
 
 `last_index` itself never moves backward — it advances by `bytes_per_chunk`
 exactly as today, so left-context can't cause chunks to be skipped or

@@ -92,7 +92,7 @@ const Sidebar = ({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 py-3 px-2">
+      <ScrollArea className="flex-1 min-h-0 py-3 px-2">
         <div className="space-y-1">
           {recordings.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground">
@@ -154,7 +154,7 @@ const Sidebar = ({
                   </button>
 
                   {!isActive && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-200 dark:hover:bg-zinc-700">
@@ -200,13 +200,13 @@ const Sidebar = ({
   return (
     <>
       {/* Desktop: static, always-visible sidebar */}
-      <aside className="hidden md:flex w-80 bg-background flex-col border-r border-border h-screen">
+      <aside className="hidden md:flex w-80 bg-background flex-col border-r border-border h-dvh">
         {content}
       </aside>
 
       {/* Mobile: off-canvas drawer, opened via the trigger button in Dashboard's mobile top bar */}
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
-        <SheetContent side="left" className="w-80 p-0 flex flex-col">
+        <SheetContent side="left" className="w-80 h-dvh p-0 flex flex-col">
           {content}
         </SheetContent>
       </Sheet>

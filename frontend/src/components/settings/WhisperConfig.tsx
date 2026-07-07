@@ -136,7 +136,7 @@ const WhisperConfig = () => {
             <h3 className="text-lg font-medium">Transkriptionsserver Konfiguration</h3>
             
             <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                     <TabsTrigger value="general">Allgemein</TabsTrigger>
                     <TabsTrigger value="live">Live</TabsTrigger>
                     <TabsTrigger value="final">Final</TabsTrigger>
@@ -362,7 +362,7 @@ const WhisperConfig = () => {
                                     onChange={(e) => updateField('hallucination_silence_threshold', e.target.value === '' ? null : parseFloat(e.target.value))}
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Beam-Size Live</Label>
                                     <Input

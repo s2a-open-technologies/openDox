@@ -203,7 +203,7 @@ const CategorySettings = () => {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Kategorie Name</Label>
                                 <Input
@@ -264,7 +264,7 @@ const CategorySettings = () => {
 
                             {settings.llm_override_enabled && (
                                 <div className="space-y-4 pt-2 border-t">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label>Modell</Label>
                                             <Input
@@ -292,7 +292,7 @@ const CategorySettings = () => {
                                             type="password"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label>Temperature</Label>
                                             <Input

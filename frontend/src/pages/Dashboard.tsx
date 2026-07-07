@@ -329,7 +329,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-background flex">
+    <div className="relative min-h-dvh bg-background flex">
       <Sidebar
         recordings={recordings}
         onSelectRecording={handleSelectRecording}
@@ -344,8 +344,13 @@ const Dashboard = () => {
         onMobileOpenChange={setMobileSidebarOpen}
       />
       <main className="flex-1 min-w-0 overflow-auto bg-muted/30 flex flex-col">
-        <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)}>
+        <div className="md:hidden relative flex items-center justify-center px-3 py-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-3"
+            onClick={() => setMobileSidebarOpen(true)}
+          >
             <Menu className="w-5 h-5" />
             <span className="sr-only">Menü öffnen</span>
           </Button>

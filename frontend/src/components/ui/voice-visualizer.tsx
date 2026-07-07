@@ -75,12 +75,6 @@ function useCanvasLoop(
     }, [analyser, draw]);
 }
 
-/** Reads an HSL design-system token (e.g. "185 65% 35%") so canvas strokeStyle/shadowColor,
- *  which cannot resolve `hsl(var(--x))`, can still stay in sync with the current theme. */
-function readHslToken(name: string): string {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
 /** Small red frequency-bar spectrum, shown alongside the live transcript. */
 export const BarVisualizer = ({ analyser, className }: VisualizerProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,11 +131,9 @@ export const VoiceVisualizer = ({ analyser, className }: VisualizerProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useCanvasLoop(canvasRef, analyser, (ctx, dataArray, bufferLength, displayWidth, displayHeight) => {
-        const [pH, pS, pL] = readHslToken("--primary").split(" ");
-
         const cx = displayWidth / 2;
         const cy = displayHeight / 2;
-        const baseRadius = Math.min(displayWidth, displayHeight) * 0.28;
+        const baseRadius = Math.min(displayWidth, displayHeight) * 0.25;
         const maxSpike = baseRadius * 0.9;
 
         const relevantBufferLength = Math.floor(bufferLength / 2);
@@ -162,7 +154,7 @@ export const VoiceVisualizer = ({ analyser, className }: VisualizerProps) => {
             const spike = avg * avg * maxSpike;
 
             // Tiny idle jitter so the outline isn't a perfectly static circle in silence.
-            const idleJitter = Math.sin(t * 1.5 + i) * 0.02 * baseRadius;
+            const idleJitter = Math.sin(t * 1.2 + i) * 0.01 * baseRadius;
 
             const radius = baseRadius + spike + idleJitter;
             const angle = (i / NUM_ORB_POINTS) * Math.PI * 2;
@@ -181,16 +173,16 @@ export const VoiceVisualizer = ({ analyser, className }: VisualizerProps) => {
         ctx.closePath();
 
         ctx.save();
-        ctx.shadowColor = `hsla(${pH}, ${pS}, ${pL}, 0.6)`;
-        ctx.shadowBlur = 20;
-        ctx.strokeStyle = `hsla(${pH}, ${pS}, ${pL}, 0.9)`;
-        ctx.lineWidth = Math.max(2, baseRadius * 0.04);
+        ctx.shadowColor = "rgba(239, 68, 68, 0.6)";
+        ctx.shadowBlur = 30;
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.9)";
+        ctx.lineWidth = Math.max(2, baseRadius * 0.06);
         ctx.stroke();
         ctx.restore();
     });
 
     return (
-        <div className={cn("h-56 w-56 mx-auto flex items-center justify-center", className)}>
+        <div className={cn("h-full w-full flex items-center justify-center", className)}>
             <canvas ref={canvasRef} className="h-full w-full" />
         </div>
     );

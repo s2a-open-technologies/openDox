@@ -342,10 +342,10 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     <div className="flex flex-col w-full h-full items-center justify-start p-6 bg-background dark:bg-zinc-950 transition-colors duration-300">
 
       {/* Main Card */}
-      <div className="w-full max-w-5xl bg-card border border-border shadow-sm rounded-xl overflow-hidden flex flex-col h-[85vh]">
+      <div className="w-full max-w-5xl bg-card border border-border shadow-sm rounded-xl overflow-hidden flex flex-col h-[85dvh]">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-wrap gap-2 bg-zinc-50/50 dark:bg-zinc-900/50">
           <div className="flex items-center gap-3">
             <div className={cn(
               "w-2.5 h-2.5 rounded-full transition-all duration-300",

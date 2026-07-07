@@ -20,7 +20,6 @@ import { useState } from 'react';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   GlobeLock, BookOpenCheck, Settings, Users, Shield, Server, HardDrive, Mic, Brain
@@ -156,37 +155,35 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[85vh] p-0 overflow-hidden">
+      <DialogContent className="max-w-4xl h-[85dvh] p-0 overflow-hidden flex flex-col">
 
         <DialogHeader className="p-4 border-b z-10 relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 space-y-2">
           <div className="flex justify-start">
             <Logo className="h-24 w-auto" />
           </div>
         </DialogHeader>
-        <div className="flex h-[calc(100%-var(--header-height))] z-10 relative">
-          <div className="w-64 border-r p-2">
-            <ScrollArea className="h-full">
-              <nav className="space-y-1">
-                {navItems.map((item) => {
-                  const IconComponent = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      className={`w-full text-left p-3 rounded-md transition-colors flex items-center gap-2 ${activeTab === item.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-accent'
-                        }`}
-                      onClick={() => setActiveTab(item.id)}
-                    >
-                      <IconComponent className="w-4 h-4" />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </ScrollArea>
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 z-10 relative">
+          <div className="w-full md:w-64 border-b md:border-b-0 md:border-r p-2 overflow-x-auto md:overflow-x-visible md:overflow-y-auto">
+            <nav className="flex md:flex-col gap-1">
+              {navItems.map((item) => {
+                const IconComponent = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    className={`flex-shrink-0 md:w-full text-left p-3 rounded-md transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === item.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-accent'
+                      }`}
+                    onClick={() => setActiveTab(item.id)}
+                  >
+                    <IconComponent className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
-          <div className="flex-1 p-6 overflow-auto h-[60vh]">
+          <div className="flex-1 p-4 md:p-6 overflow-auto min-h-0">
             {renderContent()}
           </div>
         </div>

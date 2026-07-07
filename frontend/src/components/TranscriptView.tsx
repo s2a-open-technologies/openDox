@@ -218,12 +218,12 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-bold text-foreground">{transcript.title}</h2>
           {getStatusBadge()}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between sm:justify-end gap-2">
           <Button onClick={handleSave} disabled={!hasUnsavedChanges || isSaving} variant="outline">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             {isSaving ? "Speichere..." : "Speichern"}
@@ -242,7 +242,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
         </div>
       )}
 
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-6">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xl font-semibold text-foreground">Transkript</h3>
@@ -272,9 +272,9 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
 
         <div className="flex flex-col min-h-0">
           <div className="bg-muted/50 p-6 rounded-lg flex flex-col flex-1 min-h-0">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
               <h3 className="text-xl font-semibold text-foreground">Zusammenfassung</h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -302,8 +302,8 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
                   onClick={() => setIsEditingSummary(!isEditingSummary)}
                   title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : isEditingSummary ? "Markdown-Vorschau" : "Bearbeiten"}
                 >
-                  {isEditingSummary ? <Eye className="w-4 h-4 mr-2" /> : <Pencil className="w-4 h-4 mr-2" />}
-                  {isEditingSummary ? "Vorschau" : "Bearbeiten"}
+                  {isEditingSummary ? <Eye className="w-4 h-4 sm:mr-2" /> : <Pencil className="w-4 h-4 sm:mr-2" />}
+                  <span className="hidden sm:inline">{isEditingSummary ? "Vorschau" : "Bearbeiten"}</span>
                 </Button>
               </div>
             </div>

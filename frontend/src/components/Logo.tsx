@@ -25,7 +25,7 @@ interface LogoProps {
 export const Logo = ({ className }: LogoProps) => {
     return (
         <svg
-            viewBox="0 0 340 60"
+            viewBox="0 10 220 45"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className={cn("w-full h-auto", className)}

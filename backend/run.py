@@ -28,7 +28,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger, initialize_logging
 from backend.components.sql.db_config import SQLALCHEMY_URI
-from backend.views.auth_api import auth_bp
+from backend.views.auth_api import auth_bp, oidc_bp
 from backend.views.record_api import record_bp
 from backend.views.settings_api import settings_bp
 

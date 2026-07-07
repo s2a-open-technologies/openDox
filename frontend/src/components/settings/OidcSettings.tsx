@@ -34,6 +34,7 @@ interface OidcSettingsData {
     scopes: string;
     group_claim: string;
     admin_groups: string;
+    moderator_groups: string;
     username_claim: string;
 }
 
@@ -47,6 +48,7 @@ const OidcSettings = () => {
         scopes: 'openid email profile',
         group_claim: 'groups',
         admin_groups: '',
+        moderator_groups: '',
         username_claim: 'preferred_username',
     });
     const [loading, setLoading] = useState(false);
@@ -64,6 +66,7 @@ const OidcSettings = () => {
                         scopes: data.scopes || 'openid email profile',
                         group_claim: data.group_claim || 'groups',
                         admin_groups: data.admin_groups || '',
+                        moderator_groups: data.moderator_groups || '',
                         username_claim: data.username_claim || 'preferred_username',
                     });
                 }
@@ -178,7 +181,18 @@ const OidcSettings = () => {
                                 placeholder="opendox-admin"
                             />
                             <p className="text-xs text-muted-foreground">
-                                User in diesen Gruppen werden als Superuser angelegt
+                                User in diesen Gruppen werden als Admins angelegt
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Moderator-Gruppen (Komma-getrennt)</Label>
+                            <Input
+                                value={settings.moderator_groups}
+                                onChange={e => setSettings({ ...settings, moderator_groups: e.target.value })}
+                                placeholder="opendox-moderator"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                User in diesen Gruppen werden als Moderatoren angelegt
                             </p>
                         </div>
                     </div>

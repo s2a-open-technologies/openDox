@@ -25,6 +25,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface CategorySettingsData {
     id?: number;
@@ -105,11 +106,16 @@ const CategorySettings = () => {
             });
 
             if (res.ok) {
+                toast.success(isEditing ? 'Kategorie aktualisiert' : 'Kategorie erstellt');
                 await fetchCategories();
                 resetForm();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                toast.error(err.detail || 'Speichern fehlgeschlagen');
             }
         } catch (error) {
             console.error(error);
+            toast.error('Verbindungsfehler');
         } finally {
             setLoading(false);
         }
@@ -129,13 +135,17 @@ const CategorySettings = () => {
             });
 
             if (res.ok) {
+                toast.success('Kategorie gelöscht');
                 await fetchCategories();
                 if (settings.id === id) {
                     resetForm();
                 }
+            } else {
+                toast.error('Löschen fehlgeschlagen');
             }
         } catch (error) {
             console.error('Failed to delete category:', error);
+            toast.error('Verbindungsfehler');
         }
     };
 

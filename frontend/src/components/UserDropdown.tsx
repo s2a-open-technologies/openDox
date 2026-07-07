@@ -57,7 +57,7 @@ const UserDropdown = () => {
                         <div className="flex flex-col space-y-1">
                             <p className="text-sm font-medium leading-none">{user?.name}</p>
                             <p className="text-xs leading-none text-muted-foreground">
-                                {user?.is_superuser ? 'Administrator' : 'Benutzer'}
+                                {user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : 'Benutzer'}
                             </p>
                         </div>
                     </DropdownMenuLabel>
@@ -66,7 +66,7 @@ const UserDropdown = () => {
                         {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
                         <span>{theme === 'dark' ? 'Helles Design' : 'Dunkles Design'}</span>
                     </DropdownMenuItem>
-                    {user?.is_superuser && (
+                    {user?.role !== 'user' && (
                         <DropdownMenuItem onClick={() => {
                             setTimeout(() => setShowAdmin(true), 100);
                         }}>

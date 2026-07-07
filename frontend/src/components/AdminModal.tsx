@@ -18,13 +18,13 @@
 
 import { useState } from 'react';
 import { Logo } from '@/components/Logo';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  GlobeLock, BookOpenCheck, Settings, Users, Shield, Server, HardDrive, Mic, Brain
+  GlobeLock, BookOpenCheck, Settings, Users, Server, HardDrive, Mic, Brain
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import WhisperConfig from './settings/WhisperConfig';
 import LlmConfig from './settings/LlmConfig';
 import OidcSettings from './settings/OidcSettings';
@@ -41,16 +41,20 @@ interface AdminModalProps {
 }
 
 const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
-  const [activeTab, setActiveTab] = useState('services');
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'services' : 'categories');
 
+  // Moderatoren sehen nur Kategorien + System-Status; Admins sehen alles.
   const navItems = [
-    { id: 'services', label: 'Dienste', icon: Server },
-    { id: 'users', label: 'Benutzer', icon: Users },
-    { id: 'permissions', label: 'Berechtigungen', icon: Shield },
-    { id: 'categories', label: 'Kategorien', icon: BookOpenCheck},
-    { id: 'auth', label: 'Authentifizierung', icon: GlobeLock },
+    ...(isAdmin ? [
+      { id: 'services', label: 'Dienste', icon: Server },
+      { id: 'users', label: 'Benutzer', icon: Users },
+      { id: 'auth', label: 'Authentifizierung', icon: GlobeLock },
+      { id: 'backup', label: 'Backup', icon: HardDrive },
+    ] : []),
+    { id: 'categories', label: 'Kategorien', icon: BookOpenCheck },
     { id: 'system', label: 'System', icon: Settings },
-    { id: 'backup', label: 'Backup', icon: HardDrive },
   ];
 
   const renderContent = () => {
@@ -92,22 +96,6 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             <UserSettings />
           </div>
         );
-      case 'permissions':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Berechtigungen</h3>
-            <div className="space-y-2">
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Zugriffsrechte</h4>
-                <p className="text-sm text-muted-foreground">Verwalten Sie Zugriffsrechte</p>
-              </div>
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Funktionen</h4>
-                <p className="text-sm text-muted-foreground">Funktionsberechtigungen</p>
-              </div>
-            </div>
-          </div>
-        );
       case 'auth':
         return (
           <div className="space-y-6">
@@ -134,12 +122,6 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Systemverwaltung</h3>
             <SystemSettings />
-            <div className="space-y-2">
-              <div className="p-4 border rounded-md">
-                <h4 className="font-medium">Protokolle</h4>
-                <p className="text-sm text-muted-foreground">Systemprotokolle anzeigen</p>
-              </div>
-            </div>
           </div>
         );
       case 'backup':

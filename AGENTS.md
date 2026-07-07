@@ -113,6 +113,16 @@ PCM audio is always written to disk (`session_{id}.pcm`), never stored in Redis.
 
 Docker Compose includes a `redis:7-alpine` service with health check. App depends on it.
 
+### Audio File Cleanup
+
+Audio files (PCM + intermediate WAV) live in `chunks/` and are cleaned up via three mechanisms — all automatic, no manual intervention needed:
+
+1. **Finalize** (`record.py:finalize()`): `finally` block deletes both `session_*.pcm` and `session_*.wav` regardless of whether transcription succeeded. `background_transcription_task` also deletes the WAV on success (redundant, harmless).
+2. **Stale-session loop** (`run.py:lifespan`): background task runs every 10 min, calls `session_store.cleanup_stale_sessions(30)` — removes sessions inactive for >30 min (browser closed without "Stop") and their PCM files.
+3. **Startup cleanup** (`run.py:lifespan`): on app start, all `chunks/session_*.pcm` and `chunks/session_*.wav` files are removed — crash recovery for files left from a previous run.
+
+The lifespan handler (`contextlib.asynccontextmanager`) cancels the cleanup loop on shutdown for a graceful exit. `/upload-chunk` endpoint was removed (unused, leaked `.webm` files).
+
 ### Field Encryption
 
 `field_encryption.py` — uses `ENCRYPTION_KEY` env var (Fernet). Required for encrypted patient data. If not set, encryption is silently disabled.

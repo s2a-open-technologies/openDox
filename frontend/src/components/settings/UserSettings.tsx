@@ -24,6 +24,14 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil, Plus, Trash2, Shield } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import {
     Dialog,
     DialogContent,
@@ -33,12 +41,20 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
+type Role = 'admin' | 'moderator' | 'user';
+
 interface UserData {
     id: number;
     name: string;
     is_active: boolean;
-    is_superuser: boolean;
+    role: Role;
 }
+
+const roleLabels: Record<Role, string> = {
+    admin: 'Administrator',
+    moderator: 'Moderator',
+    user: 'Benutzer',
+};
 
 const UserSettings = () => {
     const { authFetch } = useAuth();
@@ -46,11 +62,16 @@ const UserSettings = () => {
     const [loading, setLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<{
+        name: string;
+        password: string;
+        is_active: boolean;
+        role: Role;
+    }>({
         name: '',
         password: '',
         is_active: true,
-        is_superuser: false,
+        role: 'user',
     });
 
     const fetchUsers = async () => {
@@ -71,7 +92,7 @@ const UserSettings = () => {
 
     const openCreate = () => {
         setEditingUser(null);
-        setFormData({ name: '', password: '', is_active: true, is_superuser: false });
+        setFormData({ name: '', password: '', is_active: true, role: 'user' });
         setDialogOpen(true);
     };
 
@@ -81,7 +102,7 @@ const UserSettings = () => {
             name: user.name,
             password: '',
             is_active: user.is_active,
-            is_superuser: user.is_superuser,
+            role: user.role,
         });
         setDialogOpen(true);
     };
@@ -97,7 +118,7 @@ const UserSettings = () => {
             const body: any = {
                 name: formData.name,
                 is_active: formData.is_active,
-                is_superuser: formData.is_superuser,
+                role: formData.role,
             };
             if (formData.password) body.password = formData.password;
 
@@ -108,14 +129,16 @@ const UserSettings = () => {
             });
             if (!res.ok) {
                 const err = await res.json();
-                alert(err.detail || 'Operation fehlgeschlagen');
+                toast.error(err.detail || 'Operation fehlgeschlagen');
                 return;
             }
 
+            toast.success(editingUser ? 'Benutzer aktualisiert' : 'Benutzer angelegt');
             setDialogOpen(false);
             await fetchUsers();
         } catch (error) {
             console.error(error);
+            toast.error('Verbindungsfehler');
         } finally {
             setLoading(false);
         }
@@ -126,13 +149,15 @@ const UserSettings = () => {
         try {
             const res = await authFetch(`/api/v1/auth/users/${id}`, { method: 'DELETE' });
             if (res.ok) {
+                toast.success('Benutzer gelöscht');
                 await fetchUsers();
             } else {
                 const err = await res.json();
-                alert(err.detail || 'Loeschung fehlgeschlagen');
+                toast.error(err.detail || 'Loeschung fehlgeschlagen');
             }
         } catch (error) {
             console.error('Failed to delete user:', error);
+            toast.error('Verbindungsfehler');
         }
     };
 
@@ -159,7 +184,7 @@ const UserSettings = () => {
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium">{user.name}</span>
-                                        {user.is_superuser && (
+                                        {user.role !== 'user' && (
                                             <Shield className="w-4 h-4 text-primary" />
                                         )}
                                     </div>
@@ -167,9 +192,9 @@ const UserSettings = () => {
                                         <span className={user.is_active ? 'text-green-600' : 'text-red-500'}>
                                             {user.is_active ? 'Aktiv' : 'Inaktiv'}
                                         </span>
-                                        {user.is_superuser && (
-                                            <span className="text-primary">Admin</span>
-                                        )}
+                                        <span className={user.role === 'admin' ? 'text-primary' : ''}>
+                                            {roleLabels[user.role]}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
@@ -239,13 +264,21 @@ const UserSettings = () => {
                                 onCheckedChange={checked => setFormData({ ...formData, is_active: checked })}
                             />
                         </div>
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="is-superuser">Administrator</Label>
-                            <Switch
-                                id="is-superuser"
-                                checked={formData.is_superuser}
-                                onCheckedChange={checked => setFormData({ ...formData, is_superuser: checked })}
-                            />
+                        <div className="space-y-2">
+                            <Label>Rolle</Label>
+                            <Select
+                                value={formData.role}
+                                onValueChange={(v: Role) => setFormData({ ...formData, role: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="admin">Administrator</SelectItem>
+                                    <SelectItem value="moderator">Moderator</SelectItem>
+                                    <SelectItem value="user">Benutzer</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 

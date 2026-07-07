@@ -19,7 +19,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import os
-import shutil
 import time
 
 # Third party
@@ -27,7 +26,7 @@ import uuid
 from datetime import datetime
 
 import numpy as np
-from fastapi import File, Form, HTTPException, UploadFile, WebSocket
+from fastapi import HTTPException, WebSocket
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
@@ -395,7 +394,9 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         local_last_index = new_index
 
                         if result_text:
-                            local_live_text = (local_live_text + " " + result_text).strip()
+                            local_live_text = (
+                                local_live_text + " " + result_text
+                            ).strip()
                             # Persist to Redis only after transcription (~every 3s)
                             session_store.set_live_state(
                                 session_id, new_index, local_live_text
@@ -539,13 +540,19 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             pass
 
         async def finalize():
+            """Convert PCM → WAV and launch background transcription.
+
+            Both the PCM and WAV file are deleted in the ``finally`` block so
+            nothing survives on disk even if transcription fails or the task
+            crashes. ``background_transcription_task`` also deletes the WAV on
+            success — the double removal is harmless (OSError is swallowed).
+            """
             wav_path = os.path.splitext(pcm_path)[0] + ".wav"
             try:
                 print(
                     f"[FINAL] Converting {pcm_path} ({audio_size // 1024} KB PCM) → WAV"
                 )
                 await asyncio.to_thread(_pcm_file_to_wav_file, pcm_path, wav_path)
-                # background_transcription_task deletes wav_path after transcription
                 await asyncio.to_thread(
                     background_transcription_task,
                     task.id,
@@ -556,10 +563,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             except Exception as e:
                 print(f"[FINALIZE-ERROR] {e}")
             finally:
-                try:
-                    os.remove(pcm_path)
-                except OSError:
-                    pass
+                for path in (pcm_path, wav_path):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
 
         asyncio.create_task(finalize())
 
@@ -569,36 +577,6 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             await websocket.close()
         except Exception:
             pass
-
-
-# Audiochunk upload
-@record_bp.post("/upload-chunk")
-async def record(
-    db: SessionDep,
-    file: UploadFile = File(...),
-    user_id: int = Form(...),
-    session_id: str = Form(...),
-):
-    """Upload audio chunk and append to session buffer.
-
-    Rejects the upload if the session no longer exists (e.g. user cancelled),
-    preventing orphaned chunk files on disk.
-    """
-    session = session_store.get_session(user_id)
-    if not session or session.get("session_id") != session_id:
-        raise HTTPException(
-            status_code=409,
-            detail="Session not found or already cancelled. Chunk rejected.",
-        )
-
-    actual_date = datetime.now().strftime("%Y%m%d_%H%M%S")
-    chunk_filename = f"user{user_id}_session{session_id}_{actual_date}_chunk.webm"
-    chunk_path = f"{OUTPUT_DIR}/{chunk_filename}"
-
-    with open(chunk_path, "ab") as f:
-        shutil.copyfileobj(file.file, f)
-
-    return {"status": "chunk received"}
 
 
 @record_bp.put("/record/{record_id}", response_model=RecordRead)
@@ -728,7 +706,11 @@ async def regenerate_summary(record_id: int, db: SessionDep):
         text = record.content
         entity_mapping: dict[str, str] = {}
 
-        if llm_settings and llm_settings.sanitizer_enabled and llm_settings.sanitizer_endpoint:
+        if (
+            llm_settings
+            and llm_settings.sanitizer_enabled
+            and llm_settings.sanitizer_endpoint
+        ):
             text, entity_mapping = sanitize(
                 text=text,
                 endpoint=llm_settings.sanitizer_endpoint,
@@ -750,7 +732,9 @@ async def regenerate_summary(record_id: int, db: SessionDep):
         else:
             model = OllamaModel()
 
-        result = model.generate_response(text, custom_system_prompt=effective_prompt or None)
+        result = model.generate_response(
+            text, custom_system_prompt=effective_prompt or None
+        )
 
         if entity_mapping:
             result = reinject(result, entity_mapping)

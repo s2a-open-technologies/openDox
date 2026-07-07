@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any
 
 import requests as _requests
-from fastapi import File, HTTPException, UploadFile
+from fastapi import Depends, File, HTTPException, UploadFile
 from sqlmodel import select
 
 from backend.components.models.categories import (
@@ -41,6 +41,7 @@ from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.terminology import Terminology
+from backend.components.models.user_model import User
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
     get_final_backend,
@@ -52,7 +53,29 @@ from backend.components.services.session_store import session_store
 from backend.components.services.session_store_redis import RedisSessionStore
 from backend.components.services.settings_service import get_settings_service
 from backend.components.sql.sql_engine import SessionDep
+from backend.views.auth_api.dependencies import get_current_user
 from backend.views.settings_api import settings_bp
+
+
+def _require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Guard: only admins may write settings (except categories)."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin role required",
+        )
+    return current_user
+
+
+def _require_moderator(current_user: User = Depends(get_current_user)) -> User:
+    """Guard: admins and moderators may manage categories."""
+    if current_user.role not in ("admin", "moderator"):
+        raise HTTPException(
+            status_code=403,
+            detail="Moderator or admin role required",
+        )
+    return current_user
+
 
 # Whisper Endpoints
 
@@ -69,7 +92,11 @@ async def get_whisper_settings(db: SessionDep):
 
 
 @settings_bp.put("/whisper-settings/", response_model=WhisperSettingsModel)
-async def update_whisper_settings(settings_in: WhisperSettingsModel, db: SessionDep):
+async def update_whisper_settings(
+    settings_in: WhisperSettingsModel,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     settings = db.exec(select(WhisperSettingsModel)).first()
     if not settings:
         settings = WhisperSettingsModel()
@@ -127,7 +154,11 @@ async def get_llm_settings(db: SessionDep):
 
 
 @settings_bp.put("/llm-settings/", response_model=LlmSettingsModel)
-async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
+async def update_llm_settings(
+    settings_in: LlmSettingsModel,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings:
         settings = LlmSettingsModel()
@@ -151,7 +182,10 @@ async def update_llm_settings(settings_in: LlmSettingsModel, db: SessionDep):
 
 
 @settings_bp.get("/llm-test/")
-async def test_llm_connection(db: SessionDep):
+async def test_llm_connection(
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     """Ping the configured LLM endpoint and return available models."""
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings or not settings.llm_api_endpoint:
@@ -277,7 +311,11 @@ async def get_ldap_settings(db: SessionDep):
 
 
 @settings_bp.put("/ldap-settings/", response_model=LdapSettingsModel)
-async def update_ldap_settings(settings_in: LdapSettingsModel, db: SessionDep):
+async def update_ldap_settings(
+    settings_in: LdapSettingsModel,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     settings = db.exec(select(LdapSettingsModel)).first()
     if not settings:
         settings = LdapSettingsModel(**settings_in.dict(exclude={"id"}))
@@ -294,7 +332,10 @@ async def update_ldap_settings(settings_in: LdapSettingsModel, db: SessionDep):
 
 
 @settings_bp.post("/ldap-settings/test")
-async def test_ldap_connection(settings_in: LdapSettingsModel):
+async def test_ldap_connection(
+    settings_in: LdapSettingsModel,
+    _: User = Depends(_require_admin),
+):
     service = LdapService(settings_in)
     try:
         conn = service.connect()
@@ -308,7 +349,10 @@ async def test_ldap_connection(settings_in: LdapSettingsModel):
 
 
 @settings_bp.post("/ldap-settings/upload-cert/")
-async def upload_ldap_cert(file: UploadFile = File(...)):
+async def upload_ldap_cert(
+    file: UploadFile = File(...),
+    _: User = Depends(_require_admin),
+):
     certs_dir = "certs"
     os.makedirs(certs_dir, exist_ok=True)
     file_path = os.path.join(certs_dir, file.filename)
@@ -321,7 +365,11 @@ async def upload_ldap_cert(file: UploadFile = File(...)):
 
 # Categories Endpoints
 @settings_bp.post("/categories/", response_model=CategoriesRead)
-async def create_category(category: CategoriesCreate, db: SessionDep):
+async def create_category(
+    category: CategoriesCreate,
+    db: SessionDep,
+    _: User = Depends(_require_moderator),
+):
     db_category = Categories.model_validate(category)
     db.add(db_category)
     db.commit()
@@ -344,7 +392,12 @@ async def read_category(category_id: int, db: SessionDep):
 
 
 @settings_bp.put("/categories/{category_id}", response_model=CategoriesRead)
-async def update_category(category_id: int, category: CategoriesCreate, db: SessionDep):
+async def update_category(
+    category_id: int,
+    category: CategoriesCreate,
+    db: SessionDep,
+    _: User = Depends(_require_moderator),
+):
     db_category = db.get(Categories, category_id)
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -357,7 +410,11 @@ async def update_category(category_id: int, category: CategoriesCreate, db: Sess
 
 
 @settings_bp.delete("/categories/{category_id}")
-async def delete_category(category_id: int, db: SessionDep):
+async def delete_category(
+    category_id: int,
+    db: SessionDep,
+    _: User = Depends(_require_moderator),
+):
     category = db.get(Categories, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -368,7 +425,11 @@ async def delete_category(category_id: int, db: SessionDep):
 
 # Languages Endpoints
 @settings_bp.post("/languages/", response_model=LanguagesRead)
-async def create_language(language: LanguagesCreate, db: SessionDep):
+async def create_language(
+    language: LanguagesCreate,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     db_language = Languages.model_validate(language)
     db.add(db_language)
     db.commit()
@@ -391,7 +452,12 @@ async def read_language(language_id: int, db: SessionDep):
 
 
 @settings_bp.put("/languages/{language_id}", response_model=LanguagesRead)
-async def update_language(language_id: int, language: LanguagesCreate, db: SessionDep):
+async def update_language(
+    language_id: int,
+    language: LanguagesCreate,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     db_language = db.get(Languages, language_id)
     if not db_language:
         raise HTTPException(status_code=404, detail="Language not found")
@@ -404,7 +470,11 @@ async def update_language(language_id: int, language: LanguagesCreate, db: Sessi
 
 
 @settings_bp.delete("/languages/{language_id}")
-async def delete_language(language_id: int, db: SessionDep):
+async def delete_language(
+    language_id: int,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     language = db.get(Languages, language_id)
     if not language:
         raise HTTPException(status_code=404, detail="Language not found")
@@ -510,7 +580,10 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
 
 
 @settings_bp.get("/backup/")
-async def export_backup(db: SessionDep):
+async def export_backup(
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     """Export all settings tables as a downloadable JSON file.
 
     Returns:
@@ -530,7 +603,11 @@ async def export_backup(db: SessionDep):
 
 
 @settings_bp.post("/backup/restore/")
-async def import_backup(db: SessionDep, file: UploadFile = File(...)):
+async def import_backup(
+    db: SessionDep,
+    file: UploadFile = File(...),
+    _: User = Depends(_require_admin),
+):
     """Restore settings from an uploaded JSON backup file.
 
     Args:
@@ -565,7 +642,11 @@ async def get_oidc_settings(db: SessionDep):
 
 
 @settings_bp.put("/oidc-settings/", response_model=OidcSettingsModel)
-async def update_oidc_settings(settings_in: OidcSettingsModel, db: SessionDep):
+async def update_oidc_settings(
+    settings_in: OidcSettingsModel,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
     """Upsert OIDC settings from the admin UI."""
     settings = db.exec(select(OidcSettingsModel)).first()
     if not settings:

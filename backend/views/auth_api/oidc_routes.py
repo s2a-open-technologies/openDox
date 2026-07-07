@@ -176,18 +176,18 @@ async def oidc_callback(request: Request, db: SessionDep):
 
     # --- 4. Provision / update user ---
     user = db.exec(select(User).where(User.name == username)).first()
-    is_superuser = service.map_groups_to_superuser(claims)
+    role = service.map_groups_to_role(claims)
     if not user:
         user = User(
             name=username,
             hashed_password="",
             is_active=True,
-            is_superuser=is_superuser,
+            role=role,
         )
         db.add(user)
     else:
         user.is_active = True
-        user.is_superuser = is_superuser
+        user.role = role
     db.commit()
     db.refresh(user)
 

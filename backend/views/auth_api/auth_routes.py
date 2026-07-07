@@ -24,6 +24,7 @@ from sqlmodel import select
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.token_model import Token
 from backend.components.models.user_model import (
+    ROLES,
     User,
     UserCreate,
     UserLogin,
@@ -174,23 +175,28 @@ async def accept_disclaimer(
 # ── User Management (CRUD) ─────────────────────────────────────────────
 
 
-def _require_superuser(current_user: User):
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Superuser required",
-        )
-    return current_user
+def _require_role(*allowed_roles: str):
+    """Return a dependency that checks the current user has one of ``allowed_roles``."""
+
+    def _check(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role '{current_user.role}' not allowed "
+                f"(required: {', '.join(allowed_roles)})",
+            )
+        return current_user
+
+    return _check
 
 
 @auth_bp.get("/users", response_model=list[UserRead])
 async def list_users(
     db: SessionDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_role("admin")),
     offset: int = 0,
     limit: int = 100,
 ):
-    _require_superuser(current_user)
     users = db.exec(select(User).offset(offset).limit(limit)).all()
     return users
 
@@ -199,10 +205,8 @@ async def list_users(
 async def create_user(
     user_in: UserCreate,
     db: SessionDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_role("admin")),
 ):
-    _require_superuser(current_user)
-
     existing = db.exec(select(User).where(User.name == user_in.name)).first()
     if existing:
         raise HTTPException(status_code=422, detail="User already exists")
@@ -210,7 +214,7 @@ async def create_user(
     db_user = User(
         name=user_in.name,
         hashed_password=get_password_hash(user_in.password),
-        is_superuser=user_in.is_superuser,
+        role=user_in.role if user_in.role in ROLES else "user",
     )
     db.add(db_user)
     db.commit()
@@ -222,9 +226,8 @@ async def create_user(
 async def get_user(
     user_id: int,
     db: SessionDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_role("admin")),
 ):
-    _require_superuser(current_user)
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -236,9 +239,8 @@ async def update_user(
     user_id: int,
     user_in: UserUpdate,
     db: SessionDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_role("admin")),
 ):
-    _require_superuser(current_user)
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -247,8 +249,8 @@ async def update_user(
         user.name = user_in.name
     if user_in.is_active is not None:
         user.is_active = user_in.is_active
-    if user_in.is_superuser is not None:
-        user.is_superuser = user_in.is_superuser
+    if user_in.role is not None and user_in.role in ROLES:
+        user.role = user_in.role
     if user_in.password is not None:
         user.hashed_password = get_password_hash(user_in.password)
 
@@ -262,9 +264,8 @@ async def update_user(
 async def delete_user(
     user_id: int,
     db: SessionDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_role("admin")),
 ):
-    _require_superuser(current_user)
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

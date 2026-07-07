@@ -21,14 +21,22 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
+# Valid role values. ``admin`` supersedes the legacy ``is_superuser=True``.
+ROLES = ("admin", "moderator", "user")
+
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True, default=None)
     name: str = Field(index=True, unique=True)
     hashed_password: str
     is_active: bool = Field(default=True)
-    is_superuser: bool = Field(default=False)
+    role: str = Field(default="user", index=True)
     disclaimer_accepted_at: Optional[datetime] = Field(default=None)
+
+    @property
+    def is_superuser(self) -> bool:
+        """Backwards-compatible alias: admins are superusers."""
+        return self.role == "admin"
 
 
 class UserBase(SQLModel):
@@ -37,13 +45,13 @@ class UserBase(SQLModel):
 
 class UserCreate(UserBase):
     password: str  # Klartext beim Eingang – wird gehasht gespeichert
-    is_superuser: bool = False
+    role: str = "user"
 
 
 class UserRead(UserBase):
     id: int
     is_active: bool
-    is_superuser: bool
+    role: str
     disclaimer_accepted_at: Optional[datetime] = None
 
 
@@ -56,4 +64,4 @@ class UserUpdate(SQLModel):
     name: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
-    is_superuser: Optional[bool] = None
+    role: Optional[str] = None

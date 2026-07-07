@@ -45,4 +45,5 @@ class OidcSettingsModel(SQLModel, table=True):
     scopes: str = Field(default="openid email profile")
     group_claim: str = Field(default="groups")
     admin_groups: str = Field(default="")
+    moderator_groups: str = Field(default="")
     username_claim: str = Field(default="preferred_username")

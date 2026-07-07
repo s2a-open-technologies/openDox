@@ -25,8 +25,8 @@ type User = {
   name: string;
   is_active: boolean;
   authenticated: boolean;
-  is_superuser: boolean;
-  disclaimer_accepted_at: string | null;
+  role: 'admin' | 'moderator' | 'user';
+  disclaimer_accepted_at?: string | null;
 };
 
 type AuthContextType = {
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name: data.name,
           is_active: data.is_active,
           authenticated: true,
-          is_superuser: data.is_superuser,
+          role: data.role,
           disclaimer_accepted_at: data.disclaimer_accepted_at ?? null,
         });
         setIsAuthenticated(true);

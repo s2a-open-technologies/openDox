@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Check, FileBadge } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface LdapSettingsData {
     id?: number;
@@ -81,13 +82,18 @@ const LdapSettings = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await authFetch('/api/v1/settings/ldap-settings/', {
+            const res = await authFetch('/api/v1/settings/ldap-settings/', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
             });
-        } catch (error) {
-            console.error(error);
+            if (res.ok) {
+                toast.success('LDAP-Einstellungen gespeichert');
+            } else {
+                toast.error('Speichern fehlgeschlagen');
+            }
+        } catch {
+            toast.error('Verbindungsfehler');
         } finally {
             setLoading(false);
         }

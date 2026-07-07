@@ -204,21 +204,33 @@ class OidcService:
         )
         return claims
 
-    def map_groups_to_superuser(self, claims: dict[str, Any]) -> bool:
-        """Decide if the user should be a superuser based on configured admin groups.
+    def map_groups_to_role(self, claims: dict[str, Any]) -> str:
+        """Resolve the local role from configured admin/moderator groups.
+
+        Admin groups take precedence over moderator groups: a user in both
+        becomes an admin.
 
         Args:
             claims: Union of id_token and userinfo claims.
 
         Returns:
-            True if any of the user's groups matches a configured admin group.
+            One of ``"admin"``, ``"moderator"``, ``"user"``.
         """
-        admin_groups_raw = (self.settings.admin_groups or "").strip()
-        if not admin_groups_raw:
-            return False
-        admin_groups = {g.strip() for g in admin_groups_raw.split(",") if g.strip()}
         user_groups = self._extract_groups(claims)
-        return bool(admin_groups & user_groups)
+        admin_groups = self._parse_groups(self.settings.admin_groups)
+        if admin_groups and (admin_groups & user_groups):
+            return "admin"
+        moderator_groups = self._parse_groups(self.settings.moderator_groups)
+        if moderator_groups and (moderator_groups & user_groups):
+            return "moderator"
+        return "user"
+
+    @staticmethod
+    def _parse_groups(raw: str) -> set[str]:
+        """Parse a comma-separated group list into a set of trimmed names."""
+        if not raw:
+            return set()
+        return {g.strip() for g in raw.split(",") if g.strip()}
 
     def _extract_groups(self, claims: dict[str, Any]) -> set[str]:
         """Pull the configured group claim out of the claims, handling both

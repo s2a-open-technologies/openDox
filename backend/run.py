@@ -15,6 +15,8 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import asyncio
+import contextlib
 import os
 import re
 import tomllib
@@ -28,7 +30,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger, initialize_logging
 from backend.components.sql.db_config import SQLALCHEMY_URI
-from backend.views.auth_api import auth_bp
+from backend.views.auth_api import auth_bp, oidc_bp
 from backend.views.record_api import record_bp
 from backend.views.settings_api import settings_bp
 
@@ -86,9 +88,78 @@ def _inject_root_path(static_dir: str, root_path: str) -> None:
         html = f.read()
     script = f"<script>window.__ROOT_PATH__='{root_path}';</script>"
     html = re.sub(r"<script>window\.__ROOT_PATH__='.*?';</script>", "", html)
-    html = html.replace("</head>", f"{script}</head>", 1) if "</head>" in html else script + html
+    html = (
+        html.replace("</head>", f"{script}</head>", 1)
+        if "</head>" in html
+        else script + html
+    )
     with open(index_path, "w", encoding="utf-8") as f:
         f.write(html)
+
+
+def _cleanup_orphaned_chunk_files(logger) -> None:
+    """Remove session_*.pcm / session_*.wav files left over from a previous crash.
+
+    Runs once at startup, before the server accepts connections. At that point
+    no sessions exist yet (Redis is either fresh or in-memory is empty), so any
+    leftover file in the chunks directory is by definition orphaned.
+    """
+    chunks_dir = "chunks"
+    if not os.path.isdir(chunks_dir):
+        return
+    removed = 0
+    for name in os.listdir(chunks_dir):
+        if name.startswith("session_") and (
+            name.endswith(".pcm") or name.endswith(".wav")
+        ):
+            try:
+                os.remove(os.path.join(chunks_dir, name))
+                removed += 1
+            except OSError:
+                pass
+    if removed:
+        logger.info("Startup cleanup: removed %d orphaned chunk file(s)", removed)
+
+
+async def _stale_session_cleanup_loop(logger) -> None:
+    """Periodically remove recording sessions inactive for >30 minutes.
+
+    Covers the case where a user closes the browser without pressing "Stop" —
+    the session stays in the store with its PCM file on disk. ``cleanup_stale_sessions``
+    deletes the session and the file. The loop runs every 10 minutes; the task
+    is cancelled automatically when the lifespan context exits.
+    """
+    from backend.components.services.session_store import session_store
+
+    while True:
+        await asyncio.sleep(600)
+        try:
+            count = await asyncio.to_thread(session_store.cleanup_stale_sessions, 30)
+            if count:
+                logger.info("Cleaned up %d stale recording session(s)", count)
+        except Exception as exc:
+            logger.warning("Stale-session cleanup failed: %s", exc)
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan: startup cleanup + background tasks, graceful shutdown.
+
+    On startup: remove orphaned chunk files from a previous crash, then start
+    the stale-session cleanup loop. On shutdown: cancel the loop so the event
+    loop can stop cleanly.
+    """
+    logger = get_logger()
+    _cleanup_orphaned_chunk_files(logger)
+    cleanup_task = asyncio.create_task(_stale_session_cleanup_loop(logger))
+    logger.info("Stale-session cleanup loop started (interval=600s, max_age=30min)")
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await cleanup_task
+        logger.info("Stale-session cleanup loop stopped")
 
 
 def create_app():
@@ -116,7 +187,7 @@ def create_app():
     # NOTE: do NOT pass root_path= here. Routes are prefixed manually below;
     # setting FastAPI(root_path=...) makes Starlette strip the prefix before
     # matching, which would double-count it and 404 everything.
-    app = FastAPI(title="openDox", version=app_version)
+    app = FastAPI(title="openDox", version=app_version, lifespan=lifespan)
     logger.info("App successfully started")
 
     app.add_middleware(
@@ -153,6 +224,7 @@ def create_app():
 
     # /opendox → /opendox/ so the browser resolves relative asset paths correctly
     if root_path:
+
         @app.get(root_path, include_in_schema=False)
         async def redirect_to_root():
             return RedirectResponse(url=f"{root_path}/", status_code=301)

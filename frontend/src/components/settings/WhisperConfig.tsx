@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface WhisperSettings {
     live_backend: string;
@@ -124,11 +125,20 @@ const WhisperConfig = () => {
     };
 
     const saveConfig = async () => {
-        await authFetch('/api/v1/settings/whisper-settings/', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
+        try {
+            const res = await authFetch('/api/v1/settings/whisper-settings/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (res.ok) {
+                toast.success('Einstellungen gespeichert');
+            } else {
+                toast.error('Speichern fehlgeschlagen');
+            }
+        } catch {
+            toast.error('Verbindungsfehler');
+        }
     };
 
     return (

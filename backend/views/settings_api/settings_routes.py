@@ -87,6 +87,7 @@ async def update_whisper_settings(settings_in: WhisperSettingsModel, db: Session
     settings.language = settings_in.language
     settings.chunk_length_s = settings_in.chunk_length_s
     settings.overlap_s = settings_in.overlap_s
+    settings.left_context_s = settings_in.left_context_s
 
     # Anti-hallucination / faster-whisper tuning
     settings.temperature = settings_in.temperature

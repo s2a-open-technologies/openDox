@@ -39,6 +39,7 @@ class WhisperSettingsModel(SQLModel, table=True):
     language: str = Field(default="de")
     chunk_length_s: int = Field(default=3)
     overlap_s: float = Field(default=0.0)
+    left_context_s: float = Field(default=0.0)
 
     # Anti-hallucination / faster-whisper tuning (sent to the Whisper server
     # as transcription parameters). Defaults mirror the proven config that was

@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 def merge_overlapping_text(existing: str, new_text: str) -> str:
     """Append new_text to existing, trimming any leading words in new_text
+
     that duplicate the tail of existing (word-level, case-insensitive).
 
     Used to reconcile a re-transcribed left-context region: new_text is a

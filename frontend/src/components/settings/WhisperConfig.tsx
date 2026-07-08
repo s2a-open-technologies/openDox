@@ -49,6 +49,7 @@ interface WhisperSettings {
     language: string;
     chunk_length_s: number;
     overlap_s: number;
+    left_context_s: number;
     // Anti-hallucination / faster-whisper tuning
     temperature: number;
     vad_filter: boolean;
@@ -76,6 +77,7 @@ const WhisperConfig = () => {
         language: 'de',
         chunk_length_s: 3,
         overlap_s: 0,
+        left_context_s: 0,
         temperature: 0.0,
         vad_filter: true,
         vad_min_silence_ms: 500,
@@ -104,6 +106,7 @@ const WhisperConfig = () => {
                     language: data.language || 'de',
                     chunk_length_s: data.chunk_length_s ?? 3,
                     overlap_s: data.overlap_s ?? 0,
+                    left_context_s: data.left_context_s ?? 0,
                     temperature: data.temperature ?? 0.0,
                     vad_filter: data.vad_filter ?? true,
                     vad_min_silence_ms: data.vad_min_silence_ms ?? 500,
@@ -225,7 +228,7 @@ const WhisperConfig = () => {
                                             onChange={(e) => updateField('live_api_model', e.target.value)}
                                         />
                                     </div>
-                                    <div className={`grid gap-4 ${config.live_backend === 'parakeet' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label>Chunk-Länge (Sek.)</Label>
                                             <Input
@@ -242,6 +245,19 @@ const WhisperConfig = () => {
                                                     value={config.overlap_s}
                                                     onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
                                                 />
+                                            </div>
+                                        )}
+                                        {config.live_backend === 'parakeet' && (
+                                            <div className="space-y-2">
+                                                <Label>Left-Context (Sek.)</Label>
+                                                <Input
+                                                    type="number" min={0} max={5} step={0.5}
+                                                    value={config.left_context_s}
+                                                    onChange={(e) => updateField('left_context_s', parseFloat(e.target.value) || 0)}
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Akustischer Vorlauf pro Chunk, empfohlen: 0.5–2s. Deutlich mehr als die Chunk-Länge erhöht Latenz und macht die Deduplizierung unzuverlässiger, ohne die Genauigkeit proportional zu verbessern.
+                                                </p>
                                             </div>
                                         )}
                                     </div>

@@ -360,6 +360,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                             bytes_per_left_context = int(
                                 settings.left_context_s * 16000 * 4
                             )
+                            bytes_per_left_context -= bytes_per_left_context % 4
                         whisper_params = get_whisper_params(live=True)
                     except Exception:
                         pass

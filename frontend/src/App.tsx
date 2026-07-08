@@ -55,7 +55,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter basename={BASE_PATH}>
+    <BrowserRouter basename={BASE_PATH} future={{
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    }}>
       <ThemeProvider>
         <AuthProvider>
           <TooltipProvider>

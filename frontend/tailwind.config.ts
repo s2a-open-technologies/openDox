@@ -116,7 +116,7 @@ export default {
         "fade-in": "fade-in 0.5s ease-in-out",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
       },
     },
   },

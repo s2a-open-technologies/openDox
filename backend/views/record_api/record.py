@@ -343,6 +343,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     bytes_per_chunk = 3 * 16000 * 4  # default 3s chunks
                     bytes_per_overlap = 0
                     bytes_per_left_context = 0
+                    is_parakeet = False
                     whisper_params = None
                     try:
                         from backend.components.services.settings_service import (
@@ -355,6 +356,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         bytes_per_overlap = int(settings.overlap_s * 16000 * 4)
                         if settings.live_backend == "parakeet":
                             bytes_per_overlap = 0
+                            is_parakeet = True
                             bytes_per_left_context = int(
                                 settings.left_context_s * 16000 * 4
                             )
@@ -407,9 +409,14 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         local_last_index = new_index
 
                         if result_text:
-                            local_live_text = merge_overlapping_text(
-                                local_live_text, result_text
-                            )
+                            if is_parakeet:
+                                local_live_text = merge_overlapping_text(
+                                    local_live_text, result_text
+                                )
+                            else:
+                                local_live_text = (
+                                    local_live_text + " " + result_text
+                                ).strip()
                             # Persist to Redis only after transcription (~every 3s)
                             session_store.set_live_state(
                                 session_id, new_index, local_live_text

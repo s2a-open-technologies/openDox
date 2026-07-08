@@ -62,6 +62,7 @@ No automated tests exist in this repo. No CI workflows configured.
 - When `live_backend="parakeet"` and `live_api_endpoint` is None, factory falls back to `PARAKEET_API_ENDPOINT` env var
 - Parakeet live text is sent directly to frontend — no LLM correction (Parakeet already outputs punctuation)
 - Whisper live text goes through batch LLM correction (`chunk_correction_service.py`, flushes every 5 chunks)
+- `left_context_s` (Parakeet only, default `0.0`): extra acoustic look-back audio read from before each chunk's start and sent alongside it, purely as model context — `record.py`'s live-ASR loop trims the re-said portion of the model's output via `merge_overlapping_text()` (word-level dedup, `backend/components/modules/text_dedup.py`) before appending to the live transcript. `chunk_length_s`/`left_context_s` are independent; a `left_context_s` much larger than `chunk_length_s` multiplies the audio re-transcribed per cycle without a proportional accuracy gain (see `docs/superpowers/specs/2026-07-07-parakeet-left-context-design.md`).
 
 ### PII Sanitizer (EntityGuard)
 

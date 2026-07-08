@@ -42,6 +42,7 @@ from backend.components.models.record_model import (
 from backend.components.models.task_model import Task
 from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
+from backend.components.modules.text_dedup import merge_overlapping_text
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
@@ -340,6 +341,8 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     # chunk_length_s * 16000 samples/s * 4 bytes/sample (float32)
                     bytes_per_chunk = 3 * 16000 * 4  # default 3s chunks
                     bytes_per_overlap = 0
+                    bytes_per_left_context = 0
+                    is_parakeet = False
                     whisper_params = None
                     try:
                         from backend.components.services.settings_service import (
@@ -352,6 +355,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         bytes_per_overlap = int(settings.overlap_s * 16000 * 4)
                         if settings.live_backend == "parakeet":
                             bytes_per_overlap = 0
+                            is_parakeet = True
+                            bytes_per_left_context = int(
+                                settings.left_context_s * 16000 * 4
+                            )
+                            bytes_per_left_context -= bytes_per_left_context % 4
                         whisper_params = get_whisper_params(live=True)
                     except Exception:
                         pass
@@ -360,9 +368,14 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
                     if new_data_len >= bytes_per_chunk:
                         start = local_last_index
+                        # Read some extra audio from before `start` as pure
+                        # acoustic context for Parakeet — this does NOT move
+                        # `start`/`new_index`, it's read-only look-back.
+                        read_start = max(0, start - bytes_per_left_context)
+                        read_len = (start - read_start) + bytes_per_chunk
                         with open(local_audio_path, "rb") as _f:
-                            _f.seek(start)
-                            audio_slice = _f.read(bytes_per_chunk)
+                            _f.seek(read_start)
+                            audio_slice = _f.read(read_len)
                         new_index = start + bytes_per_chunk - bytes_per_overlap
 
                         # Normalize quiet audio so Whisper doesn't hallucinate
@@ -375,9 +388,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         _ = None  # live_prompt intentionally unused
 
                         logger.info(
-                            "[ASR] chunk %.1fs | overlap %.1fs | params=%s",
+                            "[ASR] chunk %.1fs | overlap %.1fs | "
+                            "left_ctx %.1fs | params=%s",
                             len(audio_slice) / (16000 * 4),
                             bytes_per_overlap / (16000 * 4),
+                            bytes_per_left_context / (16000 * 4),
                             whisper_params,
                         )
                         # Transcribe in background thread (non-blocking)
@@ -394,9 +409,14 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         local_last_index = new_index
 
                         if result_text:
-                            local_live_text = (
-                                local_live_text + " " + result_text
-                            ).strip()
+                            if is_parakeet:
+                                local_live_text = merge_overlapping_text(
+                                    local_live_text, result_text
+                                )
+                            else:
+                                local_live_text = (
+                                    local_live_text + " " + result_text
+                                ).strip()
                             # Persist to Redis only after transcription (~every 3s)
                             session_store.set_live_state(
                                 session_id, new_index, local_live_text

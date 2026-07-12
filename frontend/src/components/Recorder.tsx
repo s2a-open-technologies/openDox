@@ -22,6 +22,7 @@ import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BASE_PATH } from "@/api";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ export interface RecorderHandle {
 }
 
 const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }, ref) => {
+  const { authFetch } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -77,7 +79,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
   }));
 
   const createRecord = async () => {
-    const response = await fetch("/api/v1/records/create", {
+    const response = await authFetch("/api/v1/records/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -101,8 +103,9 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
 
   const openWebSocket = (userId: string, session_id: string) => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const token = localStorage.getItem("access_token") || "";
     const ws = new WebSocket(
-      `${protocol}//${window.location.host}${BASE_PATH}/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}`
+      `${protocol}//${window.location.host}${BASE_PATH}/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}&token=${encodeURIComponent(token)}`
     );
     socketRef.current = ws;
 

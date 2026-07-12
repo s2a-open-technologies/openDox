@@ -29,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface TranscriptViewProps {
   transcript: Recording | null;
@@ -37,6 +38,7 @@ interface TranscriptViewProps {
 }
 
 const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewProps) => {
+  const { authFetch } = useAuth();
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState(transcript?.content || "");
   const [editedSummary, setEditedSummary] = useState(transcript?.summarize || "");
@@ -79,7 +81,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
     async function checkStatus() {
       if (!transcript?.taskId) return;
       try {
-        const res = await fetch(`/api/v1/records/status/${transcript.taskId}`);
+        const res = await authFetch(`/api/v1/records/status/${transcript.taskId}`);
         if (res.ok) {
           const data = await res.json();
           setTaskStatus(data.status);
@@ -89,7 +91,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
           }
 
           if (transcript?.dbId) {
-            const recRes = await fetch(`/api/v1/records/record/${transcript.dbId}`);
+            const recRes = await authFetch(`/api/v1/records/record/${transcript.dbId}`);
             if (recRes.ok) {
               const recData = await recRes.json();
               if (recData.content && recData.content !== editedContentRef.current) {
@@ -194,7 +196,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
     if (!transcript?.dbId) return;
     setIsRegeneratingSummary(true);
     try {
-      const res = await fetch(`/api/v1/records/record/${transcript.dbId}/summarize`, { method: 'POST' });
+      const res = await authFetch(`/api/v1/records/record/${transcript.dbId}/summarize`, { method: 'POST' });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setEditedSummary(data.summarize || "");

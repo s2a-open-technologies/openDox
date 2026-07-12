@@ -19,7 +19,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
-import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library, Radio } from "lucide-react";
+import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library, Radio, Upload } from "lucide-react";
 import UserDropdown from "@/components/UserDropdown";
 import {
   DropdownMenu,
@@ -42,6 +42,7 @@ interface SidebarProps {
   onUnarchiveRecording?: (id: string) => void;
   showArchived?: boolean;
   onToggleArchived?: (show: boolean) => void;
+  onUploadClick?: () => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }
@@ -56,6 +57,7 @@ const Sidebar = ({
   onUnarchiveRecording,
   showArchived = false,
   onToggleArchived,
+  onUploadClick,
   mobileOpen = false,
   onMobileOpenChange,
 }: SidebarProps) => {
@@ -89,6 +91,18 @@ const Sidebar = ({
           title="Archiv"
         >
           <Archive className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="px-2 pt-2">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          onClick={() => onUploadClick?.()}
+          title="Audio hochladen"
+        >
+          <Upload className="w-4 h-4" />
+          <span>Audio hochladen</span>
         </Button>
       </div>
 

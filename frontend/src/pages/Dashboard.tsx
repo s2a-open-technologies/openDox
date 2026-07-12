@@ -64,7 +64,7 @@ interface Category {
 }
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, authFetch } = useAuth();
   const recorderRef = useRef<RecorderHandle>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
@@ -80,11 +80,18 @@ const Dashboard = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Upload dialog state
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadCategoryId, setUploadCategoryId] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
   const userId = user?.id?.toString() || "";
 
   const fetchRecords = async () => {
     try {
-      const response = await fetch(`/api/v1/records/list-records/${userId}?archived=${showArchived}`);
+      const response = await authFetch(`/api/v1/records/list-records/${userId}?archived=${showArchived}`);
       if (response.ok) {
         const data = await response.json();
         setRecordings(data.map((d: any) => ({
@@ -131,7 +138,7 @@ const Dashboard = () => {
   // arrives with {active: false} while a recording is being started.
   useEffect(() => {
     if (!userId) return;
-    fetch(`/api/v1/records/active-session/${userId}`)
+    authFetch(`/api/v1/records/active-session/${userId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data?.active) {
@@ -148,7 +155,7 @@ const Dashboard = () => {
     if (!rec?.dbId) return;
     try {
       if (!confirm("Möchten Sie diese Aufnahme wirklich unwiderruflich löschen?")) return;
-      const response = await fetch(`/api/v1/records/record/${rec.dbId}`, { method: "DELETE" });
+      const response = await authFetch(`/api/v1/records/record/${rec.dbId}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Fehler beim Löschen");
       toast.success("Aufnahme gelöscht");
       if (selectedRecording?.id === id) setSelectedRecording(null);
@@ -163,7 +170,7 @@ const Dashboard = () => {
     const rec = recordings.find(r => r.id === id);
     if (!rec?.dbId) return;
     try {
-      const response = await fetch(`/api/v1/records/record/${rec.dbId}/archive`, { method: "PUT" });
+      const response = await authFetch(`/api/v1/records/record/${rec.dbId}/archive`, { method: "PUT" });
       if (!response.ok) throw new Error("Fehler beim Archivieren");
       toast.success("Aufnahme archiviert");
       if (selectedRecording?.id === id) setSelectedRecording(null);
@@ -178,7 +185,7 @@ const Dashboard = () => {
     const rec = recordings.find(r => r.id === id);
     if (!rec?.dbId) return;
     try {
-      const response = await fetch(`/api/v1/records/record/${rec.dbId}/unarchive`, { method: "PUT" });
+      const response = await authFetch(`/api/v1/records/record/${rec.dbId}/unarchive`, { method: "PUT" });
       if (!response.ok) throw new Error("Fehler beim Wiederherstellen");
       toast.success("Aufnahme wiederhergestellt");
       if (selectedRecording?.id === id) setSelectedRecording(null);
@@ -217,7 +224,7 @@ const Dashboard = () => {
     setActiveSessionId(null);
     setUnfinishedSessionId(null);
     try {
-      const res = await fetch(`/api/v1/records/by-session/${sessionId}`);
+      const res = await authFetch(`/api/v1/records/by-session/${sessionId}`);
       if (!res.ok) throw new Error("Failed to fetch final record");
       const data = await res.json();
 
@@ -265,7 +272,7 @@ const Dashboard = () => {
         setSelectedRecording(recording);
         return;
       }
-      const result = await fetch(`/api/v1/records/record/${recording.dbId}`);
+      const result = await authFetch(`/api/v1/records/record/${recording.dbId}`);
       if (!result.ok) throw new Error("Failed to fetch record");
       const data = await result.json();
       setSelectedRecording({
@@ -290,7 +297,7 @@ const Dashboard = () => {
     const rec = recordings.find(r => r.id === id);
     if (!rec?.dbId) return;
     try {
-      const res = await fetch(`/api/v1/records/record/${rec.dbId}`, {
+      const res = await authFetch(`/api/v1/records/record/${rec.dbId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, summarize }),
@@ -315,7 +322,7 @@ const Dashboard = () => {
       );
       if (!ok) return;
       try {
-        await fetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
+        await authFetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
       } catch (err) {
         console.error(err);
       }
@@ -331,6 +338,56 @@ const Dashboard = () => {
     }, 300);
   };
 
+  const handleUploadSubmit = async () => {
+    if (!uploadFile || !uploadCategoryId || !userId) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("category_id", uploadCategoryId);
+      formData.append("user_id", userId);
+      if (uploadTitle.trim()) formData.append("title", uploadTitle.trim());
+
+      const res = await authFetch("/api/v1/records/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Upload fehlgeschlagen" }));
+        toast.error(err.detail || "Upload fehlgeschlagen");
+        return;
+      }
+      const data = await res.json();
+
+      const cat = categories.find(c => c.id.toString() === uploadCategoryId);
+      const tempRecording: Recording = {
+        id: data.session_id,
+        dbId: data.record_id,
+        title: uploadTitle.trim() || `Upload ${new Date().toLocaleString("de-DE")}`,
+        categoryId: parseInt(uploadCategoryId),
+        categoryName: cat?.name || "Unkategorisiert",
+        timestamp: new Date().toLocaleString("de-DE"),
+        content: "",
+        summarize: "",
+        userid: userId,
+        taskId: data.task_id,
+      };
+      if (showArchived) setShowArchived(false);
+      setRecordings(prev => [tempRecording, ...prev]);
+      setSelectedRecording(tempRecording);
+      setUploadDialogOpen(false);
+      setUploadFile(null);
+      setUploadTitle("");
+      setUploadCategoryId(null);
+      toast.success("Upload erfolgreich – Transkription läuft.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Upload fehlgeschlagen");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="relative min-h-dvh bg-background flex">
       <Sidebar
@@ -343,6 +400,7 @@ const Dashboard = () => {
         onUnarchiveRecording={handleUnarchive}
         showArchived={showArchived}
         onToggleArchived={setShowArchived}
+        onUploadClick={() => setUploadDialogOpen(true)}
         mobileOpen={mobileSidebarOpen}
         onMobileOpenChange={setMobileSidebarOpen}
       />
@@ -385,7 +443,7 @@ const Dashboard = () => {
                   setUnfinishedSessionId(null);
                   setSelectedRecording(null);
                   try {
-                    await fetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
+                    await authFetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
                   } catch (err) {
                     console.error(err);
                     toast.error("Fehler beim Abbrechen der Aufnahme");
@@ -434,7 +492,7 @@ const Dashboard = () => {
                       const ok = confirm("Aufnahme wirklich verwerfen?");
                       if (!ok) return;
                       try {
-                        await fetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
+                        await authFetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
                       } catch (err) {
                         console.error(err);
                       }
@@ -519,6 +577,91 @@ const Dashboard = () => {
                     disabled={!categoryId}
                   >
                     Aufnahme starten
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
+              if (!uploading) setUploadDialogOpen(open);
+            }}>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Audio hochladen</DialogTitle>
+                  <DialogDescription>
+                    Laden Sie eine fertige Audiodatei hoch. Sie durchläuft automatisch die Transkriptions- und Zusammenfassungspipeline.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <label htmlFor="upload-title" className="text-sm font-medium">Titel (optional)</label>
+                    <Input
+                      id="upload-title"
+                      value={uploadTitle}
+                      onChange={(e) => setUploadTitle(e.target.value)}
+                      placeholder="z.B. Anamnese Patient Müller"
+                      disabled={uploading}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Kategorie</label>
+                    <Select
+                      value={uploadCategoryId || ""}
+                      onValueChange={(val) => setUploadCategoryId(val)}
+                      disabled={uploading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Kategorie auswählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {categories.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Legen Sie zuerst eine Kategorie unter Einstellungen an.
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="upload-file" className="text-sm font-medium">Audiodatei</label>
+                    <Input
+                      id="upload-file"
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                      disabled={uploading}
+                    />
+                    {uploadFile && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        Ausgewählt: {uploadFile.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Wichtiger Hinweis</AlertTitle>
+                    <AlertDescription className="text-sm leading-relaxed">
+                      Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
+                      Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
+                      Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="secondary" disabled={uploading}>Abbrechen</Button>
+                  </DialogClose>
+                  <Button
+                    onClick={handleUploadSubmit}
+                    disabled={!uploadCategoryId || !uploadFile || uploading}
+                  >
+                    {uploading ? "Wird hochgeladen..." : "Hochladen"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

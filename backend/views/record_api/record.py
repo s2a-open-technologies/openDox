@@ -26,7 +26,7 @@ import uuid
 from datetime import datetime
 
 import numpy as np
-from fastapi import HTTPException, WebSocket
+from fastapi import Depends, File, Form, HTTPException, UploadFile, WebSocket
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
@@ -40,9 +40,11 @@ from backend.components.models.record_model import (
     RecordUpdate,
 )
 from backend.components.models.task_model import Task
+from backend.components.models.user_model import User
 from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
 from backend.components.modules.text_dedup import merge_overlapping_text
+from backend.components.security.hashing import decode_token
 from backend.components.services.asr_factory import get_final_backend, get_live_backend
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
@@ -54,11 +56,26 @@ from backend.components.services.sanitizing_service import (
 )
 from backend.components.services.session_store import session_store
 from backend.components.sql.sql_engine import SessionDep
+from backend.views.auth_api.dependencies import get_current_user
 
 # Custom imports
 from backend.views.record_api import record_bp
 
 logger = get_logger(__name__)
+
+
+def _require_owner(current_user: User, owner_id: int) -> None:
+    """Raise 403 unless the current user owns the resource or is an admin.
+
+    Args:
+        current_user: Authenticated user making the request.
+        owner_id: ``user_id`` of the resource being accessed.
+
+    Raises:
+        HTTPException: 403 if the user is neither the owner nor an admin.
+    """
+    if current_user.id != owner_id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized for this resource")
 
 
 async def _run_periodic_cleanup(session_id: str, websocket: WebSocket) -> None:
@@ -135,12 +152,18 @@ def get_final_asr():
 
 
 @record_bp.post("/create")
-async def record_create(db: SessionDep, data: RecordCreate):
+async def record_create(
+    db: SessionDep,
+    data: RecordCreate,
+    current_user: User = Depends(get_current_user),
+):
     """Creates a new record
 
     Parameters:
         payload (str): Payload with user_id and session_id and title
     """
+    _require_owner(current_user, data.user_id)
+
     # Create a unique session_id
     session_id = uuid.uuid4()
 
@@ -174,12 +197,149 @@ async def record_create(db: SessionDep, data: RecordCreate):
     return record
 
 
+ALLOWED_AUDIO_EXTS = {
+    "wav",
+    "mp3",
+    "m4a",
+    "ogg",
+    "flac",
+    "webm",
+    "aac",
+    "opus",
+}
+
+
+def _ext_from_filename(filename: str | None) -> str:
+    """Extract the lowercase extension from a filename, defaulting to 'wav'."""
+    if filename and "." in filename:
+        return filename.rsplit(".", 1)[-1].lower()
+    return "wav"
+
+
+@record_bp.post("/upload")
+async def upload_audio(
+    db: SessionDep,
+    file: UploadFile = File(...),
+    category_id: int = Form(...),
+    user_id: int = Form(...),
+    title: str | None = Form(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a finished audio file and run it through the transcription pipeline.
+
+    Accepts any ffmpeg-compatible audio format (validated by extension or
+    content type). The file is saved to ``chunks/`` and processed by the
+    existing ``background_transcription_task`` (Whisper -> PII -> LLM summary),
+    identical to the live-recording finalize flow. No ``session_store`` entry
+    is created — there is no live session to track.
+
+    Args:
+        db: Database session.
+        file: Uploaded audio file.
+        category_id: Category to associate with the record.
+        user_id: Owner of the record.
+        title: Optional title; defaults to ``"Upload {timestamp}"``.
+        current_user: Authenticated user (must own ``user_id`` or be admin).
+
+    Returns:
+        Dict with ``task_id``, ``session_id`` and ``record_id``.
+
+    Raises:
+        HTTPException 415: If the file is not a supported audio format.
+    """
+    _require_owner(current_user, user_id)
+
+    ext = _ext_from_filename(file.filename)
+    content_type = (file.content_type or "").lower()
+    if ext not in ALLOWED_AUDIO_EXTS and not content_type.startswith("audio/"):
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{ext}'. Allowed: "
+            f"{', '.join(sorted(ALLOWED_AUDIO_EXTS))}",
+        )
+
+    session_id = str(uuid.uuid4())
+    effective_title = title.strip() if title and title.strip() else None
+    if not effective_title:
+        effective_title = f"Upload {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+
+    record = Record(
+        session_id=session_id,
+        user_id=user_id,
+        category_id=category_id,
+        title=effective_title,
+        timestamp=datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+        content="",
+        summarize="",
+        file="",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    task = Task(status="pending")
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    record.task_id = task.id
+    db.add(record)
+    db.commit()
+
+    upload_path = os.path.join(OUTPUT_DIR, f"upload_{session_id}.{ext}")
+    try:
+        with open(upload_path, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+    except Exception as e:
+        try:
+            os.remove(upload_path)
+        except OSError:
+            pass
+        db.delete(record)
+        db.delete(task)
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Failed to save upload: {e}")
+
+    async def run_pipeline() -> None:
+        """Run the background transcription task and clean up the audio file."""
+        try:
+            await asyncio.to_thread(
+                background_transcription_task,
+                task.id,
+                session_id,
+                None,
+                file_path=upload_path,
+            )
+        except Exception as e:
+            logger.error("[UPLOAD] background_transcription_task failed: %s", e)
+        finally:
+            try:
+                os.remove(upload_path)
+            except OSError:
+                pass
+
+    asyncio.create_task(run_pipeline())
+
+    return {
+        "task_id": task.id,
+        "session_id": session_id,
+        "record_id": record.id,
+    }
+
+
 @record_bp.get("/active-session/{user_id}")
-async def active_session(user_id: int):
+async def active_session(
+    user_id: int, current_user: User = Depends(get_current_user)
+):
     """Return the user's active (unfinished) recording session, if any.
 
     Drives the "unfinished recording" indicator in the sidebar.
     """
+    _require_owner(current_user, user_id)
+
     session = session_store.get_session(user_id)
     if not session:
         return {"active": False}
@@ -195,12 +355,16 @@ async def active_session(user_id: int):
 
 
 @record_bp.delete("/cancel-session/{user_id}")
-async def cancel_session(user_id: int, db: SessionDep):
+async def cancel_session(
+    user_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
     """Cancel an unfinished recording.
 
     Deletes the live session from the store, the DB record and the audio files
     on disk for that session.
     """
+    _require_owner(current_user, user_id)
+
     session = session_store.get_session(user_id)
     if not session:
         return {"status": "no_active_session"}
@@ -229,11 +393,14 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
     session_id = websocket.query_params.get("session_id")
     user_id = websocket.query_params.get("user_id")
+    token = websocket.query_params.get("token")
 
-    if not session_id or not user_id:
+    if not session_id or not user_id or not token:
         try:
-            await websocket.send_json({"error": "session_id and user_id required"})
-            await websocket.close()
+            await websocket.send_json(
+                {"error": "session_id, user_id and token required"}
+            )
+            await websocket.close(code=1008)
         except Exception:
             pass
         return
@@ -243,7 +410,38 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     except ValueError:
         try:
             await websocket.send_json({"error": "user_id must be an integer"})
-            await websocket.close()
+            await websocket.close(code=1008)
+        except Exception:
+            pass
+        return
+
+    payload = decode_token(token)
+    if (
+        not payload
+        or payload.get("token_type") != "access"
+        or payload.get("sub") is None
+    ):
+        try:
+            await websocket.send_json({"error": "Invalid or expired token"})
+            await websocket.close(code=1008)
+        except Exception:
+            pass
+        return
+
+    try:
+        token_user_id = int(payload["sub"])
+    except (TypeError, ValueError):
+        token_user_id = None
+
+    authed_user = db.get(User, token_user_id) if token_user_id is not None else None
+    if (
+        authed_user is None
+        or not authed_user.is_active
+        or (token_user_id != user_id_int and not authed_user.is_superuser)
+    ):
+        try:
+            await websocket.send_json({"error": "Not authorized for this session"})
+            await websocket.close(code=1008)
         except Exception:
             pass
         return
@@ -600,11 +798,17 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
 
 @record_bp.put("/record/{record_id}", response_model=RecordRead)
-async def update_record(record_id: int, data: RecordUpdate, db: SessionDep):
+async def update_record(
+    record_id: int,
+    data: RecordUpdate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
     """Update an existing record (transcript, summary, title, category)"""
     record = db.get(Record, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
+    _require_owner(current_user, record.user_id)
 
     if data.title is not None:
         record.title = data.title
@@ -625,8 +829,15 @@ async def update_record(record_id: int, data: RecordUpdate, db: SessionDep):
 
 # Route for showing records in frontend
 @record_bp.get("/list-records/{user_id}")
-async def list_records(user_id: int, db: SessionDep, archived: bool = False):
+async def list_records(
+    user_id: int,
+    db: SessionDep,
+    archived: bool = False,
+    current_user: User = Depends(get_current_user),
+):
     """List all records for a specific user, filtering by archived status"""
+    _require_owner(current_user, user_id)
+
     # Get the record sessions per user and archived status, newest first
     smt = (
         select(Record)
@@ -641,23 +852,36 @@ async def list_records(user_id: int, db: SessionDep, archived: bool = False):
 
 # Route to get the status of an actual task
 @record_bp.get("/by-session/{session_id}", response_model=RecordRead)
-async def get_record_by_session(session_id: str, db: SessionDep):
+async def get_record_by_session(
+    session_id: str,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
     """Get a record by its session_id"""
     smt = select(Record).where(Record.session_id == session_id)
     record = db.exec(smt).one_or_none()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
+    _require_owner(current_user, record.user_id)
     return record
 
 
 # Route to get the status of an actual task
 @record_bp.get("/status/{task_id}")
-async def transcription_status(task_id: int, db: SessionDep):
+async def transcription_status(
+    task_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
 
     task = db.get(Task, task_id)
 
     if not task:
         return {"error": "Task not found"}
+
+    record = db.exec(select(Record).where(Record.task_id == task_id)).one_or_none()
+    if record:
+        _require_owner(current_user, record.user_id)
+    elif not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized for this resource")
 
     return {
         "task_id": task.id,
@@ -669,21 +893,27 @@ async def transcription_status(task_id: int, db: SessionDep):
 
 # CRUD Records
 @record_bp.get("/record/{record_id}", response_model=RecordRead)
-async def get_record(record_id: int, db: SessionDep):
+async def get_record(
+    record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
     """Retrieves the information for the specific record"""
     record = db.get(Record, record_id)
     print(record)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
+    _require_owner(current_user, record.user_id)
     return record
 
 
 @record_bp.delete("/record/{record_id}")
-async def delete_record(record_id: int, db: SessionDep):
+async def delete_record(
+    record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
     """Delete a record permanently"""
     record = db.get(Record, record_id)
     if not record:
         return {"error": "Record not found"}
+    _require_owner(current_user, record.user_id)
 
     audio_path = record.file if record.file else None
 
@@ -701,11 +931,14 @@ async def delete_record(record_id: int, db: SessionDep):
 
 
 @record_bp.post("/record/{record_id}/summarize")
-async def regenerate_summary(record_id: int, db: SessionDep):
+async def regenerate_summary(
+    record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
     """Re-generate the LLM summary for an existing record using its current content."""
     record = db.get(Record, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
+    _require_owner(current_user, record.user_id)
     if not record.content:
         raise HTTPException(
             status_code=400, detail="Record has no transcription content"
@@ -778,11 +1011,14 @@ async def regenerate_summary(record_id: int, db: SessionDep):
 
 
 @record_bp.put("/record/{record_id}/archive")
-async def archive_record(record_id: int, db: SessionDep):
+async def archive_record(
+    record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
     """Archive a record"""
     record = db.get(Record, record_id)
     if not record:
         return {"error": "Record not found"}
+    _require_owner(current_user, record.user_id)
 
     record.archived = True
     db.add(record)
@@ -792,11 +1028,14 @@ async def archive_record(record_id: int, db: SessionDep):
 
 
 @record_bp.put("/record/{record_id}/unarchive")
-async def unarchive_record(record_id: int, db: SessionDep):
+async def unarchive_record(
+    record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
     """Unarchive a record"""
     record = db.get(Record, record_id)
     if not record:
         return {"error": "Record not found"}
+    _require_owner(current_user, record.user_id)
 
     record.archived = False
     db.add(record)

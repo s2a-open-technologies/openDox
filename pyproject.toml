@@ -82,6 +82,7 @@ dependencies = [
     "xxhash==3.7.0",
     "zstandard==0.25.0",
     "itsdangerous>=2.2.0",
+    "pytest>=9.1.1",
 ]
 
 [[tool.uv.index]]
@@ -115,3 +116,7 @@ convention = "google"
 # Ruff übernimmt hier die Arbeit von Black
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

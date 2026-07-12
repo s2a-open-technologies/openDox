@@ -38,6 +38,18 @@ else:
     _fernet = Fernet(_raw_key.encode() if isinstance(_raw_key, str) else _raw_key)
 
 
+def get_current_key() -> bytes | None:
+    """Return the raw ``ENCRYPTION_KEY`` bytes currently configured.
+
+    Returns:
+        The key as bytes, or ``None`` if ``ENCRYPTION_KEY`` is not set
+        (encryption disabled).
+    """
+    if _raw_key is None:
+        return None
+    return _raw_key.encode() if isinstance(_raw_key, str) else _raw_key
+
+
 def encrypt(value: str) -> str:
     if _fernet is None or not value:
         return value

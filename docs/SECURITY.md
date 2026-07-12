@@ -154,42 +154,34 @@ echo "secrets/" >> .gitignore
 - Annual security review
 - After security incident
 
-**Rotation process:**
+**Rotation process (automatic):**
 
-1. **Generate new key:**
+1. Generate a new key:
 ```bash
 NEW_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-echo $NEW_KEY
 ```
 
-2. **Re-encrypt existing data** (requires downtime):
-```python
-# migration script
-from backend.components.sql.sql_engine import get_session_factory
-from backend.components.models.record_model import Record
-
-session = get_session_factory()()
-records = session.query(Record).all()
-
-for record in records:
-    # Decrypt with old key, encrypt with new key
-    # Requires both keys temporarily available
-    pass
-```
-
-3. **Update environment:**
+2. Set both env vars for the next restart (the old key is needed once, to
+   decrypt existing data before re-encrypting it under the new key):
 ```bash
-# Update ENCRYPTION_KEY in environment
-# Restart application
+ENCRYPTION_KEY_PREVIOUS=<the old key>
+ENCRYPTION_KEY=$NEW_KEY
 ```
 
-4. **Verify:**
-```bash
-# Test that new records are encrypted with new key
-# Verify old records still readable (backward compatibility)
-```
+3. Restart the container. On startup the app detects the key change (via a
+   fingerprint stored in the `EncryptionKeyState` table), re-encrypts every
+   `Record.content`/`summarize`/`pii_mapping` value in place, and logs
+   `Encryption key rotation complete (N records re-encrypted)`. The process
+   is idempotent and safe to interrupt — an incomplete run resumes on the
+   next restart with the same env vars.
 
-**Note:** Fernet supports key rotation via `MultiFernet` for seamless transitions.
+4. Verify: check `GET /api/v1/settings/services-health/` — the
+   `"Verschlüsselung"` entry should read `"online"`. `ENCRYPTION_KEY_PREVIOUS`
+   can now be removed from the environment.
+
+See `backend/components/security/key_rotation.py` for the implementation and
+`docs/superpowers/specs/2026-07-12-encryption-key-rotation-design.md` for the
+full design rationale.
 
 ---
 

@@ -66,6 +66,18 @@ def _run_alembic_migrations(logger):
         logger.error("Alembic migration failed: %s", e)
 
 
+def _run_key_rotation(logger):
+    from backend.components.modules.env import env_or_file
+    from backend.components.security import field_encryption, key_rotation
+    from backend.components.sql.sql_engine import get_session_factory
+
+    current_key = field_encryption.get_current_key()
+    previous_key_raw = env_or_file("ENCRYPTION_KEY_PREVIOUS", None)
+    key_rotation.run_key_rotation_if_needed(
+        get_session_factory(), logger, current_key, previous_key_raw
+    )
+
+
 def _read_app_version(project_root: str) -> str:
     """Read the app version from pyproject.toml's [project] table."""
     try:
@@ -168,6 +180,7 @@ def create_app():
 
     logger.info("Running Alembic migrations...")
     _run_alembic_migrations(logger)
+    _run_key_rotation(logger)
 
     root_path = env_or_file("ROOT_PATH", "") or ""
     if root_path:

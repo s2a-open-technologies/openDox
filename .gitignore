@@ -31,3 +31,7 @@ static/
 frontend/dist/
 # Git worktrees (superpowers:using-git-worktrees)
 .worktrees/
+
+# Local-only, not tracked in git
+docker_buid_pull.sh
+docs/superpowers/

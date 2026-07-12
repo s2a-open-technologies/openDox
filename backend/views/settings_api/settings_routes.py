@@ -290,12 +290,25 @@ async def get_services_health(db: SessionDep):
         except (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout):
             return {"name": "PII", "status": "offline"}
 
+    async def check_encryption():
+        from backend.components.models.encryption_key_state import EncryptionKeyState
+        from backend.components.security import field_encryption, key_rotation
+
+        current_key = field_encryption.get_current_key()
+        if current_key is None:
+            return {"name": "Verschlüsselung", "status": "disabled"}
+        state = db.exec(select(EncryptionKeyState)).first()
+        if state and state.key_fingerprint == key_rotation.fingerprint_key(current_key):
+            return {"name": "Verschlüsselung", "status": "online"}
+        return {"name": "Verschlüsselung", "status": "offline"}
+
     services = await asyncio.gather(
         check_postgres(),
         check_redis(),
         check_whisper(),
         check_parakeet(),
         check_entityguard(),
+        check_encryption(),
     )
     return {"services": [{"name": "Backend", "status": "online"}, *services]}
 

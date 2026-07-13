@@ -53,6 +53,7 @@ class SPAStaticFiles(StaticFiles):
 
 
 def _run_alembic_migrations(logger):
+    migration_error = None
     try:
         from alembic.command import upgrade
         from alembic.config import Config as AlembicConfig
@@ -61,9 +62,17 @@ def _run_alembic_migrations(logger):
         alembic_cfg = AlembicConfig(os.path.join(project_root, "alembic.ini"))
         alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_URI)
         upgrade(alembic_cfg, "head")
-        logger.info("Alembic migrations applied successfully")
     except Exception as e:
-        logger.error("Alembic migration failed: %s", e)
+        migration_error = e
+    finally:
+        # alembic/env.py runs fileConfig(alembic.ini), which replaces the
+        # root handler and drops the level to WARNING — restore our own
+        # logging setup so post-migration startup logs stay visible.
+        initialize_logging()
+    if migration_error is not None:
+        logger.error("Alembic migration failed: %s", migration_error)
+    else:
+        logger.info("Alembic migrations applied successfully")
 
 
 def _run_key_rotation(logger):
@@ -180,7 +189,11 @@ def create_app():
 
     logger.info("Running Alembic migrations...")
     _run_alembic_migrations(logger)
+    logger.info("Alembic migration step finished")
+
+    logger.info("Checking encryption key rotation...")
     _run_key_rotation(logger)
+    logger.info("Key rotation step finished")
 
     root_path = env_or_file("ROOT_PATH", "") or ""
     if root_path:
@@ -192,7 +205,9 @@ def create_app():
         os.makedirs(static_dir, exist_ok=True)
 
     # Bake ROOT_PATH into index.html so StaticFiles (html=True) serves it correctly
+    logger.info("Injecting root path into index.html...")
     _inject_root_path(static_dir, root_path)
+    logger.info("Root path injection finished")
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_version = _read_app_version(project_root)
@@ -230,10 +245,15 @@ def create_app():
         return {"version": app_version}
 
     router_prefix = root_path or ""
+    logger.info("Including record_bp router...")
     app.include_router(record_bp, prefix=router_prefix)
+    logger.info("Including auth_bp router...")
     app.include_router(auth_bp, prefix=router_prefix)
+    logger.info("Including oidc_bp router...")
     app.include_router(oidc_bp, prefix=router_prefix)
+    logger.info("Including settings_bp router...")
     app.include_router(settings_bp, prefix=router_prefix)
+    logger.info("All routers included")
 
     # /opendox → /opendox/ so the browser resolves relative asset paths correctly
     if root_path:
@@ -248,5 +268,6 @@ def create_app():
         SPAStaticFiles(directory=static_dir, html=True),
         name="static",
     )
+    logger.info("Static files mounted, create_app() returning")
 
     return app

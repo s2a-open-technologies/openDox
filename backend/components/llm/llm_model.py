@@ -22,6 +22,12 @@ from langchain_openai import ChatOpenAI
 
 from backend.components.services.settings_service import get_llm_settings
 
+# No default timeout exists on ChatOpenAI/httpx — without one, a hung or
+# very slow local model (e.g. a large model with no GPU) leaves the
+# background task stuck at status="processing_llm" forever, indistinguishable
+# from a genuine hang. 5 minutes is generous enough for a large local model
+# on modest hardware while still guaranteeing the task eventually errors out.
+LLM_REQUEST_TIMEOUT_SECONDS = 300
 
 _THINKING_STARTERS = re.compile(
     r"^(thought\b|<think|<thinking|<thought|here\'s my|let me|i need to|i will|"
@@ -99,6 +105,7 @@ class OllamaModel:
             max_tokens=self.max_tokens,
             top_p=0.9,
             frequency_penalty=0.3,
+            timeout=LLM_REQUEST_TIMEOUT_SECONDS,
         )
 
     def reload(self):
@@ -120,6 +127,7 @@ class OllamaModel:
                     max_tokens=self.max_tokens,
                     top_p=0.9,
                     frequency_penalty=0.3,
+                    timeout=LLM_REQUEST_TIMEOUT_SECONDS,
                     model_kwargs={"think": False},
                 )
         except Exception:
@@ -171,4 +179,11 @@ class OllamaModel:
         chain = template | self.client
         response = chain.invoke({"message": message})
 
-        return _strip_thinking(response.content)
+        result = _strip_thinking(response.content)
+        if not result.strip():
+            raise ValueError(
+                "LLM response was empty after stripping reasoning/thinking "
+                "blocks — the model likely got stuck reasoning without "
+                "producing an answer."
+            )
+        return result

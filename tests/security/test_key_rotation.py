@@ -87,6 +87,20 @@ def test_first_run_stores_baseline_without_migrating(session_factory):
     assert _read_fingerprint(session_factory) == fingerprint_key(KEY_A)
 
 
+def test_first_run_logs_checkpoints_along_the_way(session_factory, caplog):
+    # Regression guard: this path used to be completely silent, which made a
+    # production hang on the first SELECT indistinguishable from any other
+    # stall further down the startup sequence.
+    test_logger = logging.getLogger("test")
+    with caplog.at_level(logging.INFO):
+        run_key_rotation_if_needed(session_factory, test_logger, KEY_A, None)
+
+    assert "entered" in caplog.text
+    assert "fetching encryption key state row" in caplog.text
+    assert "storing baseline fingerprint" in caplog.text
+    assert "baseline fingerprint stored" in caplog.text
+
+
 def test_no_rotation_when_fingerprint_matches(session_factory):
     run_key_rotation_if_needed(session_factory, logging.getLogger("test"), KEY_A, None)
     # Second call with the same key must be a no-op fast path.

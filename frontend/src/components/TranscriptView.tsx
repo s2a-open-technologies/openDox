@@ -135,19 +135,10 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
       case 'pending':
       case 'running':
       case 'transcribing':
-        return (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 text-red-700 border border-red-200 animate-pulse dark:bg-red-900/30 dark:text-red-400 dark:border-red-900">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span className="text-xs font-semibold">Transkription läuft...</span>
-          </div>
-        );
       case 'processing_llm':
-        return (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200 animate-pulse dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span className="text-xs font-semibold">KI arbeitet...</span>
-          </div>
-        );
+        // Redundant with the isProcessing banner above the title row —
+        // that one already shows a "läuft"/"arbeitet" indicator.
+        return null;
       case 'finished':
         return (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900">

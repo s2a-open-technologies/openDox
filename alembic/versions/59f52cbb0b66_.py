@@ -1,4 +1,4 @@
-"""empty message
+"""no-op checkpoint (whisper transcription server)
 
 Revision ID: 59f52cbb0b66
 Revises: a65412656c1b

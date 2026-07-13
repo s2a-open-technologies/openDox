@@ -1,4 +1,4 @@
-"""empty message
+"""change whisper overlap_s column to float
 
 Revision ID: e68c3c754d84
 Revises: 560287c845a5

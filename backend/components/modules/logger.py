@@ -24,25 +24,34 @@ LOG_LEVEL = env_or_file("LOG_LEVEL", "INFO")
 
 
 def initialize_logging():
-    """Initialize logging to use uvicorn's logging system."""
-    # Configure uvicorn loggers
-    uvicorn_error_logger = logging.getLogger("uvicorn.error")
-    uvicorn_error_logger.setLevel(LOG_LEVEL)
+    """Attach a stdout handler to the root logger.
 
-    uvicorn_access_logger = logging.getLogger("uvicorn.access")
-    uvicorn_access_logger.setLevel(LOG_LEVEL)
-
-    # Configure root logger to use uvicorn.error handler
+    Must not depend on uvicorn having already configured its own
+    "uvicorn.error"/"uvicorn.access" handlers: create_app() runs during app
+    import, which can happen before uvicorn sets those up. The previous
+    implementation tried to borrow uvicorn's handlers at that point, found
+    none yet configured, and left the root logger with zero handlers —
+    every application log line was silently dropped, with no error, ever.
+    """
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL)
 
-    # Remove existing handlers to avoid duplicates
+    # Remove existing handlers to avoid duplicates on repeated calls.
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
-    # Add uvicorn.error handler to root logger
-    for handler in uvicorn_error_logger.handlers:
-        root_logger.addHandler(handler)
+    stream_handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(levelname)-8s [%(name)s] %(message)s")
+    stream_handler.setFormatter(formatter)
+    root_logger.addHandler(stream_handler)
+
+    # Do NOT set propagate=False on uvicorn.error/uvicorn.access here:
+    # uvicorn.error has no handlers of its own — its records (including the
+    # "Uvicorn running on ..." banner) reach a handler only by propagating
+    # to the parent "uvicorn" logger. uvicorn's own config already stops
+    # propagation at "uvicorn"/"uvicorn.access", so nothing is doubled.
+    for name in ("uvicorn.error", "uvicorn.access"):
+        logging.getLogger(name).setLevel(LOG_LEVEL)
 
 
 def get_logger(name: str = __name__):

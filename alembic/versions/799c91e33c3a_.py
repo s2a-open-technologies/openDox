@@ -1,4 +1,4 @@
-"""empty message
+"""no-op checkpoint (code structure refactor)
 
 Revision ID: 799c91e33c3a
 Revises: e68c3c754d84

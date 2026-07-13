@@ -40,9 +40,12 @@ config = context.config
 alembic_uri = SQLALCHEMY_URI
 config.set_main_option("sqlalchemy.url", alembic_uri)
 
-# Interpret the config file for Python logging
+# Interpret the config file for Python logging.
+# disable_existing_loggers=False is critical: create_app() runs migrations
+# in-process, and the default (True) would disable every already-created
+# logger — all application loggers and uvicorn's — leaving the app mute.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # All models are registered in SQLModel.metadata via imports above
 target_metadata = SQLModel.metadata

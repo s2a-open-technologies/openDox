@@ -1,4 +1,4 @@
-"""empty message
+"""no-op checkpoint (parakeet asr integration)
 
 Revision ID: 59cb2af47da0
 Revises: 81b791918584

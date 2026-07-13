@@ -1,4 +1,4 @@
-"""empty message
+"""add PII sanitizer settings and record mapping column
 
 Revision ID: 0c0d79e460c9
 Revises: b2f9a1c3d8e5

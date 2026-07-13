@@ -13,7 +13,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: opendox-postgres
-    #restart: always
+    restart: always
     environment:
       POSTGRES_USER: ${SQL_USER:-postgres}
       POSTGRES_PASSWORD: ${SQL_PASS:-postgres}
@@ -32,7 +32,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: opendox-redis
-    #restart: always
+    restart: always
     command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
@@ -55,10 +55,10 @@ services:
     volumes:
       - whisper-data:/var/lib/whisper
     environment:
-      - WHISPER_MODEL=${WHISPER_MODEL:-large-v3-turbo}
-      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
-      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
-      - WHISPER_API_KEY=${WHISPER_API_KEY:-loc-123}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
     # deploy:
     #   resources:
     #     reservations:
@@ -110,15 +110,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Redis Session Store
       REDIS_URL: redis://redis:6379/0
-      # Whisper API (point to the whisper container — used for final transcription)
-      WHISPER_API_ENDPOINT: http://whisper:5002/v1
-      WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
-      # Parakeet API (CPU, used for live transcription)
-      PARAKEET_API_ENDPOINT: http://parakeet:5001/v1
       # Root path for sub-path deployment (e.g. /app)
       ROOT_PATH: ${ROOT_PATH:-}
     volumes:
-      - app-logs:/app/logs
       - app-chunks:/app/chunks
       - app-models-cache:/app/models_cache
       - app-certs:/app/certs
@@ -139,8 +133,6 @@ volumes:
     name: opendox-redis-data
   whisper-data:
     name: opendox-whisper-data
-  app-logs:
-    name: opendox-app-logs
   app-chunks:
     name: opendox-app-chunks
   app-models-cache:

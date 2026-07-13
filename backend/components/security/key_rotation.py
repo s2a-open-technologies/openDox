@@ -164,21 +164,37 @@ def run_key_rotation_if_needed(
         previous_key_raw: The previous key (``ENCRYPTION_KEY_PREVIOUS``), or
             ``None`` if not supplied.
     """
+    logger.info("run_key_rotation_if_needed: entered")
     if current_key is None:
+        logger.info("run_key_rotation_if_needed: encryption disabled, skipping")
         return
 
     fp = fingerprint_key(current_key)
 
+    logger.info("run_key_rotation_if_needed: opening session")
     with session_factory() as session:
+        logger.info("run_key_rotation_if_needed: session opened")
+        if session.get_bind().dialect.name == "postgresql":
+            logger.info("run_key_rotation_if_needed: setting lock_timeout")
+            session.execute(text("SET LOCAL lock_timeout = '10s'"))
+        logger.info("run_key_rotation_if_needed: fetching encryption key state row")
         state = session.exec(select(EncryptionKeyState)).first()
+        state_desc = "none, first run"
+        if state is not None:
+            state_desc = f"fingerprint={state.key_fingerprint}"
+        logger.info("run_key_rotation_if_needed: state row fetched (%s)", state_desc)
         if state is None:
+            logger.info("run_key_rotation_if_needed: storing baseline fingerprint")
             session.add(EncryptionKeyState(key_fingerprint=fp))
             session.commit()
+            logger.info("run_key_rotation_if_needed: baseline fingerprint stored")
             return
         if state.key_fingerprint == fp:
+            logger.info("run_key_rotation_if_needed: fingerprint unchanged, no-op")
             return
         state_id = state.id
 
+    logger.info("run_key_rotation_if_needed: fingerprint changed, rotation needed")
     if not previous_key_raw:
         logger.warning(
             "ENCRYPTION_KEY changed but ENCRYPTION_KEY_PREVIOUS is not set — "
@@ -194,7 +210,13 @@ def run_key_rotation_if_needed(
         return
 
     new_fernet = Fernet(current_key)
+    logger.info("run_key_rotation_if_needed: starting batched re-encryption")
     seen, updated = _reencrypt_all_records(session_factory, old_fernet, new_fernet)
+    logger.info(
+        "run_key_rotation_if_needed: re-encryption pass done (seen=%d, updated=%d)",
+        seen,
+        updated,
+    )
 
     if seen > 0 and updated == 0:
         logger.warning(

@@ -123,7 +123,7 @@ services:
       - app-models-cache:/app/models_cache
       - app-certs:/app/certs
     extra_hosts:
-      - "host.docker.internal:docker-gateway"
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

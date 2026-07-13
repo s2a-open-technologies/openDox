@@ -23,7 +23,7 @@ import time
 
 # Third party
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 from fastapi import Depends, File, Form, HTTPException, UploadFile, WebSocket
@@ -331,9 +331,7 @@ async def upload_audio(
 
 
 @record_bp.get("/active-session/{user_id}")
-async def active_session(
-    user_id: int, current_user: User = Depends(get_current_user)
-):
+async def active_session(user_id: int, current_user: User = Depends(get_current_user)):
     """Return the user's active (unfinished) recording session, if any.
 
     Drives the "unfinished recording" indicator in the sidebar.
@@ -866,6 +864,10 @@ async def get_record_by_session(
     return record
 
 
+STALE_TASK_THRESHOLD_MINUTES = 7
+_NON_TERMINAL_TASK_STATUSES = {"pending", "running", "transcribing", "processing_llm"}
+
+
 # Route to get the status of an actual task
 @record_bp.get("/status/{task_id}")
 async def transcription_status(
@@ -876,6 +878,17 @@ async def transcription_status(
 
     if not task:
         return {"error": "Task not found"}
+
+    if (
+        task.status in _NON_TERMINAL_TASK_STATUSES
+        and datetime.utcnow() - task.updated_at
+        > timedelta(minutes=STALE_TASK_THRESHOLD_MINUTES)
+    ):
+        task.status = "error"
+        task.error = "Zeitüberschreitung – keine Antwort vom Verarbeitungsprozess"
+        db.add(task)
+        db.commit()
+        db.refresh(task)
 
     record = db.exec(select(Record).where(Record.task_id == task_id)).one_or_none()
     if record:

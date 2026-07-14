@@ -92,17 +92,13 @@ const Sidebar = ({
         >
           <Archive className="w-4 h-4" />
         </Button>
-      </div>
-
-      <div className="px-2 pt-2">
         <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
+          variant="ghost"
+          className="flex-1"
           onClick={() => onUploadClick?.()}
           title="Audio hochladen"
         >
           <Upload className="w-4 h-4" />
-          <span>Audio hochladen</span>
         </Button>
       </div>
 

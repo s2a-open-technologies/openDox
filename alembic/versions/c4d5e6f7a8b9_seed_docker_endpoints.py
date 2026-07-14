@@ -17,17 +17,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Set Parakeet and Whisper endpoints in whisper settings
-    op.execute(sa.text("""
-        UPDATE whispersettingsmodel SET
-            live_api_endpoint  = 'http://parakeet:5001/v1',
-            live_api_model     = 'nemo-parakeet-tdt-0.6b-v3',
-            final_api_endpoint = 'http://whisper:5002/v1',
-            final_api_model    = 'whisper-1'
-        WHERE id = 1
-    """))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET live_api_endpoint = 'http://parakeet:5001/v1' "
+        "WHERE id = 1 AND (live_api_endpoint IS NULL OR live_api_endpoint = '')"
+    ))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET live_api_model = 'nemo-parakeet-tdt-0.6b-v3' "
+        "WHERE id = 1 AND (live_api_model IS NULL OR live_api_model = '')"
+    ))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET final_api_endpoint = 'http://whisper:5002/v1' "
+        "WHERE id = 1 AND (final_api_endpoint IS NULL OR final_api_endpoint = '')"
+    ))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET final_api_model = 'large-v3-turbo' "
+        "WHERE id = 1 AND (final_api_model IS NULL OR final_api_model = '')"
+    ))
 
-    # Insert default LLM settings (Ollama on host via Docker DNS)
     op.execute(sa.text("""
         INSERT INTO llmsettingsmodel
             (id, llm_api_endpoint, llm_api_key, llm_model,
@@ -42,12 +52,24 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(sa.text("""
-        UPDATE whispersettingsmodel SET
-            live_api_endpoint  = NULL,
-            live_api_model     = 'whisper-1',
-            final_api_endpoint = NULL,
-            final_api_model    = 'whisper-1'
-        WHERE id = 1
-    """))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET live_api_endpoint = NULL "
+        "WHERE id = 1 AND live_api_endpoint = 'http://parakeet:5001/v1'"
+    ))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET live_api_model = NULL "
+        "WHERE id = 1 AND live_api_model = 'nemo-parakeet-tdt-0.6b-v3'"
+    ))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET final_api_endpoint = NULL "
+        "WHERE id = 1 AND final_api_endpoint = 'http://whisper:5002/v1'"
+    ))
+    op.execute(sa.text(
+        "UPDATE whispersettingsmodel "
+        "SET final_api_model = NULL "
+        "WHERE id = 1 AND final_api_model = 'large-v3-turbo'"
+    ))
     op.execute(sa.text("DELETE FROM llmsettingsmodel WHERE id = 1"))

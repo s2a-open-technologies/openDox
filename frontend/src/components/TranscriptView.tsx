@@ -46,12 +46,15 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isEditingSummary, setIsEditingSummary] = useState(false);
-  const [isRegeneratingSummary, setIsRegeneratingSummary] = useState(false);
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
   editedContentRef.current = editedContent;
   editedSummaryRef.current = editedSummary;
+
+  const currentDbIdRef = useRef(transcript?.dbId);
+  currentDbIdRef.current = transcript?.dbId;
 
   const prevId = useRef(transcript?.id);
 
@@ -185,17 +188,23 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
 
   const handleRegenerateSummary = async () => {
     if (!transcript?.dbId) return;
-    setIsRegeneratingSummary(true);
+    const targetId = transcript.dbId;
+    const targetTitle = transcript.title;
+    setRegeneratingId(targetId);
     try {
-      const res = await authFetch(`/api/v1/records/record/${transcript.dbId}/summarize`, { method: 'POST' });
+      const res = await authFetch(`/api/v1/records/record/${targetId}/summarize`, { method: 'POST' });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setEditedSummary(data.summarize || "");
-      toast.success('Zusammenfassung neu generiert');
+      if (currentDbIdRef.current === targetId) {
+        setEditedSummary(data.summarize || "");
+        toast.success('Zusammenfassung neu generiert');
+      } else {
+        toast.success(`Zusammenfassung für „${targetTitle}" aktualisiert`);
+      }
     } catch {
       toast.error('Fehler beim Generieren der Zusammenfassung');
     } finally {
-      setIsRegeneratingSummary(false);
+      setRegeneratingId(prev => (prev === targetId ? null : prev));
     }
   };
 
@@ -281,10 +290,10 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
                   variant="ghost"
                   size="icon"
                   onClick={handleRegenerateSummary}
-                  disabled={isRegeneratingSummary || isProcessing}
+                  disabled={regeneratingId === transcript?.dbId || isProcessing}
                   title="Zusammenfassung neu generieren"
                 >
-                  {isRegeneratingSummary
+                  {regeneratingId === transcript?.dbId
                     ? <Loader2 className="w-4 h-4 animate-spin" />
                     : <TfiReload />}
                 </Button>

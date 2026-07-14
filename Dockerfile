@@ -48,6 +48,10 @@ COPY alembic/ ./alembic/
 # Copy built frontend static files
 COPY --from=frontend-builder /app/backend/static ./backend/static/
 
+# Copy entrypoint script
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
 # Create runtime directories
 RUN mkdir -p logs chunks models_cache certs
 
@@ -57,5 +61,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 EXPOSE 5000
 
-# Entrypoint: run migrations then start server
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 5000"]
+ENTRYPOINT ["./entrypoint.sh"]

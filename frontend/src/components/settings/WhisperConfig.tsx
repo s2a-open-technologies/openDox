@@ -16,7 +16,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from '@/contexts/AuthContext';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface WhisperSettings {
@@ -64,21 +65,31 @@ interface WhisperSettings {
     final_beam_size: number;
 }
 
+type TestResult = { ok: boolean; message: string } | null;
+
 const WhisperConfig = () => {
     const { authFetch } = useAuth();
+    const [liveTest, setLiveTest] = useState<{ status: 'idle' | 'testing' | 'done'; result: TestResult }>({
+        status: 'idle',
+        result: null,
+    });
+    const [finalTest, setFinalTest] = useState<{ status: 'idle' | 'testing' | 'done'; result: TestResult }>({
+        status: 'idle',
+        result: null,
+    });
     const [config, setConfig] = useState<WhisperSettings>({
         live_backend: 'api',
         live_api_endpoint: '',
         live_api_key: '',
-        live_api_model: 'whisper-1',
+        live_api_model: '',
         final_backend: 'api',
         final_api_endpoint: '',
         final_api_key: '',
-        final_api_model: 'whisper-1',
+        final_api_model: '',
         language: 'de',
         chunk_length_s: 3,
         overlap_s: 0,
-        left_context_s: 0,
+        left_context_s: 1,
         temperature: 0.0,
         vad_filter: true,
         vad_min_silence_ms: 500,
@@ -99,15 +110,15 @@ const WhisperConfig = () => {
                     live_backend: data.live_backend || 'api',
                     live_api_endpoint: data.live_api_endpoint || '',
                     live_api_key: data.live_api_key || '',
-                    live_api_model: data.live_api_model || 'whisper-1',
+                    live_api_model: data.live_api_model || '',
                     final_backend: data.final_backend || 'api',
                     final_api_endpoint: data.final_api_endpoint || '',
                     final_api_key: data.final_api_key || '',
-                    final_api_model: data.final_api_model || 'whisper-1',
+                    final_api_model: data.final_api_model || '',
                     language: data.language || 'de',
                     chunk_length_s: data.chunk_length_s ?? 3,
                     overlap_s: data.overlap_s ?? 0,
-                    left_context_s: data.left_context_s ?? 0,
+                    left_context_s: data.left_context_s ?? 1,
                     temperature: data.temperature ?? 0.0,
                     vad_filter: data.vad_filter ?? true,
                     vad_min_silence_ms: data.vad_min_silence_ms ?? 500,
@@ -141,6 +152,23 @@ const WhisperConfig = () => {
             }
         } catch {
             toast.error('Verbindungsfehler');
+        }
+    };
+
+    const testAsr = async (which: 'live' | 'final') => {
+        const setter = which === 'live' ? setLiveTest : setFinalTest;
+        setter({ status: 'testing', result: null });
+        try {
+            const res = await authFetch(`/api/v1/settings/asr-test/?backend=${which}`);
+            const data = await res.json();
+            if (data.ok) {
+                const model = data.model ? ` · Modell: ${data.model}` : '';
+                setter({ status: 'done', result: { ok: true, message: `Erreichbar${model}` } });
+            } else {
+                setter({ status: 'done', result: { ok: false, message: data.error || 'Nicht erreichbar' } });
+            }
+        } catch {
+            setter({ status: 'done', result: { ok: false, message: 'Anfrage fehlgeschlagen' } });
         }
     };
 
@@ -233,7 +261,7 @@ const WhisperConfig = () => {
                                     <div className="space-y-2">
                                         <Label>Modell</Label>
                                         <Input
-                                            placeholder="whisper-1"
+                                            placeholder="nemo-parakeet-tdt-0.6b-v3"
                                             value={config.live_api_model}
                                             onChange={(e) => updateField('live_api_model', e.target.value)}
                                         />
@@ -273,6 +301,29 @@ const WhisperConfig = () => {
                                     </div>
                                 </>
                             )}
+                            <div className="flex gap-2 pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => testAsr('live')}
+                                    disabled={config.live_backend === 'disabled' || liveTest.status === 'testing'}
+                                    className="gap-2"
+                                >
+                                    {liveTest.status === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    Verbindung testen
+                                </Button>
+                            </div>
+                            {liveTest.result && (
+                                <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
+                                    liveTest.result.ok
+                                        ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300'
+                                        : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
+                                }`}>
+                                    {liveTest.result.ok
+                                        ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                        : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
+                                    <span>{liveTest.result.message}</span>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -304,11 +355,34 @@ const WhisperConfig = () => {
                             <div className="space-y-2">
                                 <Label>Modell</Label>
                                 <Input 
-                                    placeholder="whisper-1" 
+                                    placeholder="large-v3-turbo" 
                                     value={config.final_api_model} 
                                     onChange={(e) => updateField('final_api_model', e.target.value)} 
                                 />
                             </div>
+                            <div className="flex gap-2 pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => testAsr('final')}
+                                    disabled={finalTest.status === 'testing'}
+                                    className="gap-2"
+                                >
+                                    {finalTest.status === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    Verbindung testen
+                                </Button>
+                            </div>
+                            {finalTest.result && (
+                                <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
+                                    finalTest.result.ok
+                                        ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300'
+                                        : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
+                                }`}>
+                                    {finalTest.result.ok
+                                        ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                        : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
+                                    <span>{finalTest.result.message}</span>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>

@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # Standard library
+import asyncio
 import os
 import struct
 import tempfile
@@ -88,6 +89,26 @@ async def list_models():
     return {"data": [{"id": DEFAULT_MODEL, "object": "model"}]}
 
 
+def _run_recognition(wav_bytes: bytes, model_name: str | None) -> str:
+    """Run model loading (if needed) + inference off the event loop.
+
+    Both ``get_model()`` (can trigger a cold ``onnx_asr.load_model()`` on an
+    unseen model name) and ``m.recognize()`` are blocking calls; running them
+    synchronously inside the ``async def`` handler would freeze the whole
+    server for every other in-flight request until this one finishes.
+    """
+    m = get_model(model_name)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
+        tmp.write(wav_bytes)
+        tmp.flush()
+        try:
+            result = m.recognize(tmp.name)
+            return result if isinstance(result, str) else str(result)
+        except Exception as e:
+            print(f"[PARAKEET] Recognition error: {e}")
+            return ""
+
+
 @app.post("/v1/audio/transcriptions")
 async def transcribe(
     file: UploadFile = File(...),
@@ -114,17 +135,7 @@ async def transcribe(
 
     wav_bytes = content if content[:4] == b"RIFF" else _pcm_to_wav(content)
 
-    m = get_model(model or None)
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
-        tmp.write(wav_bytes)
-        tmp.flush()
-        try:
-            result = m.recognize(tmp.name)
-            text = result if isinstance(result, str) else str(result)
-        except Exception as e:
-            print(f"[PARAKEET] Recognition error: {e}")
-            text = ""
+    text = await asyncio.to_thread(_run_recognition, wav_bytes, model or None)
 
     return {"text": text}
 

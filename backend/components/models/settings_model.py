@@ -27,7 +27,7 @@ class WhisperSettingsModel(SQLModel, table=True):
     live_backend: str = Field(default="parakeet")  # "parakeet", "api", "disabled"
     live_api_endpoint: Optional[str] = Field(default=None)
     live_api_key: Optional[str] = Field(default=None)
-    live_api_model: Optional[str] = Field(default=None)  # e.g. "whisper-1"
+    live_api_model: Optional[str] = Field(default=None)
 
     # Final Transcription Settings
     final_backend: str = Field(default="api")  # "api"
@@ -39,7 +39,7 @@ class WhisperSettingsModel(SQLModel, table=True):
     language: str = Field(default="de")
     chunk_length_s: int = Field(default=3)
     overlap_s: float = Field(default=0.0)
-    left_context_s: float = Field(default=0.0)
+    left_context_s: float = Field(default=1.0)
 
     # Anti-hallucination / faster-whisper tuning (sent to the Whisper server
     # as transcription parameters). Defaults mirror the proven config that was

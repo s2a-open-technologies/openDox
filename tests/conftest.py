@@ -13,6 +13,7 @@ from backend.components.sql.sql_engine import get_session
 from backend.views.auth_api import auth_bp
 from backend.views.auth_api.oidc_routes import oidc_bp
 from backend.views.record_api import record_bp
+from backend.views.settings_api import settings_bp
 
 
 @pytest.fixture
@@ -38,6 +39,7 @@ def app(session_factory):
     test_app.include_router(auth_bp)
     test_app.include_router(oidc_bp)
     test_app.include_router(record_bp)
+    test_app.include_router(settings_bp)
 
     def override_get_session():
         with session_factory() as session:

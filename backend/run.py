@@ -23,13 +23,12 @@ import tomllib
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger, initialize_logging
-from backend.components.sql.db_config import SQLALCHEMY_URI
 from backend.views.auth_api import auth_bp, oidc_bp
 from backend.views.record_api import record_bp
 from backend.views.settings_api import settings_bp
@@ -50,29 +49,6 @@ class SPAStaticFiles(StaticFiles):
             if exc.status_code == 404:
                 return await super().get_response("index.html", scope)
             raise
-
-
-def _run_alembic_migrations(logger):
-    migration_error = None
-    try:
-        from alembic.command import upgrade
-        from alembic.config import Config as AlembicConfig
-
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        alembic_cfg = AlembicConfig(os.path.join(project_root, "alembic.ini"))
-        alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_URI)
-        upgrade(alembic_cfg, "head")
-    except Exception as e:
-        migration_error = e
-    finally:
-        # alembic/env.py runs fileConfig(alembic.ini), which replaces the
-        # root handler and drops the level to WARNING — restore our own
-        # logging setup so post-migration startup logs stay visible.
-        initialize_logging()
-    if migration_error is not None:
-        logger.error("Alembic migration failed: %s", migration_error)
-    else:
-        logger.info("Alembic migrations applied successfully")
 
 
 def _run_key_rotation(logger):
@@ -187,10 +163,6 @@ def create_app():
     initialize_logging()
     logger = get_logger()
 
-    logger.info("Running Alembic migrations...")
-    _run_alembic_migrations(logger)
-    logger.info("Alembic migration step finished")
-
     logger.info("Checking encryption key rotation...")
     _run_key_rotation(logger)
     logger.info("Key rotation step finished")
@@ -243,6 +215,41 @@ def create_app():
     @app.get(version_path)
     async def get_version():
         return {"version": app_version}
+
+    ready_path = f"{root_path}/api/ready" if root_path else "/api/ready"
+
+    @app.get(ready_path)
+    async def readiness_check():
+        """Readiness probe: returns 503 if DB or Redis is unreachable."""
+        from backend.components.services.session_store import (
+            RedisSessionStore,
+            session_store,
+        )
+        from backend.components.sql.sql_engine import get_session_factory
+
+        errors = []
+
+        try:
+            db = get_session_factory()()
+            from sqlmodel import select
+
+            db.exec(select(1))
+            db.close()
+        except Exception as exc:
+            errors.append(f"database: {exc}")
+
+        if isinstance(session_store, RedisSessionStore):
+            try:
+                session_store.ping()
+            except Exception as exc:
+                errors.append(f"redis: {exc}")
+
+        if errors:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "errors": errors},
+            )
+        return {"status": "ready"}
 
     router_prefix = root_path or ""
     logger.info("Including record_bp router...")

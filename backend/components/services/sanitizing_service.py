@@ -77,7 +77,7 @@ def _extract_mapping(original: str, sanitized: str) -> dict[str, str]:
 
 
 def sanitize(
-    text: str, endpoint: str, api_key: str | None
+    text: str, endpoint: str, api_key: str | None, timeout: int = 10
 ) -> tuple[str, dict[str, str]]:
     """Call the sanitizer endpoint and build the entity mapping.
 
@@ -89,6 +89,7 @@ def sanitize(
         text: Original text to sanitize.
         endpoint: Full URL of the sanitizer's sanitize endpoint.
         api_key: Optional bearer token.
+        timeout: Request timeout in seconds. Defaults to 10.
 
     Returns:
         Tuple of (sanitized_text, entity_mapping).
@@ -102,7 +103,7 @@ def sanitize(
         endpoint.rstrip("/"),
         json={"text": text},
         headers=headers,
-        timeout=10,
+        timeout=timeout,
     )
     response.raise_for_status()
     body = response.json()

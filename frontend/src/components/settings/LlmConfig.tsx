@@ -102,10 +102,8 @@ const LlmConfig = () => {
             const res = await authFetch('/api/v1/settings/llm-test/');
             const data = await res.json();
             if (data.ok) {
-                const modelList = data.models?.length
-                    ? data.models.join(', ')
-                    : 'keine Modelle gelistet';
-                setTestStatus({ ok: true, message: `Verbunden · ${modelList}` });
+                const reply = data.reply ? `„${data.reply}"` : 'keine Antwort erhalten';
+                setTestStatus({ ok: true, message: `Verbunden · Antwort: ${reply}` });
             } else {
                 setTestStatus({ ok: false, message: data.error || 'Unbekannter Fehler' });
             }

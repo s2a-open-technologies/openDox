@@ -19,9 +19,43 @@ import requests
 
 from backend.components.llm.llm_model import _strip_thinking
 from backend.components.modules.logger import get_logger
+from backend.components.services.sanitizing_service import (
+    _PRESERVE_TOKENS_INSTRUCTION,
+    reinject,
+    sanitize,
+)
 from backend.components.services.settings_service import get_llm_settings
 
 logger = get_logger(__name__)
+
+_LIVE_SANITIZER_TIMEOUT = 3
+
+
+def _sanitize_live(text: str) -> tuple[str, dict[str, str]]:
+    """Sanitize text for live paths; returns (original, {}) on any failure.
+
+    Live correction must never block — if EntityGuard is slow or down we
+    fall back to sending the raw text through (same as having PII disabled).
+    """
+    settings = get_llm_settings()
+    if (
+        not settings
+        or not settings.sanitizer_enabled
+        or not settings.sanitizer_endpoint
+    ):
+        return text, {}
+    try:
+        sanitized, mapping = sanitize(
+            text,
+            endpoint=settings.sanitizer_endpoint,
+            api_key=settings.sanitizer_api_key,
+            timeout=_LIVE_SANITIZER_TIMEOUT,
+        )
+        return sanitized, mapping
+    except Exception as e:
+        logger.warning("[PII-LIVE] Sanitizer failed, sending raw text: %s", e)
+        return text, {}
+
 
 _SYSTEM_PROMPT = (
     "Du bereinigst deutschen Whisper-Transkriptionstext für medizinische Diktiersoftware.\n\n"
@@ -58,12 +92,18 @@ def _is_meta_commentary(text: str) -> bool:
     return any(p in lower for p in _META_PATTERNS)
 
 
-def _call_llm(system: str, user: str, max_tokens: int = 200, timeout: int = 4) -> str | None:
+def _call_llm(
+    system: str, user: str, max_tokens: int = 200, timeout: int = 4
+) -> str | None:
     """Call the configured LLM and return the response content, or None on failure."""
     try:
         settings = get_llm_settings()
-        endpoint = (settings.llm_api_endpoint or "http://localhost:11434/v1").rstrip("/")
-        model = settings.correction_model or settings.llm_model or "medgemma-4b-it:Q4_K_M"
+        endpoint = (settings.llm_api_endpoint or "http://localhost:11434/v1").rstrip(
+            "/"
+        )
+        model = (
+            settings.correction_model or settings.llm_model or "medgemma-4b-it:Q4_K_M"
+        )
         api_key = settings.llm_api_key or "loc-123"
 
         payload = {
@@ -108,13 +148,24 @@ _SMOOTH_PROMPT = (
 def smooth_transcript(text: str) -> str:
     """Smooth chunk-boundary punctuation in an accumulated Parakeet transcript.
 
+    Sanitizes PII before the LLM call and reinjects real names afterwards.
     Returns cleaned text on success, original text on LLM failure.
     """
     if not text or not text.strip():
         return text
-    max_tokens = max(200, len(text.split()) * 2)
-    result = _call_llm(_SMOOTH_PROMPT, text, max_tokens=max_tokens, timeout=20)
+
+    text_for_llm, entity_mapping = _sanitize_live(text)
+
+    system = _SMOOTH_PROMPT
+    if entity_mapping:
+        system += _PRESERVE_TOKENS_INSTRUCTION
+
+    max_tokens = max(200, len(text_for_llm.split()) * 2)
+    result = _call_llm(system, text_for_llm, max_tokens=max_tokens, timeout=20)
+
     if result and not _is_meta_commentary(result):
+        if entity_mapping:
+            result = reinject(result, entity_mapping)
         logger.debug("[SMOOTH] %d → %d chars", len(text), len(result))
         return result
     return text
@@ -123,13 +174,22 @@ def smooth_transcript(text: str) -> str:
 def correct_chunk(raw_text: str, context: str) -> str:
     """Post-process a single raw Whisper chunk with a fast LLM correction pass.
 
+    Sanitizes PII before the LLM call and reinjects real names afterwards.
     Falls back to raw_text on any error or timeout so near-live never blocks.
     """
     if not raw_text or not raw_text.strip():
         return raw_text
 
-    result = _call_llm(_SYSTEM_PROMPT, raw_text)
+    text_for_llm, entity_mapping = _sanitize_live(raw_text)
+
+    system = _SYSTEM_PROMPT
+    if entity_mapping:
+        system += _PRESERVE_TOKENS_INSTRUCTION
+
+    result = _call_llm(system, text_for_llm)
     if result is not None:
+        if entity_mapping:
+            result = reinject(result, entity_mapping)
         if _is_meta_commentary(result):
             logger.debug("[CHUNK-FIX] LLM meta-commentary filtered: %r", result[:80])
             return ""
@@ -140,5 +200,3 @@ def correct_chunk(raw_text: str, context: str) -> str:
         return result
 
     return raw_text
-
-

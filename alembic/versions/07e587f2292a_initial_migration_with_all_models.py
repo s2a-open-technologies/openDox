@@ -200,8 +200,8 @@ def _seed_data() -> None:
             (id, live_backend, live_api_endpoint, live_api_key, live_api_model,
              final_backend, final_api_endpoint, final_api_key, final_api_model,
              language, chunk_length_s, overlap_s)
-            VALUES (1, 'api', NULL, NULL, 'whisper-1',
-                    'api', NULL, NULL, 'whisper-1',
+            VALUES (1, 'api', NULL, NULL, NULL,
+                    'api', NULL, NULL, NULL,
                     'de', 3, 0)
             ON CONFLICT (id) DO NOTHING
         """)

@@ -82,7 +82,7 @@ class ASRFactory:
         return OpenAICompatibleBackend(
             endpoint=settings.live_api_endpoint,
             api_key=settings.live_api_key,
-            model=settings.live_api_model or "whisper-1",
+            model=settings.live_api_model or "nemo-parakeet-tdt-0.6b-v3",
         )
 
     def _create_final_backend(self) -> ASRBackend:
@@ -97,7 +97,7 @@ class ASRFactory:
         return OpenAICompatibleBackend(
             endpoint=settings.final_api_endpoint,
             api_key=settings.final_api_key,
-            model=settings.final_api_model or "whisper-1",
+            model=settings.final_api_model or "large-v3-turbo",
             timeout=1800,  # 30 min — full large-v3 on CPU is slow for long recordings
         )
 

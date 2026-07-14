@@ -26,6 +26,7 @@ import requests as _requests
 from fastapi import Depends, File, HTTPException, UploadFile
 from sqlmodel import select
 
+from backend.components.llm.llm_model import OllamaModel, normalize_openai_base_url
 from backend.components.models.categories import (
     Categories,
     CategoriesCreate,
@@ -182,46 +183,95 @@ async def update_llm_settings(
     return settings
 
 
+LLM_TEST_TIMEOUT_SECONDS = 15
+
+
 @settings_bp.get("/llm-test/")
 async def test_llm_connection(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
-    """Ping the configured LLM endpoint and return available models."""
+    """Send a real chat-completion probe to the configured LLM endpoint.
+
+    A /v1/models reachability check alone is not representative of what a
+    real summary call does: OllamaModel/ChatOpenAI builds requests by
+    appending "/chat/completions" directly to the configured base_url, with
+    no normalization of its own. A URL that looks reachable via /models
+    (e.g. a bare "https://ollama.com" without "/v1") can still silently
+    land on the provider's website — HTML instead of JSON — for real chat
+    calls. This probe goes through OllamaModel itself, so a green result
+    here is a true predictor of whether summary generation will work.
+    """
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings or not settings.llm_api_endpoint:
         raise HTTPException(status_code=400, detail="Kein LLM-Endpoint konfiguriert")
+    llm_api_endpoint: str = settings.llm_api_endpoint
 
-    base = settings.llm_api_endpoint.rstrip("/")
-    # Strip trailing /v1 so we can reconstruct the models URL cleanly
-    if base.endswith("/v1"):
-        base = base[:-3]
-    models_url = f"{base}/v1/models"
+    def _probe_chat() -> str:
+        model = OllamaModel(
+            model_name=settings.llm_model,
+            base_url=llm_api_endpoint,
+            api_key=settings.llm_api_key,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            timeout=LLM_TEST_TIMEOUT_SECONDS,
+        )
+        return model.generate_response(
+            "hi bist du da?", custom_system_prompt="Antworte in einem kurzen Satz."
+        )
 
-    headers = {}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-
-    def _fetch():
-        return _requests.get(models_url, headers=headers, timeout=5)
+    def _fetch_models() -> list:
+        models_url = f"{normalize_openai_base_url(llm_api_endpoint)}/models"
+        headers = {}
+        if settings.llm_api_key:
+            headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+        try:
+            response = _requests.get(
+                models_url, headers=headers, timeout=LLM_TEST_TIMEOUT_SECONDS
+            )
+            if response.status_code == 200:
+                return [m.get("id", m) for m in response.json().get("data", [])]
+        except _requests.exceptions.RequestException:
+            pass
+        return []
 
     try:
-        response = await asyncio.to_thread(_fetch)
-        if response.status_code == 200:
-            data = response.json()
-            models = [m.get("id", m) for m in data.get("data", [])]
-            return {"ok": True, "models": models, "url": models_url}
-        return {"ok": False, "error": f"HTTP {response.status_code}", "url": models_url}
-    except _requests.exceptions.ConnectionError:
-        return {
-            "ok": False,
-            "error": "Verbindung abgelehnt – Endpoint nicht erreichbar",
-            "url": models_url,
-        }
-    except _requests.exceptions.Timeout:
-        return {"ok": False, "error": "Timeout (5s)", "url": models_url}
+        reply = await asyncio.to_thread(_probe_chat)
     except Exception as e:
-        return {"ok": False, "error": str(e), "url": models_url}
+        return {"ok": False, "error": str(e)}
+
+    models = await asyncio.to_thread(_fetch_models)
+    return {"ok": True, "reply": reply, "models": models}
+
+
+@settings_bp.get("/asr-test/")
+async def test_asr_connection(
+    backend: str,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
+    """Probe the configured ASR backend for reachability.
+
+    Args:
+        backend: "live" or "final".
+        db: Database session.
+        _: Admin user check.
+
+    Returns:
+        {"ok": true/false, "error": str?, "model": str?}
+    """
+    if backend not in ("live", "final"):
+        raise HTTPException(status_code=400, detail='backend must be "live" or "final"')
+
+    asr_backend = get_live_backend() if backend == "live" else get_final_backend()
+
+    if isinstance(asr_backend, DisabledBackend):
+        return {"ok": False, "error": "Backend ist deaktiviert oder nicht konfiguriert"}
+
+    ok = await asyncio.to_thread(asr_backend.health_check)
+    if ok:
+        return {"ok": True, "model": asr_backend.model}
+    return {"ok": False, "error": "Endpoint nicht erreichbar"}
 
 
 # Services Health Endpoint

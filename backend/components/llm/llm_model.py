@@ -29,6 +29,33 @@ from backend.components.services.settings_service import get_llm_settings
 # on modest hardware while still guaranteeing the task eventually errors out.
 LLM_REQUEST_TIMEOUT_SECONDS = 300
 
+
+def normalize_openai_base_url(url: str) -> str:
+    """Ensure an OpenAI-compatible base URL ends with ``/v1``.
+
+    The ``openai`` SDK (via ``ChatOpenAI``) appends endpoint paths like
+    ``/chat/completions`` directly to whatever ``base_url`` it's given —
+    it performs no normalization of its own. A bare domain such as
+    ``https://ollama.com`` (missing ``/v1``) silently produces requests to
+    ``https://ollama.com/chat/completions``, which lands on the provider's
+    marketing site (HTML), not their API, while a ``/v1/models`` reachability
+    check against the same bare domain can still succeed if reconstructed
+    correctly — making the two paths disagree about whether the endpoint
+    actually works.
+
+    Args:
+        url: Raw endpoint URL as configured by the user.
+
+    Returns:
+        The URL with any trailing slash removed and ``/v1`` appended, unless
+        already present.
+    """
+    normalized = url.rstrip("/")
+    if not normalized.endswith("/v1"):
+        normalized = f"{normalized}/v1"
+    return normalized
+
+
 _THINKING_STARTERS = re.compile(
     r"^(thought\b|<think|<thinking|<thought|here\'s my|let me|i need to|i will|"
     r"understand\b|the user\b|my task\b|step \d|first,|next,|now,)",
@@ -64,6 +91,7 @@ class OllamaModel:
         api_key=None,
         temperature=None,
         max_tokens=None,
+        timeout=None,
     ):
         """Initializes the OllamaModel with DB settings or overrides."""
         try:
@@ -76,11 +104,15 @@ class OllamaModel:
             if db_settings and db_settings.llm_model
             else "medgemma-4b-it:Q4_K_M"
         )
-        self.base_url = base_url or (
-            db_settings.llm_api_endpoint
-            if db_settings and db_settings.llm_api_endpoint
-            else "http://localhost:11434/v1"
+        self.base_url = normalize_openai_base_url(
+            base_url
+            or (
+                db_settings.llm_api_endpoint
+                if db_settings and db_settings.llm_api_endpoint
+                else "http://localhost:11434/v1"
+            )
         )
+        self.timeout = timeout if timeout is not None else LLM_REQUEST_TIMEOUT_SECONDS
         self.api_key = api_key or (
             db_settings.llm_api_key
             if db_settings and db_settings.llm_api_key
@@ -105,7 +137,7 @@ class OllamaModel:
             max_tokens=self.max_tokens,
             top_p=0.9,
             frequency_penalty=0.3,
-            timeout=LLM_REQUEST_TIMEOUT_SECONDS,
+            timeout=self.timeout,
         )
 
     def reload(self):
@@ -114,7 +146,9 @@ class OllamaModel:
             db_settings = get_llm_settings()
             if db_settings:
                 self.model = db_settings.llm_model
-                self.base_url = db_settings.llm_api_endpoint
+                self.base_url = normalize_openai_base_url(
+                    db_settings.llm_api_endpoint or "http://localhost:11434/v1"
+                )
                 self.api_key = db_settings.llm_api_key
                 self.temperature = db_settings.llm_temperature
                 self.max_tokens = db_settings.llm_max_tokens

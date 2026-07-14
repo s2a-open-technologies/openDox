@@ -22,6 +22,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -69,6 +70,45 @@ async def health():
     return {"status": "ok", "model": MODEL_NAME}
 
 
+def _run_transcription(
+    tmp_path: str,
+    lang: str | None,
+    prompt: str | None,
+    beam_size: int,
+    temperature: float,
+    vad_filter: bool,
+    vad_min_silence_ms: int,
+    condition_on_previous_text: bool,
+    no_speech_threshold: float,
+    compression_ratio_threshold: float,
+    log_prob_threshold: float,
+    hallucination_silence_threshold: float | None,
+) -> tuple[str, object]:
+    """Run the blocking faster-whisper inference off the event loop.
+
+    ``WhisperModel.transcribe()`` returns immediately with a lazy generator —
+    the actual GPU/CPU work happens while iterating ``segments``, so both the
+    call and the iteration must run inside the same ``asyncio.to_thread``
+    call, not just the former, or the event loop still blocks on iteration.
+    """
+    segments, info = whisper_model.transcribe(
+        tmp_path,
+        language=lang,
+        initial_prompt=prompt or None,
+        beam_size=beam_size,
+        temperature=temperature,
+        vad_filter=vad_filter,
+        vad_parameters=dict(min_silence_duration_ms=vad_min_silence_ms),
+        condition_on_previous_text=condition_on_previous_text,
+        no_speech_threshold=no_speech_threshold,
+        compression_ratio_threshold=compression_ratio_threshold,
+        log_prob_threshold=log_prob_threshold,
+        hallucination_silence_threshold=hallucination_silence_threshold,
+    )
+    text = "".join(segment.text for segment in segments).strip()
+    return text, info
+
+
 @app.post("/v1/audio/transcriptions")
 async def transcribe(
     file: UploadFile = File(...),
@@ -101,21 +141,21 @@ async def transcribe(
 
     try:
         lang = None if (not language or language.lower() == "auto") else language
-        segments, info = whisper_model.transcribe(
+        text, info = await asyncio.to_thread(
+            _run_transcription,
             tmp_path,
-            language=lang,
-            initial_prompt=prompt or None,
-            beam_size=beam_size,
-            temperature=temperature,
-            vad_filter=vad_filter,
-            vad_parameters=dict(min_silence_duration_ms=vad_min_silence_ms),
-            condition_on_previous_text=condition_on_previous_text,
-            no_speech_threshold=no_speech_threshold,
-            compression_ratio_threshold=compression_ratio_threshold,
-            log_prob_threshold=log_prob_threshold,
-            hallucination_silence_threshold=hallucination_silence_threshold,
+            lang,
+            prompt,
+            beam_size,
+            temperature,
+            vad_filter,
+            vad_min_silence_ms,
+            condition_on_previous_text,
+            no_speech_threshold,
+            compression_ratio_threshold,
+            log_prob_threshold,
+            hallucination_silence_threshold,
         )
-        text = "".join(segment.text for segment in segments).strip()
         logger.info(
             "Transcribed %d bytes | lang=%s vad=%s cond_prev=%s -> %d chars",
             len(audio_bytes),

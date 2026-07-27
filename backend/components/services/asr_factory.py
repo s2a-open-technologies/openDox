@@ -25,6 +25,7 @@ from .asr_backends import (
     ASRBackend,
     DisabledBackend,
     OpenAICompatibleBackend,
+    ParakeetStreamBackend,
 )
 
 logger = get_logger(__name__)
@@ -62,15 +63,17 @@ class ASRFactory:
             return DisabledBackend()
 
         if settings.live_backend == "parakeet":
-            endpoint = settings.live_api_endpoint or env_or_file("PARAKEET_API_ENDPOINT")
+            endpoint = settings.live_api_endpoint or env_or_file(
+                "PARAKEET_API_ENDPOINT"
+            )
             if not endpoint:
-                logger.error("Live backend set to 'parakeet' but no endpoint configured")
+                logger.error(
+                    "Live backend set to 'parakeet' but no endpoint configured"
+                )
                 return DisabledBackend()
-            logger.info(f"Using Parakeet backend for live: {endpoint}")
-            return OpenAICompatibleBackend(
-                endpoint=endpoint,
-                api_key=settings.live_api_key,
-                model=settings.live_api_model or "nemo-parakeet-tdt-0.6b-v3",
+            logger.info(f"Using Parakeet stream backend for live: {endpoint}")
+            return ParakeetStreamBackend(
+                endpoint=endpoint, api_key=settings.live_api_key
             )
 
         # Default / "api" (Whisper)

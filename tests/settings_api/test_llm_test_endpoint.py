@@ -2,11 +2,11 @@
 
 Regression coverage for a production bug: the endpoint used to only check
 /v1/models reachability, reconstructing the URL correctly (stripping and
-re-adding "/v1"). The real client used for summaries (OllamaModel) did no
+re-adding "/v1"). The real client used for summaries (SummarizeModel) did no
 such normalization, so a bare endpoint like "https://ollama.com" (no /v1)
 passed the connection test while every real summary request silently hit
 the provider's website (HTML) instead of its API. The endpoint now probes
-through OllamaModel itself so a green result is a true predictor of real
+through SummarizeModel itself so a green result is a true predictor of real
 usage.
 """
 
@@ -45,7 +45,7 @@ def test_successful_chat_probe_reports_ok_with_reply_and_models(
     admin = create_user("admin1", role="admin")
     _create_llm_settings(session_factory)
 
-    class FakeOllamaModel:
+    class FakeSummarizeModel:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
@@ -53,7 +53,7 @@ def test_successful_chat_probe_reports_ok_with_reply_and_models(
             assert message == "hi bist du da?"
             return "Ja, ich bin da!"
 
-    monkeypatch.setattr(settings_routes, "OllamaModel", FakeOllamaModel)
+    monkeypatch.setattr(settings_routes, "SummarizeModel", FakeSummarizeModel)
 
     class FakeModelsResponse:
         status_code = 200
@@ -80,14 +80,14 @@ def test_chat_probe_failure_reports_ok_false_with_error(
     admin = create_user("admin1", role="admin")
     _create_llm_settings(session_factory)
 
-    class FakeOllamaModel:
+    class FakeSummarizeModel:
         def __init__(self, **kwargs):
             pass
 
         def generate_response(self, message, custom_system_prompt=None):
             raise RuntimeError("Expecting value: line 1 column 1 (char 0)")
 
-    monkeypatch.setattr(settings_routes, "OllamaModel", FakeOllamaModel)
+    monkeypatch.setattr(settings_routes, "SummarizeModel", FakeSummarizeModel)
 
     response = client.get("/api/v1/settings/llm-test/", headers=auth_headers(admin))
 
@@ -103,14 +103,14 @@ def test_bare_domain_endpoint_is_normalized_for_the_models_probe(
     admin = create_user("admin1", role="admin")
     _create_llm_settings(session_factory, llm_api_endpoint="https://ollama.com")
 
-    class FakeOllamaModel:
+    class FakeSummarizeModel:
         def __init__(self, **kwargs):
             pass
 
         def generate_response(self, message, custom_system_prompt=None):
             return "ok"
 
-    monkeypatch.setattr(settings_routes, "OllamaModel", FakeOllamaModel)
+    monkeypatch.setattr(settings_routes, "SummarizeModel", FakeSummarizeModel)
 
     captured_urls = []
 

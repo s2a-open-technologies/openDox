@@ -1,4 +1,4 @@
-"""Tests for backend.components.llm.llm_model.OllamaModel.
+"""Tests for backend.components.llm.llm_model.SummarizeModel.
 
 Covers three production gaps found while debugging real usage issues:
 (1) the ChatOpenAI client had no request timeout, so a hung or very slow
@@ -23,7 +23,7 @@ from sqlmodel import SQLModel, create_engine
 
 import backend.components.models  # noqa: F401  (registers all tables on metadata)
 from backend.components.llm import llm_model as llm_model_module
-from backend.components.llm.llm_model import OllamaModel, normalize_openai_base_url
+from backend.components.llm.llm_model import SummarizeModel, normalize_openai_base_url
 from backend.components.sql import sql_engine
 
 
@@ -68,7 +68,7 @@ def test_constructs_chat_openai_with_a_timeout(monkeypatch, patched_engine):
 
     monkeypatch.setattr(llm_model_module, "ChatOpenAI", FakeChatOpenAI)
 
-    OllamaModel()
+    SummarizeModel()
 
     assert captured.get("timeout") == llm_model_module.LLM_REQUEST_TIMEOUT_SECONDS
     assert captured["timeout"] is not None
@@ -85,7 +85,7 @@ def test_constructs_chat_openai_with_a_custom_timeout_override(
 
     monkeypatch.setattr(llm_model_module, "ChatOpenAI", FakeChatOpenAI)
 
-    OllamaModel(timeout=15)
+    SummarizeModel(timeout=15)
 
     assert captured["timeout"] == 15
 
@@ -101,13 +101,13 @@ def test_normalizes_a_bare_base_url_before_passing_to_chat_openai(
 
     monkeypatch.setattr(llm_model_module, "ChatOpenAI", FakeChatOpenAI)
 
-    OllamaModel(base_url="https://ollama.com")
+    SummarizeModel(base_url="https://ollama.com")
 
     assert captured["base_url"] == "https://ollama.com/v1"
 
 
 def test_generate_response_returns_stripped_content(patched_engine):
-    model = OllamaModel()
+    model = SummarizeModel()
     model.client = _fake_client("Klare Antwort ohne Denkblock.")
 
     result = model.generate_response("irrelevant input")
@@ -116,7 +116,7 @@ def test_generate_response_returns_stripped_content(patched_engine):
 
 
 def test_generate_response_raises_when_only_thinking_block(patched_engine):
-    model = OllamaModel()
+    model = SummarizeModel()
     model.client = _fake_client("<think>endlose Grübelei ohne Ergebnis</think>")
 
     with pytest.raises(ValueError, match="empty"):
@@ -124,7 +124,7 @@ def test_generate_response_raises_when_only_thinking_block(patched_engine):
 
 
 def test_generate_response_raises_on_whitespace_only_output(patched_engine):
-    model = OllamaModel()
+    model = SummarizeModel()
     model.client = _fake_client("   \n  ")
 
     with pytest.raises(ValueError, match="empty"):

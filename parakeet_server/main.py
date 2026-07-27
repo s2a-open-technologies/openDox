@@ -23,15 +23,43 @@ import struct
 import tempfile
 from contextlib import asynccontextmanager
 
+import numpy as np
+
 # Third-party imports
 import onnx_asr
-import numpy as np
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from streaming import PCM_SAMPLE_RATE, parakeet_stream_engine
 
 DEFAULT_MODEL = os.getenv("PARAKEET_MODEL", "nemo-parakeet-tdt-0.6b-v3")
 
 _models: dict[str, "onnx_asr.adapters.TextResultsAsrAdapter"] = {}
+
+
+def _resolve_providers():
+    """Return the ONNX providers list, excluding TensorRT.
+
+    ``onnxruntime-gpu`` advertises ``TensorrtExecutionProvider`` in
+    ``get_available_providers()``, but the CUDA base image has no TensorRT
+    libs installed. If the full list is passed, onnxruntime tries TensorRT
+    first, fails, and silently falls back to **CPU** — bypassing CUDA
+    entirely. We filter it out so ``CUDAExecutionProvider`` is used directly.
+
+    Override via ``RTT_ONNX_PROVIDERS`` (comma-separated).
+
+    Returns:
+        Provider list (or ``None`` for onnxruntime defaults).
+    """
+    import onnxruntime as ort
+
+    env = os.environ.get("RTT_ONNX_PROVIDERS", "")
+    if env.strip():
+        return [p.strip() for p in env.split(",") if p.strip()]
+    available = ort.get_available_providers()
+    filtered = [
+        p for p in available if p != "TensorrtExecutionProvider"
+    ]
+    return filtered or None
 
 
 def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapter":
@@ -59,7 +87,9 @@ def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapt
 
     print(f"[PARAKEET] Loading model: {model_name} ...")
     try:
-        _models[model_name] = onnx_asr.load_model(model_name)
+        _models[model_name] = onnx_asr.load_model(
+            model_name, providers=_resolve_providers()
+        )
     except Exception as e:
         raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
 
@@ -69,8 +99,14 @@ def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapt
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI lifespan handler: load the default model on startup, unload on shutdown."""
+    """FastAPI lifespan handler: load the default model on startup, unload on shutdown.
+
+    Also pre-loads the Silero VAD + Parakeet ONNX sessions used by the
+    streaming WebSocket endpoint so the first client doesn't pay the cold-load
+    penalty.
+    """
     get_model()
+    parakeet_stream_engine.ensure_loaded()
     yield
     _models.clear()
     print("[PARAKEET] Models unloaded")
@@ -152,7 +188,6 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
     Returns:
         Complete WAV file as bytes (header + PCM int16 data).
     """
-
     audio = np.frombuffer(pcm, dtype=np.float32)
     audio = np.clip(audio, -1.0, 1.0)
     pcm_int16 = (audio * 32767).astype(np.int16)
@@ -182,3 +217,82 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
     )
 
     return header + pcm_int16.tobytes()
+
+
+@app.websocket("/v1/audio/stream")
+async def audio_stream(ws: WebSocket):
+    """VAD-segmented streaming transcription over a WebSocket.
+
+    The client sends raw **float32 16 kHz mono** PCM as binary frames. The
+    server runs incremental Silero VAD + Parakeet ONNX ASR (see
+    ``streaming.StreamingSession``) and pushes back JSON messages:
+
+    * ``{"partial": "<committed + open partial>"}`` — live, growing text;
+      emitted on every ingested frame where the transcript changed,
+    * ``{"committed": "<frozen text>", "delta": "<newly committed chunk>"}``
+      — sent whenever a speech segment is committed (trailing silence or
+      auto-split), so the caller can freeze the corresponding text,
+    * ``{"final": "<full transcript>"}`` — once when the client sends the
+      ``{"event": "stop"}`` control message and the session is flushed.
+
+    The client signals end-of-stream with a text frame ``{"event": "stop"}``.
+    """
+    await ws.accept()
+    try:
+        session = await asyncio.to_thread(parakeet_stream_engine.new_session)
+    except RuntimeError as e:
+        await ws.send_json({"error": f"stream engine unavailable: {e}"})
+        await ws.close(code=1011)
+        return
+
+    last_committed = ""
+    try:
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
+
+            # Text control frame
+            if msg.get("text"):
+                try:
+                    ctrl = msg["text"]
+                    if "stop" in ctrl.lower():
+                        final = await asyncio.to_thread(session.finish)
+                        await ws.send_json({"final": final})
+                        break
+                except Exception:
+                    pass
+                continue
+
+            if msg.get("bytes"):
+                pcm = msg["bytes"]
+                if not pcm:
+                    continue
+                # ingest() runs VAD + (throttled) Parakeet inference — both are
+                # blocking ONNX calls, so offload them to a worker thread to
+                # keep the event loop responsive for other clients.
+                await asyncio.to_thread(session.ingest, pcm, PCM_SAMPLE_RATE)
+
+                # Emit a committed delta whenever a new segment was frozen.
+                committed = await asyncio.to_thread(session.committed_text)
+                if committed != last_committed:
+                    delta = committed[len(last_committed) :].strip()
+                    last_committed = committed
+                    if delta:
+                        await ws.send_json({"committed": committed, "delta": delta})
+
+                # Emit the live partial — only the open segment's text, not the
+                # committed portion, so the client can render it alongside its
+                # own accumulated committed text without duplication.
+                open_partial = await asyncio.to_thread(session.open_partial_text)
+                if open_partial:
+                    await ws.send_json({"partial": open_partial})
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"[PARAKEET-STREAM] error: {e}")
+    finally:
+        try:
+            await ws.close()
+        except Exception:
+            pass

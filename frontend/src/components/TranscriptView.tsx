@@ -26,6 +26,14 @@ import { cn } from "@/lib/utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -47,6 +55,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isEditingSummary, setIsEditingSummary] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
@@ -65,6 +74,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
       setConfirmed(false);
       setHasUnsavedChanges(false);
       setIsEditingSummary(false);
+      setConfirmDialogOpen(false);
       prevId.current = transcript?.id;
     }
   }, [transcript?.id, transcript?.content, transcript?.summarize]);
@@ -355,7 +365,13 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
           <Checkbox
             id="transcript-confirm"
             checked={confirmed}
-            onCheckedChange={(checked) => setConfirmed(checked === true)}
+            onCheckedChange={(checked) => {
+              if (checked && !confirmed) {
+                setConfirmDialogOpen(true);
+              } else {
+                setConfirmed(false);
+              }
+            }}
             className="mt-0.5"
           />
           <label htmlFor="transcript-confirm" className="text-sm text-muted-foreground cursor-pointer">
@@ -363,6 +379,31 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
           </label>
         </div>
       </div>
+
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verantwortung übernehmen</DialogTitle>
+            <DialogDescription>
+              Mit der Bestätigung übernehmen Sie die Verantwortung für den kopierten
+              Inhalt und bestätigen die korrekte Übergabe an eine Fachkraft. Alle
+              maschinell erstellten Transkriptionen und Zusammenfassungen müssen
+              von qualifiziertem Fachpersonal überprüft werden.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={() => {
+              setConfirmed(true);
+              setConfirmDialogOpen(false);
+            }}>
+              Bestätigen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

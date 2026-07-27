@@ -83,7 +83,7 @@ def _strip_thinking(text: str) -> str:
     return text.strip()
 
 
-class OllamaModel:
+class SummarizeModel:
     def __init__(
         self,
         model_name=None,
@@ -93,7 +93,7 @@ class OllamaModel:
         max_tokens=None,
         timeout=None,
     ):
-        """Initializes the OllamaModel with DB settings or overrides."""
+        """Initializes the SummarizeModel with DB settings or overrides."""
         try:
             db_settings = get_llm_settings()  # Dedicated LLM settings
         except Exception:

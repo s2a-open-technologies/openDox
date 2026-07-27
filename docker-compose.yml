@@ -55,7 +55,7 @@ services:
     volumes:
       - whisper-data:/var/lib/whisper
     environment:
-      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
       WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}
@@ -75,8 +75,21 @@ services:
     build:
       context: .
       dockerfile: parakeet_server/Dockerfile
+      args:
+        DEVICE: ${PARAKEET_DEVICE:-gpu}
     container_name: opendox-parakeet
     restart: always
+    # GPU access — the parakeet image defaults to the CUDA+cuDNN base and
+    # uses CUDAExecutionProvider when a GPU is present. On CPU-only hosts
+    # onnxruntime falls back to CPUExecutionProvider automatically, so this
+    # deploy block can stay as-is; Docker simply ignores the device reservation.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # openDox Application (FastAPI + React)

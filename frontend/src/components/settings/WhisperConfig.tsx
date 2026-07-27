@@ -238,7 +238,10 @@ const WhisperConfig = () => {
                                 <>
                                     {config.live_backend === 'parakeet' && (
                                         <p className="text-sm text-muted-foreground">
-                                            Parakeet liefert Text mit Satzzeichen und ohne Halluzination.
+                                            Parakeet läuft mit Silero-VAD-gesteuertem Streaming: Text
+                                            wächst beim Sprechen und friert bei Sprechpausen ein.
+                                            Chunk-Länge, Überlappung und Left-Context werden vom
+                                            Server gesteuert und sind hier nicht relevant.
                                         </p>
                                     )}
                                     <div className="space-y-2">
@@ -266,16 +269,16 @@ const WhisperConfig = () => {
                                             onChange={(e) => updateField('live_api_model', e.target.value)}
                                         />
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label>Chunk-Länge (Sek.)</Label>
-                                            <Input
-                                                type="number" min={1} max={10}
-                                                value={config.chunk_length_s}
-                                                onChange={(e) => updateField('chunk_length_s', parseInt(e.target.value) || 3)}
-                                            />
-                                        </div>
-                                        {config.live_backend !== 'parakeet' && (
+                                    {config.live_backend !== 'parakeet' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label>Chunk-Länge (Sek.)</Label>
+                                                <Input
+                                                    type="number" min={1} max={10}
+                                                    value={config.chunk_length_s}
+                                                    onChange={(e) => updateField('chunk_length_s', parseInt(e.target.value) || 3)}
+                                                />
+                                            </div>
                                             <div className="space-y-2">
                                                 <Label>Überlappung (Sek.)</Label>
                                                 <Input
@@ -284,21 +287,8 @@ const WhisperConfig = () => {
                                                     onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
                                                 />
                                             </div>
-                                        )}
-                                        {config.live_backend === 'parakeet' && (
-                                            <div className="space-y-2">
-                                                <Label>Left-Context (Sek.)</Label>
-                                                <Input
-                                                    type="number" min={0} max={5} step={0.5}
-                                                    value={config.left_context_s}
-                                                    onChange={(e) => updateField('left_context_s', parseFloat(e.target.value) || 0)}
-                                                />
-                                                <p className="text-xs text-muted-foreground">
-                                                    Akustischer Vorlauf pro Chunk, empfohlen: 0.5–2s. Deutlich mehr als die Chunk-Länge erhöht Latenz und macht die Deduplizierung unzuverlässiger, ohne die Genauigkeit proportional zu verbessern.
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
                             <div className="flex gap-2 pt-2">

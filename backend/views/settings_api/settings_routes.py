@@ -26,7 +26,7 @@ import requests as _requests
 from fastapi import Depends, File, HTTPException, UploadFile
 from sqlmodel import select
 
-from backend.components.llm.llm_model import OllamaModel, normalize_openai_base_url
+from backend.components.llm.llm_model import SummarizeModel, normalize_openai_base_url
 from backend.components.models.categories import (
     Categories,
     CategoriesCreate,
@@ -194,12 +194,12 @@ async def test_llm_connection(
     """Send a real chat-completion probe to the configured LLM endpoint.
 
     A /v1/models reachability check alone is not representative of what a
-    real summary call does: OllamaModel/ChatOpenAI builds requests by
+    real summary call does: SummarizeModel/ChatOpenAI builds requests by
     appending "/chat/completions" directly to the configured base_url, with
     no normalization of its own. A URL that looks reachable via /models
     (e.g. a bare "https://ollama.com" without "/v1") can still silently
     land on the provider's website — HTML instead of JSON — for real chat
-    calls. This probe goes through OllamaModel itself, so a green result
+    calls. This probe goes through SummarizeModel itself, so a green result
     here is a true predictor of whether summary generation will work.
     """
     settings = db.exec(select(LlmSettingsModel)).first()
@@ -208,7 +208,7 @@ async def test_llm_connection(
     llm_api_endpoint: str = settings.llm_api_endpoint
 
     def _probe_chat() -> str:
-        model = OllamaModel(
+        model = SummarizeModel(
             model_name=settings.llm_model,
             base_url=llm_api_endpoint,
             api_key=settings.llm_api_key,
@@ -270,7 +270,11 @@ async def test_asr_connection(
 
     ok = await asyncio.to_thread(asr_backend.health_check)
     if ok:
-        return {"ok": True, "model": asr_backend.model}
+        model = getattr(asr_backend, "model", None)
+        result = {"ok": True}
+        if model:
+            result["model"] = model
+        return result
     return {"ok": False, "error": "Endpoint nicht erreichbar"}
 
 

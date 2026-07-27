@@ -30,7 +30,7 @@ from fastapi import Depends, File, Form, HTTPException, UploadFile, WebSocket
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
-from backend.components.llm.llm_model import OllamaModel
+from backend.components.llm.llm_model import SummarizeModel
 from backend.components.models.categories import Categories
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import (
@@ -45,7 +45,13 @@ from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
 from backend.components.modules.text_dedup import merge_overlapping_text
 from backend.components.security.hashing import decode_token
-from backend.components.services.asr_factory import get_final_backend, get_live_backend
+from backend.components.services.asr_backends.parakeet_stream import (
+    ParakeetStreamBackend,
+)
+from backend.components.services.asr_factory import (
+    get_final_backend,
+    get_live_backend,
+)
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
 )
@@ -492,6 +498,64 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         except Exception as e:
             print(f"[WS-RESTORE-ERROR] {e}")
 
+    # ── Streaming live ASR (Parakeet VAD-segmented) ──────────────────────
+    # When the configured live backend supports streaming (Parakeet over WS),
+    # we forward every PCM frame directly and relay partial/committed messages
+    # back to the frontend, instead of the fixed-chunk + merge-overlap path.
+    stream_session = None
+    try:
+        backend = get_live_asr()
+        use_streaming = backend.supports_streaming()
+    except Exception:
+        backend = None
+        use_streaming = False
+
+    if use_streaming and isinstance(backend, ParakeetStreamBackend):
+        # Callbacks update local_live_text via nonlocal and push to the client.
+        async def _on_partial(partial_text: str) -> None:
+            nonlocal client_connected
+            if client_connected:
+                try:
+                    await websocket.send_json(
+                        {"session_id": session_id, "partial": partial_text}
+                    )
+                except Exception as e:
+                    print(f"[WS-SEND-ERROR] partial: {e}")
+                    client_connected = False
+
+        async def _on_committed(committed: str, delta: str) -> None:
+            nonlocal local_live_text, client_connected
+            local_live_text = committed
+            session_store.set_live_state(session_id, local_last_index, committed)
+            if client_connected and delta:
+                try:
+                    await websocket.send_json({"session_id": session_id, "text": delta})
+                except Exception as e:
+                    print(f"[WS-SEND-ERROR] committed: {e}")
+                    client_connected = False
+
+        async def _on_final(final_text: str) -> None:
+            nonlocal local_live_text
+            local_live_text = final_text
+            session_store.set_live_state(session_id, local_last_index, final_text)
+
+        async def _on_error(e: Exception) -> None:
+            nonlocal client_connected
+            print(f"[STREAM-ASR-ERROR] {e}")
+            client_connected = False
+
+        stream_session = backend.open_session(
+            on_partial=_on_partial,
+            on_committed=_on_committed,
+            on_final=_on_final,
+            on_error=_on_error,
+        )
+        try:
+            await stream_session.connect()
+        except Exception as e:
+            print(f"[STREAM-CONNECT-ERROR] {e}")
+            stream_session = None
+
     try:
         while True:
             msg = await websocket.receive()
@@ -529,6 +593,17 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 with open(local_audio_path, "ab") as _af:
                     _af.write(chunk)
                 local_audio_size += len(chunk)
+
+                # Streaming path: forward every PCM frame to the Parakeet
+                # server's WS and let its VAD segment + decode. Partial /
+                # committed messages are relayed to the client via the
+                # callbacks set up above. Skip the fixed-chunk path entirely.
+                if stream_session is not None:
+                    try:
+                        await stream_session.feed(chunk)
+                    except Exception as e:
+                        print(f"[STREAM-FEED-ERROR] {e}")
+                    continue
 
                 # Live ASR
                 try:
@@ -618,24 +693,6 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                                 session_id, new_index, local_live_text
                             )
 
-                            try:
-                                record = db.exec(
-                                    select(Record).where(
-                                        Record.session_id == session_id
-                                    )
-                                ).one_or_none()
-                                if record:
-                                    timestamp = datetime.now().strftime(
-                                        "%Y-%m-%d %H:%M:%S"
-                                    )
-                                    record.content = (
-                                        record.content or ""
-                                    ) + f" [{timestamp}] {result_text}"
-                                    db.add(record)
-                                    db.commit()
-                            except Exception as e:
-                                print(f"[DB-PARTIAL-ERROR] {e}")
-
                             if client_connected:
                                 try:
                                     await websocket.send_json(
@@ -678,6 +735,17 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     except Exception as e:
         print(f"[WS-ERROR] {e}")
         client_connected = False
+
+    # Tear down the streaming ASR session if one is open. On a clean stop we
+    # wait for the server's final transcript; on a disconnect we just close.
+    if stream_session is not None:
+        if stopped:
+            try:
+                await stream_session.stop(timeout=30.0)
+            except Exception as e:
+                print(f"[STREAM-STOP-ERROR] {e}")
+        else:
+            await stream_session.close()
 
     # Plain disconnect without a "stop" event -> keep the session in the store as
     # an unfinished recording so it can be resumed later.
@@ -988,7 +1056,7 @@ async def regenerate_summary(
         )
 
         if category_llm_override:
-            model = OllamaModel(
+            model = SummarizeModel(
                 model_name=category_llm_override.llm_model,
                 base_url=category_llm_override.llm_api_endpoint,
                 api_key=category_llm_override.llm_api_key,
@@ -996,7 +1064,7 @@ async def regenerate_summary(
                 max_tokens=category_llm_override.llm_max_tokens,
             )
         else:
-            model = OllamaModel()
+            model = SummarizeModel()
 
         result = model.generate_response(
             text, custom_system_prompt=effective_prompt or None

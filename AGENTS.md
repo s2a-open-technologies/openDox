@@ -34,18 +34,26 @@ python scripts/bump_version.py 1.2.3            # explicit version
 python scripts/bump_version.py patch --commit   # also git add+commit+tag
 
 # Build + push all three Docker images to the registry (uses bump_version.py --current)
-./docker_buid_pull.sh
+./docker_build_push.sh
 ```
 
-No automated tests exist in this repo. No CI workflows configured.
+No CI workflows configured. Tests live in `tests/`; run via pytest:
+
+```bash
+pytest tests/            # all tests
+pytest tests/llm/        # single package
+pytest -k "test_name"    # single test
+```
+
+No automated integration tests for Docker/full-stack scenarios.
 
 ## Entrypoints & Wiring
 
 - **Backend**: `main.py` → `backend/run.py:create_app()` — auto-runs Alembic on startup, mounts SPA static files
 - **Routers**: `run.py` includes `record_bp`, `auth_bp`, `oidc_bp`, `settings_bp` — all under `router_prefix` (ROOT_PATH or empty). `oidc_bp` is imported in `auth_api/__init__.py` and registered separately in `run.py`.
 - **Frontend**: `frontend/src/main.tsx` — path alias `@/` → `src/`, build output → `../backend/static` (NOT `frontend/dist`)
-- **Parakeet server**: `parakeet_server/main.py` — standalone FastAPI, OpenAI-compatible `/v1/audio/transcriptions`, port 5001
-- **Whisper server**: `whisper_server/app.py` — standalone, OpenAI-compatible, port 9000 in container
+- **Parakeet server**: `parakeet_server/main.py` — standalone FastAPI, port 5001. Two endpoints: OpenAI-compatible `POST /v1/audio/transcriptions` (one-shot) and `WS /v1/audio/stream` (VAD-segmented streaming, see `parakeet_server/streaming.py`). Silero VAD + Parakeet ONNX (onnx-asr) loaded at startup; VAD model is downloaded at Docker build time into `/app/models/silero-vad` (flat dir, onnxruntime rejects HF's symlinked cache). The Dockerfile defaults to the NVIDIA GPU base (CUDA 12.4.1 + cuDNN) and auto-selects `CUDAExecutionProvider` with CPU fallback; build with `PARAKEET_DEVICE=cpu` for a CPU-only image.
+- **Whisper server**: `whisper_server/app.py` — standalone, OpenAI-compatible, port 5002 in container
 - **Env loading**: `backend/components/modules/env.py` — `env_or_file()` + `load_dotenv(override=True)` at import time. Every `{VAR}_FILE` suffix reads from file (Docker secrets)
 - **Model registration**: `backend/components/models/__init__.py` imports every SQLModel table — Alembic autogenerate only sees models imported there. Add new models to both the file and `__all__`.
 
@@ -55,14 +63,13 @@ No automated tests exist in this repo. No CI workflows configured.
 
 | Stage | Backend | Purpose |
 |---|---|---|
-| **Live** | Parakeet (CPU, onnx-asr) | Near-real-time WebSocket transcription with punctuation |
+| **Live** | Parakeet (GPU default, onnx-asr) | Near-real-time VAD-segmented WebSocket transcription with punctuation |
 | **Final** | Whisper (GPU, faster-whisper) | High-quality re-transcription of full audio |
 
-- `asr_factory.py` creates `OpenAICompatibleBackend` instances based on `live_backend` setting (`"parakeet"` / `"api"` / `"disabled"`)
+- `asr_factory.py` creates backend instances based on `live_backend` setting (`"parakeet"` / `"api"` / `"disabled"`). `"parakeet"` → `ParakeetStreamBackend` (VAD-segmented streaming over WS); `"api"` → `OpenAICompatibleBackend` (fixed-chunk HTTP).
 - When `live_backend="parakeet"` and `live_api_endpoint` is None, factory falls back to `PARAKEET_API_ENDPOINT` env var
-- Parakeet live text is sent directly to frontend — no LLM correction (Parakeet already outputs punctuation)
-- Whisper live text goes through batch LLM correction (`chunk_correction_service.py`, flushes every 5 chunks)
-- `left_context_s` (Parakeet only, default `0.0`): extra acoustic look-back audio read from before each chunk's start and sent alongside it, purely as model context — `record.py`'s live-ASR loop trims the re-said portion of the model's output via `merge_overlapping_text()` (word-level dedup, `backend/components/modules/text_dedup.py`) before appending to the live transcript. `chunk_length_s`/`left_context_s` are independent; a `left_context_s` much larger than `chunk_length_s` multiplies the audio re-transcribed per cycle without a proportional accuracy gain (see `docs/superpowers/specs/2026-07-07-parakeet-left-context-design.md`).
+- Parakeet live text: `record.py` forwards every float32 PCM frame to the Parakeet server's WS; the server's `StreamingSession` runs Silero VAD + Parakeet ONNX, commits segments at pauses (re-decoding the open segment every 0.4s for a live partial) and streams back `{"partial": <open segment>}` / `{"committed": ..., "delta": ...}` / `{"final": ...}`. `record.py` relays `delta` as `{"text": delta}` (appended to `stableTranscript` client-side) and `partial` as `{"partial": ...}` (renders as the live tail). No LLM correction (Parakeet already outputs punctuation). `chunk_length_s`/`overlap_s`/`left_context_s`/`merge_overlapping_text` do **not** apply to the streaming path — segmentation is internal to the Parakeet server.
+- Whisper (`"api"`) live text goes through the fixed-chunk path in `record.py` (chunk_length_s/overlap_s/merge_overlapping_text) with batch LLM correction (`chunk_correction_service.py`, flushes every 5 chunks).
 
 ### PII Sanitizer (EntityGuard)
 
@@ -160,7 +167,7 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 - **SPA routing**: `SPAStaticFiles` in `run.py` falls back to `index.html` for 404s, but `/api/` routes are not static — they're matched by the router first
 - **WebSocket**: Uses `BASE_PATH` from `api.ts` + `window.location.host`. Vite proxy has `ws: true`
 - **Microphone**: Requires HTTPS (except localhost). `Permissions-Policy` header set in middleware
-- **LLM**: Fresh `OllamaModel()` per task, not singleton — DB settings re-read each time
+- **LLM**: Fresh `SummarizeModel()` per task, not singleton — DB settings re-read each time
 - **Alembic URL**: `alembic.ini` has `sqlite3:///test.sqlite3` but both `run.py` and `alembic/env.py` override it at runtime with `SQLALCHEMY_URI` — the ini value is irrelevant
 - **Frontend build output**: `vite.config.ts` outputs to `../backend/static` (not `frontend/dist`). This matters for Docker builds
 - **SQLite fallback**: If no `DATABASE_URI` or `SQL_*` vars are set, `db_config.py` defaults to `postgresql+psycopg2://postgres:postgres@localhost:5432/aidox` (note: DB name is `aidox`, not `opendox`)
@@ -168,6 +175,7 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 - **Session store mutations**: Never mutate session dicts directly in `record.py` — always use `session_store.set_live_state()`, `session_store.update_session()`, `session_store.append_audio()`. With Redis, dicts are not shared references
 - **Apache reverse proxy + WebSocket**: If live transcription drops after 1-2 sentences behind Apache, `mod_proxy_wstunnel` is likely not loaded — `mod_proxy_http` lets the WS upgrade through but breaks on binary audio frames. Fix: `a2enmod proxy_wstunnel` and declare the WS `ProxyPass` for `/api/v1/records/ws/record` *before* the catch-all `ProxyPass /`. `Recorder.tsx`'s `ws.onclose` already handles unexpected disconnects (shows a toast, resets recording state).
 - **`/api/health` is dead code**: `backend/views/root_view/root.py` defines `/health` and a second `/api/endpoint`, but that router is never `include_router()`'d in `create_app()`. Any request to `/api/health` silently falls through to the `SPAStaticFiles` catch-all and returns the SPA shell with a 200 — it looks like a working health check but isn't one. The real liveness/version routes are `/api/endpoint` and `/api/version`, both registered directly on `app` inside `create_app()`. Follow that same inline-registration pattern for new public root-level routes, not the unmounted `root_view` router.
+- **Parakeet server deps**: `parakeet_server/requirements.txt` was split into `requirements.cpu.txt` and `requirements.gpu.txt` — the Dockerfile selects via `DEVICE` build-arg. Always add deps to **both** files (with the matching onnxruntime extra).
 
 ## Frontend Conventions
 
@@ -183,40 +191,6 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 
 ## Python Style (enforced by ruff)
 
-Config in `pyproject.toml` — rules: `E, F, I, D` (PEP8 + isort + pydocstyle), Google docstrings, line length 88.
+Config in `pyproject.toml` — rules: `E, F, I, D` (PEP8 + isort + pydocstyle), Google docstrings, line length 88. Standard 3-group imports with blank lines (`# Standard library` / `# Third-party` / `# Custom`), `snake_case` for functions/variables, `PascalCase` for classes, type hints + Google docstrings.
 
-### Imports — 3 groups with blank lines
-
-```python
-# Standard library
-import os
-from typing import Optional
-
-# Third-party
-from fastapi import FastAPI
-from sqlmodel import Session
-
-# Custom (local modules)
-from backend.components.models.user_model import User
-```
-
-### Functions — type hints + Google docstrings
-
-```python
-def process_data(data: dict[str, str], threshold: float = 0.5) -> list[int]:
-    """Process data and filter by threshold.
-
-    Args:
-        data: Dictionary with source data.
-        threshold: Filter threshold. Defaults to 0.5.
-
-    Returns:
-        List of IDs passing the filter.
-
-    Raises:
-        ValueError: If input dictionary is empty.
-    """
-```
-
-- `snake_case` for functions/variables, `PascalCase` for classes
-- Always annotate return types (including `-> None`)
+The `known-first-party` in `pyproject.toml` still says `["dein_projektname"]` (template placeholder) — `ruff` ignores the missing local module during formatting, but if it ever blocks sorting, change it to `["backend"]`.

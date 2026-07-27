@@ -23,7 +23,7 @@ import os
 from sqlmodel import select
 
 # Custom imports
-from backend.components.llm.llm_model import OllamaModel
+from backend.components.llm.llm_model import SummarizeModel
 from backend.components.models.categories import Categories  # noqa: E402
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import Record
@@ -117,7 +117,7 @@ def background_transcription_task(
 
         # LLM summarization — use category-specific LLM if override is active
         if category_llm_override:
-            model = OllamaModel(
+            model = SummarizeModel(
                 model_name=category_llm_override.llm_model,
                 base_url=category_llm_override.llm_api_endpoint,
                 api_key=category_llm_override.llm_api_key,
@@ -125,7 +125,7 @@ def background_transcription_task(
                 max_tokens=category_llm_override.llm_max_tokens,
             )
         else:
-            model = OllamaModel()
+            model = SummarizeModel()
 
         effective_prompt = (category_prompt or "") + (
             _PRESERVE_TOKENS_INSTRUCTION if entity_mapping else ""

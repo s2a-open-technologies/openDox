@@ -19,9 +19,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from .base import ASRBackend
 from .disabled import DisabledBackend
 from .openai_compatible import OpenAICompatibleBackend
+from .parakeet_stream import ParakeetStreamBackend
 
 __all__ = [
     "ASRBackend",
     "OpenAICompatibleBackend",
+    "ParakeetStreamBackend",
     "DisabledBackend",
 ]

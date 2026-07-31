@@ -25,7 +25,7 @@ interface LogoProps {
 export const Logo = ({ className }: LogoProps) => {
     return (
         <svg
-            viewBox="0 10 220 45"
+            viewBox="-15 10 220 45"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className={cn("w-full h-auto", className)}
@@ -37,13 +37,13 @@ export const Logo = ({ className }: LogoProps) => {
             </text>
 
             <path
-                d="M0 35H120L125 20L135 55L145 10L155 50L165 25L175 35H220"
+                d="M5 35H120L125 20L135 55L145 10L155 50L165 25L175 35H220"
                 stroke="black" className="dark:stroke-white"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={{ mixBlendMode: 'overlay', opacity: 0.9 }}
-                strokeDasharray="300"
+                strokeDasharray="290"
                 strokeDashoffset="0"
             >
                 <animate attributeName="stroke-dashoffset" from="300" to="0" dur="1.2s" fill="freeze" />

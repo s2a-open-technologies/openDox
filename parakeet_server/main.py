@@ -246,6 +246,7 @@ async def audio_stream(ws: WebSocket):
         return
 
     last_committed = ""
+    last_partial = ""
     try:
         while True:
             msg = await ws.receive()
@@ -283,9 +284,13 @@ async def audio_stream(ws: WebSocket):
 
                 # Emit the live partial — only the open segment's text, not the
                 # committed portion, so the client can render it alongside its
-                # own accumulated committed text without duplication.
+                # own accumulated committed text without duplication. Only sent
+                # on change: this fires on every ingested frame (~125/s), and
+                # re-sending an unchanged partial wastes a JSON round-trip to
+                # the client for nothing under concurrent-session load.
                 open_partial = await asyncio.to_thread(session.open_partial_text)
-                if open_partial:
+                if open_partial and open_partial != last_partial:
+                    last_partial = open_partial
                     await ws.send_json({"partial": open_partial})
     except WebSocketDisconnect:
         pass

@@ -23,6 +23,7 @@ makes it feel live: text grows as you speak and freezes at pauses.
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -65,13 +66,28 @@ VAD_MIN_SILENCE_MS = 500  # silence needed to commit a segment (live feel)
 VAD_SPEECH_PAD_MS = 30
 
 # Open-segment (partial) re-decode cadence. Short enough that the live partial
-# rarely lags far behind the final committed text.
+# rarely lags far behind the final committed text. Measured in wall-clock time
+# (see _maybe_decode_partial) so a backlog of queued frames can't cause a burst
+# of back-to-back re-decodes once the executor catches up.
 PARTIAL_REDECODE_INTERVAL_S = 0.4
 # Pre-roll kept before the detected speech onset so Parakeet has the leading
 # consonant/breath and doesn't clip word onsets.
 ONSET_PREROLL_S = 0.25
-# Hard cap so Parakeet's ~20-30 s input limit is never hit.
-MAX_SEGMENT_S = 18.0
+# Hard cap so Parakeet's ~20-30 s input limit is never hit. Kept well below
+# that limit because the open segment is re-decoded from scratch on every
+# tick — cost grows with segment length, so a lower cap bounds per-speaker
+# GPU load under concurrent sessions.
+MAX_SEGMENT_S = 9.0
+
+# Bounds concurrent ASR recognize() calls across ALL sessions (process-wide,
+# shared via ParakeetStreamEngine). Without this, every active session's
+# partial re-decode + segment commit can hit the GPU at once with no
+# backpressure, spiking VRAM and slowing down every concurrent speaker in
+# lockstep. onnx-asr's recognize() is a blocking call, so this is a
+# threading.Semaphore (sessions run inside asyncio.to_thread workers, not the
+# event loop) held only around the recognize() call itself. Override via
+# PARAKEET_MAX_CONCURRENT_DECODES.
+MAX_CONCURRENT_DECODES = int(os.environ.get("PARAKEET_MAX_CONCURRENT_DECODES", "2"))
 
 
 class ParakeetStreamEngine:
@@ -85,6 +101,9 @@ class ParakeetStreamEngine:
         self._asr = None  # onnx_asr TextResultsAsrAdapter
         self._vad_session = None  # raw onnxruntime Silero session for streaming
         self._load_lock = threading.Lock()
+        # Shared across all StreamingSession instances so the cap applies
+        # process-wide, not per session.
+        self._decode_semaphore = threading.BoundedSemaphore(MAX_CONCURRENT_DECODES)
         logger.info("Parakeet stream engine initialized")
 
     def is_loaded(self) -> bool:
@@ -151,7 +170,7 @@ class ParakeetStreamEngine:
         """Create a new live transcription session."""
         if not self.ensure_loaded():
             raise RuntimeError("Parakeet stream engine failed to load")
-        return StreamingSession(self._asr, self._vad_session)
+        return StreamingSession(self._asr, self._vad_session, self._decode_semaphore)
 
 
 class StreamingSession:
@@ -170,9 +189,17 @@ class StreamingSession:
     ``partial_transcript()`` = committed_text + " " + current_partial.
     """
 
-    def __init__(self, asr, vad_session: ort.InferenceSession):
+    def __init__(
+        self,
+        asr,
+        vad_session: ort.InferenceSession,
+        decode_semaphore: threading.BoundedSemaphore,
+    ):
         self._asr = asr
         self._vad = vad_session
+        # Process-wide cap on concurrent recognize() calls (see
+        # MAX_CONCURRENT_DECODES); shared with every other active session.
+        self._decode_semaphore = decode_semaphore
 
         # Audio buffer for the currently open segment (float32, mono, 16 kHz).
         # We trim committed audio out so this only holds the open segment.
@@ -200,7 +227,11 @@ class StreamingSession:
         # Current partial (open segment) text.
         self._partial_text = ""
 
-        # Throttle for partial re-decode.
+        # Throttle for partial re-decode, in wall-clock time (time.monotonic()),
+        # not audio-content time — a stall (e.g. executor contention under
+        # concurrent sessions) followed by a burst of queued frames must not
+        # trigger several re-decodes back-to-back just because a lot of audio
+        # content crossed the threshold in that burst.
         self._last_partial_decode_s = 0.0
 
         # Total samples ingested (for time bookkeeping).
@@ -367,7 +398,7 @@ class StreamingSession:
         """Re-decode the open segment periodically for a live partial."""
         if not self._in_speech:
             return
-        now_s = self._total_samples / PCM_SAMPLE_RATE
+        now_s = time.monotonic()
         if now_s - self._last_partial_decode_s < PARTIAL_REDECODE_INTERVAL_S:
             return
         start_rel = self._speech_start - self._audio_offset
@@ -377,7 +408,8 @@ class StreamingSession:
         self._last_partial_decode_s = now_s
         try:
             waveform = self._audio[start_rel:]
-            result = self._asr.recognize(waveform, sample_rate=PCM_SAMPLE_RATE)
+            with self._decode_semaphore:
+                result = self._asr.recognize(waveform, sample_rate=PCM_SAMPLE_RATE)
             self._partial_text = _text_from_result(result)
         except Exception as e:
             logger.warning("partial decode failed: %s", e)
@@ -406,7 +438,8 @@ class StreamingSession:
             return
 
         try:
-            result = self._asr.recognize(seg_audio, sample_rate=PCM_SAMPLE_RATE)
+            with self._decode_semaphore:
+                result = self._asr.recognize(seg_audio, sample_rate=PCM_SAMPLE_RATE)
             text = _text_from_result(result)
             if text:
                 self._committed_text_parts.append(text)

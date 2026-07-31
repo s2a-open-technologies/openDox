@@ -18,7 +18,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Mic, Check, Loader2, AlertCircle, Copy, Save, AlertTriangle, Pencil, Eye } from "lucide-react";
 import { TfiReload } from "react-icons/tfi";
 import type { Recording } from "@/pages/Dashboard";
@@ -278,12 +278,12 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
             onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
             onCut={(e) => { if (!confirmed) e.preventDefault(); }}
             title={!confirmed ? 'Bitte zuerst Bestätigungshaken setzen' : undefined}
-            className={`flex-1 min-h-0 font-sans text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
+            className={`flex-1 min-h-0 font-sans shadow-md text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
           />
         </div>
 
         <div className="flex flex-col min-h-0">
-          <div className="bg-muted/50 p-6 rounded-lg flex flex-col flex-1 min-h-0">
+          <Card className="p-6 flex flex-col flex-1 min-h-0 shadow-md">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
               <h3 className="text-xl font-semibold text-foreground">Zusammenfassung</h3>
               <div className="flex items-center gap-2 ml-auto">
@@ -329,7 +329,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
                 onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
                 onCut={(e) => { if (!confirmed) e.preventDefault(); }}
                 title={!confirmed ? 'Bitte zuerst Bestätigungshaken setzen' : undefined}
-                className={`flex-1 min-h-0 font-sans text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
+                className={`flex-1 min-h-0 font-sans shadow-sm text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
               />
             ) : (
               <div
@@ -344,12 +344,12 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
                 )}
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
 
 
-      <Alert variant="destructive" className="!mt-4">
+      <Alert variant="destructive" className="!mt-4 shadow-md">
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>Kein Medizinprodukt</AlertTitle>
         <AlertDescription className="text-sm leading-relaxed">

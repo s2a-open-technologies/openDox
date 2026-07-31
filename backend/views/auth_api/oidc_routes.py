@@ -15,6 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import re
 import secrets
 from typing import Optional
 
@@ -43,6 +44,20 @@ _serializer = URLSafeSerializer(
 )
 _STATE_COOKIE = "oidc_state"
 _STATE_TTL = 600  # seconds
+
+# RFC 8252 loopback-interface exception for native apps: a desktop app can
+# start a local HTTP server on an ephemeral port and receive the redirect
+# there instead of the SPA's /login route. Only http://127.0.0.1, localhost
+# and [::1] (any port, any path) are accepted — anything else would turn this
+# into an open redirect.
+_NATIVE_REDIRECT_RE = re.compile(
+    r"^http://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(/[^\s?#]*)?$"
+)
+
+
+def _is_valid_native_redirect(url: str) -> bool:
+    """Allowlist check for a desktop app's loopback redirect target."""
+    return bool(_NATIVE_REDIRECT_RE.match(url))
 
 
 def _build_redirect_uri(request: Request) -> str:
@@ -78,22 +93,34 @@ async def oidc_login(request: Request, db: SessionDep):
     The ``state`` is signed and stored in a short-lived cookie, so we can verify
     the callback is the one we initiated (CSRF protection).
 
+    A desktop app (no cookie/localStorage access into the SPA) can pass
+    ``native_redirect=http://127.0.0.1:<port>/callback`` to get the tokens
+    redirected to its own local loopback listener instead of ``/login``. Only
+    loopback targets are accepted (see ``_is_valid_native_redirect``).
+
     Args:
         request: Incoming FastAPI request (used to build the redirect URI).
         db: Database session.
 
     Raises:
-        HTTPException: 503 if OIDC is disabled or misconfigured.
+        HTTPException: 503 if OIDC is disabled or misconfigured, 400 if
+            ``native_redirect`` is present but not a loopback URL.
     """
     settings = _get_settings(db)
     if not settings or not settings.enabled:
         raise HTTPException(status_code=503, detail="OIDC nicht konfiguriert")
 
+    native_redirect = request.query_params.get("native_redirect")
+    if native_redirect and not _is_valid_native_redirect(native_redirect):
+        raise HTTPException(status_code=400, detail="Ungültiges native_redirect-Ziel")
+
     try:
         service = OidcService(settings)
         redirect_uri = _build_redirect_uri(request)
         state = secrets.token_urlsafe(32)
-        signed_state = _serializer.dumps({"state": state})
+        signed_state = _serializer.dumps(
+            {"state": state, "native_redirect": native_redirect}
+        )
         auth_url = service.authorization_url(redirect_uri, state)
     except OidcDiscoveryError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -140,6 +167,13 @@ async def oidc_callback(request: Request, db: SessionDep):
         raise HTTPException(status_code=400, detail="State ungültig") from exc
     if decoded.get("state") != query_state:
         raise HTTPException(status_code=400, detail="State mismatch")
+
+    # Re-validate defense-in-depth: this was already checked before being
+    # signed into the cookie in oidc_login, so a mismatch here should be
+    # unreachable in practice.
+    native_redirect = decoded.get("native_redirect")
+    if native_redirect and not _is_valid_native_redirect(native_redirect):
+        native_redirect = None
 
     # --- 2. Exchange authorization code for tokens ---
     code = request.query_params.get("code")
@@ -191,14 +225,20 @@ async def oidc_callback(request: Request, db: SessionDep):
     db.commit()
     db.refresh(user)
 
-    # --- 5. Issue local tokens + redirect to frontend ---
+    # --- 5. Issue local tokens + redirect to frontend (or native app) ---
     local_access = create_access_token(sub=str(user.id))
     local_refresh = create_refresh_token(sub=str(user.id))
-    root_path = (env_or_file("ROOT_PATH", "") or "").rstrip("/")
-    # Use fragment so tokens never hit server logs / proxies, matching OAuth 2.1
-    redirect_url = (
-        f"{root_path}/login?access_token={local_access}&refresh_token={local_refresh}"
-    )
+    if native_redirect:
+        sep = "&" if "?" in native_redirect else "?"
+        redirect_url = (
+            f"{native_redirect}{sep}"
+            f"access_token={local_access}&refresh_token={local_refresh}"
+        )
+    else:
+        root_path = (env_or_file("ROOT_PATH", "") or "").rstrip("/")
+        redirect_url = (
+            f"{root_path}/login?access_token={local_access}&refresh_token={local_refresh}"
+        )
     response = RedirectResponse(url=redirect_url, status_code=302)
     response.delete_cookie(_STATE_COOKIE)
     return response

@@ -75,7 +75,7 @@ const Sidebar = ({
         </div>
       </div>
 
-      <div className="px-2 pt-2 flex gap-2">
+      <div className="px-2 pt-2 flex gap-2 ">
         <Button
           variant={!showArchived ? "secondary" : "ghost"}
           className={cn("flex-1", !showArchived && "bg-zinc-100 dark:bg-zinc-800 font-medium")}

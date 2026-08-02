@@ -69,6 +69,18 @@ create_secret opendox_s3_secret_access_key "${S3_SECRET_ACCESS_KEY:-$(generate_h
 create_secret opendox_garage_rpc_secret   "${GARAGE_RPC_SECRET:-$(generate_hex 32)}"
 create_secret opendox_garage_admin_token  "${GARAGE_ADMIN_TOKEN:-$(generate_hex 32)}"
 
+# opendox_encryption_key_previous is NOT created by default — it only makes
+# sense as a real prior ENCRYPTION_KEY value during an active key rotation
+# (backend/components/security/key_rotation.py), never a random one. Opt in
+# by exporting ENCRYPTION_KEY_PREVIOUS before running this script, see
+# docker-swarm.rotation.yml for the deploy-time overlay that wires it in.
+ROTATION_SECRET_NOTE=""
+if [ -n "$ENCRYPTION_KEY_PREVIOUS" ]; then
+    create_secret opendox_encryption_key_previous "$ENCRYPTION_KEY_PREVIOUS"
+else
+    ROTATION_SECRET_NOTE="1"
+fi
+
 echo "Done."
 
 if [ -n "$CREATED_SUMMARY" ]; then
@@ -84,6 +96,12 @@ if [ -n "$SKIPPED_SUMMARY" ]; then
     echo
     echo "Already existed, left untouched (values not shown):"
     printf "%b" "$SKIPPED_SUMMARY"
+fi
+
+if [ -n "$ROTATION_SECRET_NOTE" ]; then
+    echo
+    echo "Note: opendox_encryption_key_previous was not created (no active key"
+    echo "rotation). To rotate ENCRYPTION_KEY later, see docker-swarm.rotation.yml."
 fi
 
 echo

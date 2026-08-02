@@ -203,6 +203,12 @@ services:
       # Security / Auth
       SECRET_KEY_FILE: /run/secrets/secret_key
       ALGORITHM: ${ALGORITHM:-HS256}
+      # Comma-separated list of trusted origins for CORS (e.g. the Apache
+      # vhost's public URL). Empty = allow all origins (logs a warning).
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # IPs allowed to set X-Forwarded-Proto/-Host (OIDC redirect URI).
+      # Empty = auto-detect loopback + this container's Docker gateway.
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
       # Field Encryption (DSGVO / § 203 StGB)

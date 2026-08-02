@@ -27,7 +27,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from backend.components.modules.env import env_or_file
+from backend.components.modules.env import env_or_file, get_trusted_proxy_ips
 from backend.components.modules.logger import get_logger, initialize_logging
 from backend.views.auth_api import auth_bp, oidc_bp
 from backend.views.record_api import record_bp
@@ -190,9 +190,18 @@ def create_app():
     app = FastAPI(title="openDox", version=app_version, lifespan=lifespan)
     logger.info("App successfully started")
 
+    cors_origins_raw = env_or_file("CORS_ALLOWED_ORIGINS", "") or ""
+    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+    if not cors_origins:
+        cors_origins = ["*"]
+        logger.warning(
+            "CORS_ALLOWED_ORIGINS is not set — allowing all origins (*). "
+            "Set it to a comma-separated list of trusted origins (e.g. "
+            "https://opendox.example.com) for production."
+        )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -203,6 +212,21 @@ def create_app():
         response = await call_next(request)
         response.headers["Permissions-Policy"] = "microphone=(self), camera=(self)"
         return response
+
+    trusted_proxy_ips = get_trusted_proxy_ips()
+    logger.info(f"Trusted reverse-proxy IPs: {trusted_proxy_ips}")
+
+    @app.middleware("http")
+    async def mark_trusted_proxy(request: Request, call_next):
+        # Flags whether this request's immediate peer is an allowed reverse
+        # proxy, BEFORE anything downstream can rewrite request.client based
+        # on a (possibly attacker-controlled) X-Forwarded-For value — used by
+        # oidc_routes._build_redirect_uri to decide whether X-Forwarded-Proto/
+        # -Host may be trusted at all.
+        request.state.trusted_proxy = bool(
+            request.client and request.client.host in trusted_proxy_ips
+        )
+        return await call_next(request)
 
     health_prefix = f"{root_path}/api/endpoint" if root_path else "/api/endpoint"
 
@@ -221,10 +245,8 @@ def create_app():
     @app.get(ready_path)
     async def readiness_check():
         """Readiness probe: returns 503 if DB or Redis is unreachable."""
-        from backend.components.services.session_store import (
-            RedisSessionStore,
-            session_store,
-        )
+        from backend.components.services.session_store import session_store
+        from backend.components.services.session_store_redis import RedisSessionStore
         from backend.components.sql.sql_engine import get_session_factory
 
         errors = []

@@ -64,8 +64,12 @@ def _build_redirect_uri(request: Request) -> str:
     """Build the absolute callback URL from the incoming request.
 
     Honours ``X-Forwarded-Proto`` and ``X-Forwarded-Host`` so it works behind a
-    reverse proxy (Apache, nginx, Traefik). ROOT_PATH is read from the env so
-    the callback path matches how the router is mounted.
+    reverse proxy (Apache, nginx, Traefik) — but only when the immediate peer
+    is a configured trusted proxy (``request.state.trusted_proxy``, set by
+    ``run.py``'s ``mark_trusted_proxy`` middleware from ``TRUSTED_PROXY_IPS``).
+    Otherwise these headers are attacker-controllable and could be used to
+    manipulate the OIDC redirect URI. ROOT_PATH is read from the env so the
+    callback path matches how the router is mounted.
 
     Args:
         request: The incoming FastAPI request.
@@ -73,10 +77,14 @@ def _build_redirect_uri(request: Request) -> str:
     Returns:
         Absolute URL like ``https://opendox.example.com/opendox/api/v1/auth/oidc/callback``.
     """
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get(
-        "x-forwarded-host", request.headers.get("host", request.url.netloc)
-    )
+    if getattr(request.state, "trusted_proxy", False):
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get(
+            "x-forwarded-host", request.headers.get("host", request.url.netloc)
+        )
+    else:
+        proto = request.url.scheme
+        host = request.headers.get("host", request.url.netloc)
     root_path = (env_or_file("ROOT_PATH", "") or "").rstrip("/")
     return f"{proto}://{host}{root_path}/api/v1/auth/oidc/callback"
 

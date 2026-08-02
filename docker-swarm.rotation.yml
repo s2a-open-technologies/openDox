@@ -1,0 +1,43 @@
+#  openDox - Medical transcription platform
+#  Copyright (C) 2026 Christopher Abanilla <christopher.abanilla@gmx.de>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU Affero General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  any later version.
+#
+#  Overlay for docker-swarm.yml, used ONLY during an active ENCRYPTION_KEY
+#  rotation (backend/components/security/key_rotation.py). Docker secrets
+#  are immutable — you cannot change an existing opendox_encryption_key
+#  secret's value in place — so rotating looks like this:
+#
+#    1. Create a secret holding the CURRENT (about-to-be-replaced) key value
+#       under the name this overlay expects:
+#         printf '%s' '<current ENCRYPTION_KEY value>' | \
+#           docker secret create opendox_encryption_key_previous -
+#    2. Create a NEW secret for the key you're rotating to, and point
+#       docker-swarm.yml's `opendox_encryption_key` source at it (Swarm
+#       secrets can't be renamed/updated — create a fresh one, e.g.
+#       opendox_encryption_key_v2, and edit the `source:` in docker-swarm.yml
+#       accordingly) or use `docker service update --secret-rm/--secret-add`.
+#    3. Deploy WITH this overlay:
+#         docker stack deploy -c docker-swarm.yml -c docker-swarm.rotation.yml opendox
+#       On startup, run_key_rotation_if_needed() detects the fingerprint
+#       change and re-encrypts all records from the previous key to the new
+#       one — check the app's logs for confirmation.
+#    4. Once confirmed, redeploy WITHOUT this overlay and remove the
+#       opendox_encryption_key_previous secret
+#       (`docker secret rm opendox_encryption_key_previous`) — it must not
+#       stay around longer than the rotation itself.
+
+services:
+  app:
+    environment:
+      ENCRYPTION_KEY_PREVIOUS_FILE: /run/secrets/encryption_key_previous
+    secrets:
+      - source: opendox_encryption_key_previous
+        target: encryption_key_previous
+
+secrets:
+  opendox_encryption_key_previous:
+    external: true

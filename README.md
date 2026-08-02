@@ -17,7 +17,8 @@ openDox ist eine webbasierte Plattform für die medizinische Dokumentation. Ärz
 | **Transkription** | Externe OpenAI-kompatible Whisper-API (Docker) |
 | **Zusammenfassung** | Externes LLM via LangChain/OpenAI-kompatible API |
 | **Datenbank** | PostgreSQL (Docker) oder SQLite (Fallback) |
-| **Auth** | JWT (python-jose + bcrypt), optional LDAP |
+| **Auth** | JWT (python-jose + bcrypt), optional LDAP (inkl. Gruppen-Rollenmapping) oder OIDC/SSO |
+| **Objektspeicher** | S3-kompatibel (self-hosted Garage per Default, austauschbar) für persistierte Audio-Downloads |
 
 ## Schnellstart (Docker)
 
@@ -36,13 +37,27 @@ docker compose up --build
 ```
 
 Services:
-- **App**: http://localhost:5000
-- **Whisper API**: http://localhost:9000
-- **PostgreSQL**: localhost:5432
+- **App**: http://localhost:20000 (Port über `APP_PORT` konfigurierbar)
+
+PostgreSQL, Redis, Whisper, Parakeet und der Objektspeicher (Garage) sind nur intern im Docker-Netzwerk erreichbar, nicht direkt vom Host aus.
 
 Login mit dem seeded Admin-User:
 - Benutzer: `admin`
 - Passwort: `admin`
+
+### Produktion (Docker Swarm)
+
+Für einen gehärteten Produktions-Deploy (echte Secrets statt Klartext-Defaults, GPU-Placement, versionsfixierte Images) gibt es `docker-swarm.yml` statt `docker-compose.yml`:
+
+```bash
+docker swarm init                        # einmalig pro Manager-Node
+./create_docker_secrets.sh                # einmalig — erzeugt alle benötigten Secrets
+export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
+./docker_build_push.sh
+docker stack deploy -c docker-swarm.yml opendox
+```
+
+Details (Secrets-Handling, GPU-Scheduling unter Swarm, Key-Rotation) siehe Kommentare in `docker-swarm.yml` und `AGENTS.md`.
 
 ## Entwicklung (ohne Docker)
 
@@ -82,7 +97,7 @@ Das Frontend ist dann unter http://localhost:3000 erreichbar.
 ```bash
 cd frontend
 npm run build
-# Kopiert automatisch nach ../static/
+# Vite schreibt den Build direkt nach ../backend/static/ (kein separater Kopierschritt)
 ```
 
 ## Architektur
@@ -98,16 +113,20 @@ npm run build
 
 Beim Start einer Aufnahme wird eine medizinische Kategorie gewählt (z. B. Kardiologie, Orthopädie). Jede Kategorie hat einen eigenen System-Prompt, der sowohl der Whisper-API (für Fachtermini) als auch dem LLM (für Zusammenfassung) übergeben wird.
 
+### Audio-Download (optional)
+
+Nach der finalen Transkription kann eine komprimierte, verschlüsselte MP3-Kopie der Aufnahme für den späteren Download aufbewahrt werden (Admin-UI → „Audio"-Tab: an/aus, Bitrate, Sample-Rate). Die Datei wird client-seitig mit dem `ENCRYPTION_KEY` verschlüsselt und landet im konfigurierten S3-kompatiblen Objektspeicher, nie unverschlüsselt auf der Platte. Die rohe PCM/WAV-Aufnahme selbst wird davon unabhängig nach der Transkription immer gelöscht (DSGVO-Datenminimierung).
+
 ### Static Files
 
 - Statische Assets (Logos, Icons) liegen in `frontend/public/`
-- Build-Output landet in `frontend/dist/` und wird nach `static/` kopiert
-- `static/` ist in `.gitignore` (wird bei Docker-Build generiert)
+- `vite.config.ts` schreibt den Build-Output direkt nach `../backend/static/` (kein `frontend/dist/`-Zwischenschritt)
+- `backend/static/` ist in `.gitignore` (wird beim Frontend-Build generiert)
 - FastAPI mountet `StaticFiles` auf `/` mit `html=True` für SPA-Routing
 
 ### Docker-Secrets
 
-Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SECRET_KEY_FILE=/run/secrets/secret_key`).
+Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SECRET_KEY_FILE=/run/secrets/secret_key`) — Grundlage für den Docker-Swarm-Produktionspfad (siehe oben), wo `create_docker_secrets.sh` alle Secrets anlegt und `docker-swarm.yml` sie über diese Konvention einbindet.
 
 ## Konfiguration
 
@@ -115,10 +134,16 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 |----------|--------------|---------|
 | `SQL_USER` / `SQL_PASS` / `SQL_HOST` / `SQL_PORT` / `SQL_DB` | PostgreSQL-Komponenten | postgres/postgres/localhost/5432/opendox |
 | `DATABASE_URI` | Volle DB-URI (überschreibt Komponenten, z.B. `sqlite:///test.sqlite3`) | – |
-| `SECRET_KEY` | JWT-Signing-Key | `TestintDebugKey` |
+| `SECRET_KEY` | JWT-Signing-Key. Nicht gesetzt = zufällig generiert pro Prozessstart (invalidiert Sessions bei jedem Neustart) statt unsicherem Fallback | – |
 | `ALGORITHM` | JWT-Algorithmus | `HS256` |
-| `WHISPER_API_ENDPOINT` | Whisper-API-URL | `http://localhost:9000/v1` |
+| `ENCRYPTION_KEY` | Fernet-Key für verschlüsselte Patientendaten (DSGVO/§203 StGB) | – (Verschlüsselung deaktiviert wenn leer) |
+| `CORS_ALLOWED_ORIGINS` | Komma-getrennte erlaubte CORS-Origins | – (alle erlaubt, loggt Warnung) |
+| `TRUSTED_PROXY_IPS` | IPs, die `X-Forwarded-Proto`/`-Host` setzen dürfen (OIDC-Redirect) | – (Auto-Erkennung: Loopback + Docker-Gateway) |
+| `WHISPER_API_ENDPOINT` | Whisper-API-URL (Fallback, wenn keine DB-Settings gesetzt sind) | `http://localhost:9100/v1` |
 | `WHISPER_API_KEY` | Whisper-API-Key | `loc-123` |
+| `S3_ENDPOINT_URL` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | S3-kompatibler Objektspeicher für Audio-Downloads | zeigt im Docker-Compose-Stack auf den mitgelieferten `garage`-Service |
+
+Vollständige Liste inkl. Kommentaren: [`.env.example`](.env.example).
 
 ## Datenbank-Migrationen
 
@@ -129,18 +154,20 @@ alembic revision --autogenerate -m "description"
 alembic upgrade head
 ```
 
-Migrationen werden automatisch beim App-Start ausgeführt (in `backend/run.py`).
+Im Docker-Image laufen Migrationen automatisch vor dem App-Start (`entrypoint.sh: alembic upgrade head`).
 
 ## Wichtige Dateien
 
 | Datei | Rolle |
 |-------|-------|
 | `main.py` | Entrypoint: `uvicorn main:app` |
-| `backend/run.py` | App-Factory: CORS, StaticFiles, Alembic-Migrationen, Admin-Seed |
+| `backend/run.py` | App-Factory: CORS/Proxy-Trust-Middleware, StaticFiles, Admin-Seed |
 | `backend/components/sql/db_config.py` | Zentrale DB-URI (PostgreSQL oder SQLite) |
 | `backend/components/services/asr_factory.py` | ASR-Backend-Factory |
-| `backend/components/services/background_transcription_service.py` | Finale Transkription + LLM-Summary |
-| `AGENTS.md` | Detaillierte Entwickler-Dokumentation |
+| `backend/components/services/background_transcription_service.py` | Finale Transkription + LLM-Summary + Audio-Persistierung |
+| `backend/components/services/audio_storage.py` | S3-Client für persistierte Audio-Downloads |
+| `docker-swarm.yml` / `create_docker_secrets.sh` | Produktions-Deploy (Docker Swarm) mit echten Secrets |
+| `AGENTS.md` (auch als `CLAUDE.md` verlinkt) | Detaillierte Entwickler-Dokumentation |
 
 ## Lizenz
 

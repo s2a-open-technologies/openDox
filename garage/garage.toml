@@ -1,0 +1,28 @@
+# Garage (S3-compatible object storage) config for local development/testing.
+#
+# Secrets (rpc_secret, admin.admin_token) are intentionally NOT set here —
+# they're supplied via the GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN env vars on
+# the `garage` service in docker-compose.yml (Garage's CLI supports the same
+# flags/env-vars for `garage server` as for admin operations), sourced from
+# .env, so no secret is committed to the repo.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+# No rpc_public_addr: only needed for multi-node clusters to advertise a
+# reachable address to peers. For this single-node setup it's unnecessary —
+# worse, under Docker Swarm's overlay network the "garage" service DNS name
+# isn't always resolvable from inside the container at boot (timing-
+# dependent), which made garage log a resolution error repeatedly and
+# eventually fail its healthcheck in a restart loop.
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"

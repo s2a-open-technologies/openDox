@@ -28,6 +28,7 @@ from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.user_model import User
 from backend.components.modules.env import env_or_file
 from backend.components.security.hashing import (
+    SECRET_KEY,
     create_access_token,
     create_refresh_token,
 )
@@ -36,12 +37,11 @@ from backend.components.sql.sql_engine import SessionDep
 
 oidc_bp = APIRouter(prefix="/api/v1/auth/oidc", tags=["auth"])
 
-# Itsdangerous signer for the OIDC ``state`` cookie. Signed with the app JWT
-# secret so a forged state would require leaking SECRET_KEY. The serializer is
+# Itsdangerous signer for the OIDC ``state`` cookie. Signed with the same
+# secret as JWT auth tokens (backend.components.security.hashing.SECRET_KEY)
+# so a forged state would require leaking that secret. The serializer is
 # stateless (purely string-based), so it works across processes and restarts.
-_serializer = URLSafeSerializer(
-    env_or_file("SECRET_KEY", "TestintDebugKey"), salt="oidc-state"
-)
+_serializer = URLSafeSerializer(SECRET_KEY, salt="oidc-state")
 _STATE_COOKIE = "oidc_state"
 _STATE_TTL = 600  # seconds
 

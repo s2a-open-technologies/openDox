@@ -43,10 +43,47 @@ services:
       retries: 5
 
   # ═══════════════════════════════════════════════════════════════════════════════
+  # Garage (S3-compatible object storage for persisted audio downloads)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  garage:
+    image: dxflrs/garage:v1.0.1
+    container_name: opendox-garage
+    restart: always
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-a19c30166d07933f070e4a769eb3a9e05ae3d15c4fa7bcdb9ec3e983e3fe3bca}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-ChangeThisGarageAdminToken}
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage-data:/var/lib/garage
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot idempotent setup: cluster layout, bucket, S3 access key.
+  # Re-run on every `up`; exits 0 immediately if already configured.
+  garage-init:
+    build:
+      context: ./garage/init
+    container_name: opendox-garage-init
+    restart: "no"
+    environment:
+      GARAGE_HOST: garage
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-ChangeThisGarageAdminToken}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-a19c30166d07933f070e4a769eb3a9e05ae3d15c4fa7bcdb9ec3e983e3fe3bca}
+      GARAGE_BUCKET: ${S3_BUCKET:-opendox-audio}
+      GARAGE_KEY_ID: ${S3_ACCESS_KEY_ID:-GK000000000000000000000001}
+      GARAGE_KEY_SECRET: ${S3_SECRET_ACCESS_KEY:-18c9004ef3b791ca07e7730f3ba4bdad038161d0f0c771255385c391ed18ed2a}
+    depends_on:
+      garage:
+        condition: service_healthy
+
+  # ═══════════════════════════════════════════════════════════════════════════════
   # Whisper Server (OpenAI-compatible API for transcription)
   # ═══════════════════════════════════════════════════════════════════════════════
   whisper:
-    image: registry.nutsolution.de/opendox-whisper:latest
+    image: registry.nutsolution.de/opendox-whisper:0.1.0
     build:
       context: .
       dockerfile: whisper_server/Dockerfile
@@ -71,7 +108,7 @@ services:
   # Parakeet Server (CPU, onnx-asr, OpenAI-compatible API for live ASR)
   # ═══════════════════════════════════════════════════════════════════════════════
   parakeet:
-    image: registry.nutsolution.de/opendox-parakeet:latest
+    image: registry.nutsolution.de/opendox-parakeet:0.1.0
     build:
       context: .
       dockerfile: parakeet_server/Dockerfile
@@ -95,7 +132,7 @@ services:
   # openDox Application (FastAPI + React)
   # ═══════════════════════════════════════════════════════════════════════════════
   app:
-    image: registry.nutsolution.de/opendox:demo
+    image: registry.nutsolution.de/opendox:0.1.0
     build:
       context: .
       dockerfile: Dockerfile
@@ -125,10 +162,14 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Root path for sub-path deployment (e.g. /app)
       ROOT_PATH: ${ROOT_PATH:-}
-    volumes:
-      - app-chunks:/app/chunks
-      - app-models-cache:/app/models_cache
-      - app-certs:/app/certs
+      # S3-compatible object storage for persisted audio downloads (points at
+      # the local `garage` service by default; swap to any S3-compatible
+      # endpoint — Hetzner Object Storage, AWS S3, etc. — via .env)
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://garage:3900}
+      S3_BUCKET: ${S3_BUCKET:-opendox-audio}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-GK000000000000000000000001}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-18c9004ef3b791ca07e7730f3ba4bdad038161d0f0c771255385c391ed18ed2a}
+      S3_REGION: ${S3_REGION:-garage}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -138,6 +179,8 @@ services:
         condition: service_healthy
       whisper:
         condition: service_started
+      garage-init:
+        condition: service_completed_successfully
 
 volumes:
   postgres-data:
@@ -146,9 +189,5 @@ volumes:
     name: opendox-redis-data
   whisper-data:
     name: opendox-whisper-data
-  app-chunks:
-    name: opendox-app-chunks
-  app-models-cache:
-    name: opendox-app-models-cache
-  app-certs:
-    name: opendox-app-certs
+  garage-data:
+    name: opendox-garage-data

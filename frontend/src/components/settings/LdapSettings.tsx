@@ -37,6 +37,9 @@ interface LdapSettingsData {
     bind_user_dn: string;
     bind_user_password: string;
     cert_filename: string;
+    allowed_groups: string;
+    admin_groups: string;
+    moderator_groups: string;
 }
 
 const LdapSettings = () => {
@@ -51,6 +54,9 @@ const LdapSettings = () => {
         bind_user_dn: '',
         bind_user_password: '',
         cert_filename: '',
+        allowed_groups: '',
+        admin_groups: '',
+        moderator_groups: '',
     });
     const [loading, setLoading] = useState(false);
     const [certFile, setCertFile] = useState<File | null>(null);
@@ -72,6 +78,9 @@ const LdapSettings = () => {
                         bind_user_dn: data.bind_user_dn || '',
                         bind_user_password: data.bind_user_password || '',
                         cert_filename: data.cert_filename || '',
+                        allowed_groups: data.allowed_groups || '',
+                        admin_groups: data.admin_groups || '',
+                        moderator_groups: data.moderator_groups || '',
                     });
                 }
             })
@@ -241,6 +250,39 @@ const LdapSettings = () => {
                         />
                         <p className="text-xs text-muted-foreground">
                             LDAP-Filter, um Login auf bestimmte Gruppen einzuschränken. Wird mit der User-Suche per AND verknüpft.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Erlaubte Gruppen (Komma-getrennt)</Label>
+                        <Input
+                            value={settings.allowed_groups}
+                            onChange={e => setSettings({ ...settings, allowed_groups: e.target.value })}
+                            placeholder="opendox-user"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Nur Gruppennamen, kein DN — die App baut den DN selbst (cn=Name,Base DN). Leer lassen = alle erfolgreich authentifizierten LDAP-User dürfen sich anmelden.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Admin-Gruppen (Komma-getrennt)</Label>
+                        <Input
+                            value={settings.admin_groups}
+                            onChange={e => setSettings({ ...settings, admin_groups: e.target.value })}
+                            placeholder="opendox-admin"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Moderator-Gruppen (Komma-getrennt)</Label>
+                        <Input
+                            value={settings.moderator_groups}
+                            onChange={e => setSettings({ ...settings, moderator_groups: e.target.value })}
+                            placeholder="opendox-moderatoren"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Bei Mitgliedschaft in Admin- und Moderator-Gruppe gewinnt Admin.
                         </p>
                     </div>
 

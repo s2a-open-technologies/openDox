@@ -34,7 +34,7 @@ import UserSettings from './settings/UserSettings';
 import SystemSettings from './settings/SystemSettings';
 import CategorySettings from './settings/CategorySettings';
 import BackupSettings from './settings/BackupSettings';
-import AudioConfig from './settings/AudioConfig';
+import { AudioConfig } from './settings/AudioConfig';
 
 interface AdminModalProps {
   isOpen: boolean;

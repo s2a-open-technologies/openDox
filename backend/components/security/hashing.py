@@ -15,6 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Union
 
@@ -22,10 +23,20 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from backend.components.modules.env import env_or_file
+from backend.components.modules.logger import get_logger
+
+logger = get_logger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = env_or_file("SECRET_KEY", "TestintDebugKey")
+SECRET_KEY = env_or_file("SECRET_KEY", None)
+if SECRET_KEY is None:
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logger.critical(
+        "SECRET_KEY is not set - using a randomly generated key for this "
+        "process. All existing sessions/tokens will be invalidated on every "
+        "restart. Set SECRET_KEY (or SECRET_KEY_FILE) for stable sessions."
+    )
 ALGORITHM = env_or_file("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = env_or_file("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 REFRESH_TOKEN_EXPIRE_DAYS = env_or_file("REFRESH_TOKEN_EXPIRE_DAYS", "7")

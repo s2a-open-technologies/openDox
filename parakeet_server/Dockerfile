@@ -18,7 +18,7 @@ FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-gpu
 # Final stage selects the right base via the DEVICE arg.
 FROM base-${DEVICE} AS final
 
-ARG DEVICE=cpu
+ARG DEVICE=gpu
 ENV DEVICE=${DEVICE} \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1

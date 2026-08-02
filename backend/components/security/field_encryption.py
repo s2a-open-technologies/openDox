@@ -67,6 +67,20 @@ def decrypt(value: str) -> str:
         return value
 
 
+def encrypt_bytes(data: bytes) -> bytes:
+    """Encrypt raw bytes (e.g. audio) with the same key as ``encrypt``."""
+    if _fernet is None or not data:
+        return data
+    return _fernet.encrypt(data)
+
+
+def decrypt_bytes(data: bytes) -> bytes:
+    """Decrypt bytes produced by ``encrypt_bytes``."""
+    if _fernet is None or not data:
+        return data
+    return _fernet.decrypt(data)
+
+
 class EncryptedString(TypeDecorator):
     """SQLAlchemy column type that transparently encrypts on write and decrypts on read."""
 

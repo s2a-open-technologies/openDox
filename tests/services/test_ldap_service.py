@@ -24,6 +24,10 @@ def _settings(**overrides):
         bind_user_dn="cn=admin,dc=example,dc=com",
         bind_user_password="admin-pass",
         cert_filename=None,
+        cert_data=None,
+        allowed_groups=None,
+        admin_groups=None,
+        moderator_groups=None,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -44,8 +48,11 @@ def _bind_connection(entries):
     return conn
 
 
-def _user_entry(dn):
-    return SimpleNamespace(entry_dn=dn)
+def _user_entry(dn, member_of=None):
+    entry = SimpleNamespace(entry_dn=dn)
+    if member_of is not None:
+        entry.memberOf = SimpleNamespace(values=member_of)
+    return entry
 
 
 @pytest.fixture
@@ -68,7 +75,11 @@ def test_authenticate_succeeds_with_valid_credentials(patched_connection):
 
     result = LdapService(_settings()).authenticate("jdoe", "secret")
 
-    assert result == {"success": True, "message": "Authentication successful"}
+    assert result == {
+        "success": True,
+        "message": "Authentication successful",
+        "role": "user",
+    }
     bind_conn.unbind.assert_called_once()
     user_conn.unbind.assert_called_once()
 
@@ -143,3 +154,147 @@ def test_authenticate_wraps_bare_extra_filter_in_parens(patched_connection):
         bind_conn.last_search_filter
         == "(&(uid=jdoe)(memberOf=cn=staff,dc=example,dc=com))"
     )
+
+
+def test_authenticate_rejects_empty_password_without_binding(patched_connection):
+    connection_mock = patched_connection()
+
+    result = LdapService(_settings()).authenticate("jdoe", "")
+
+    assert result == {"success": False, "message": "Invalid credentials"}
+    connection_mock.assert_not_called()
+
+
+def test_authenticate_escapes_filter_metacharacters_in_username(
+    patched_connection,
+):
+    bind_conn = _bind_connection([])
+    patched_connection(bind_conn)
+
+    LdapService(
+        _settings(search_filter="(memberOf=cn=staff,dc=example,dc=com)")
+    ).authenticate("jdoe)(|(uid=*", "secret")
+
+    # The injected parentheses/wildcard must be escaped, not alter the
+    # filter's logical structure.
+    assert bind_conn.last_search_filter == (
+        r"(&(uid=jdoe\29\28|\28uid=\2a)"
+        "(memberOf=cn=staff,dc=example,dc=com))"
+    )
+
+
+def test_authenticate_denies_login_when_not_in_allowed_group(patched_connection):
+    bind_conn = _bind_connection(
+        [_user_entry("uid=jdoe,dc=example,dc=com", member_of=[])]
+    )
+    user_conn = MagicMock(bound=True)
+    patched_connection(bind_conn, user_conn)
+
+    result = LdapService(
+        _settings(allowed_groups="opendox-user")
+    ).authenticate("jdoe", "secret")
+
+    assert result == {
+        "success": False,
+        "message": "Not authorized (group restriction)",
+    }
+
+
+def test_authenticate_allows_login_when_in_allowed_group(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-user,dc=example,dc=com"],
+            )
+        ]
+    )
+    user_conn = MagicMock(bound=True)
+    patched_connection(bind_conn, user_conn)
+
+    result = LdapService(
+        _settings(allowed_groups="opendox-user")
+    ).authenticate("jdoe", "secret")
+
+    assert result["success"] is True
+
+
+def test_authenticate_maps_admin_group_to_admin_role(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-admin,dc=example,dc=com"],
+            )
+        ]
+    )
+    user_conn = MagicMock(bound=True)
+    patched_connection(bind_conn, user_conn)
+
+    result = LdapService(
+        _settings(admin_groups="opendox-admin")
+    ).authenticate("jdoe", "secret")
+
+    assert result["role"] == "admin"
+
+
+def test_authenticate_maps_moderator_group_to_moderator_role(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-mod,dc=example,dc=com"],
+            )
+        ]
+    )
+    user_conn = MagicMock(bound=True)
+    patched_connection(bind_conn, user_conn)
+
+    result = LdapService(
+        _settings(moderator_groups="opendox-mod")
+    ).authenticate("jdoe", "secret")
+
+    assert result["role"] == "moderator"
+
+
+def test_authenticate_admin_group_takes_precedence_over_moderator(
+    patched_connection,
+):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=[
+                    "cn=opendox-admin,dc=example,dc=com",
+                    "cn=opendox-mod,dc=example,dc=com",
+                ],
+            )
+        ]
+    )
+    user_conn = MagicMock(bound=True)
+    patched_connection(bind_conn, user_conn)
+
+    result = LdapService(
+        _settings(admin_groups="opendox-admin", moderator_groups="opendox-mod")
+    ).authenticate("jdoe", "secret")
+
+    assert result["role"] == "admin"
+
+
+def test_authenticate_group_matching_is_case_insensitive(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["CN=Opendox-Admin,DC=example,DC=com"],
+            )
+        ]
+    )
+    user_conn = MagicMock(bound=True)
+    patched_connection(bind_conn, user_conn)
+
+    result = LdapService(
+        _settings(admin_groups="opendox-admin")
+    ).authenticate("jdoe", "secret")
+
+    assert result["role"] == "admin"

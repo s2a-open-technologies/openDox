@@ -1,0 +1,265 @@
+#  openDox - Medical transcription platform
+#  Copyright (C) 2026 Christopher Abanilla <christopher.abanilla@gmx.de>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU Affero General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  any later version.
+#
+#  Docker Swarm production deployment. Differences from docker-compose.yml
+#  (that file stays the local dev/demo setup, this one is for `docker stack
+#  deploy`):
+#    - No `build:` — Swarm only pulls images, it never builds them. Build and
+#      push all four custom images first with ./docker_build_push.sh, then
+#      set OPENDOX_VERSION (see below) to the tag it produced.
+#    - No `container_name:` — unsupported/ignored under Swarm, services are
+#      named `<stack>_<service>` automatically.
+#    - `restart:` moved under `deploy.restart_policy` (Swarm's equivalent).
+#    - `depends_on` conditions are NOT enforced by Swarm (compose-only
+#      feature) — services instead rely on `deploy.restart_policy:
+#      condition: on-failure` to retry until their dependencies come up
+#      (e.g. alembic migrations failing because Postgres isn't ready yet
+#      simply exits non-zero and Swarm restarts the container).
+#    - Secrets are pulled in via Swarm's native `secrets:` mechanism instead
+#      of plaintext `environment:` values — created up front with
+#      ./create_docker_secrets.sh. Every secret is exposed to its container
+#      as a file under /run/secrets/<name>, referenced here via the app's
+#      existing `<VAR>_FILE` convention (env_or_file() in
+#      backend/components/modules/env.py) — no code changes needed.
+#
+#  Usage:
+#    docker swarm init                       # once per manager node
+#    ./create_docker_secrets.sh               # once, or after adding a new secret
+#    export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
+#    ./docker_build_push.sh                   # build + push all 4 images at that tag
+#    docker stack deploy -c docker-swarm.yml opendox
+
+services:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PostgreSQL Database
+  # ═══════════════════════════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${SQL_USER:-postgres}
+      POSTGRES_PASSWORD_FILE: /run/secrets/sql_pass
+      POSTGRES_DB: ${SQL_DB:-opendox}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    secrets:
+      - source: opendox_sql_pass
+        target: sql_pass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SQL_USER:-postgres} -d ${SQL_DB:-opendox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Redis (Session Store)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Garage (S3-compatible object storage for persisted audio downloads)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  garage:
+    image: dxflrs/garage:v1.0.1
+    environment:
+      GARAGE_RPC_SECRET_FILE: /run/secrets/garage_rpc_secret
+      GARAGE_ADMIN_TOKEN_FILE: /run/secrets/garage_admin_token
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage-data:/var/lib/garage
+    # Garage itself refuses to start if its RPC secret file is
+    # group/world-readable (Swarm's default secret file mode is 0444) —
+    # mode: 0600 here satisfies that check.
+    secrets:
+      - source: opendox_garage_rpc_secret
+        target: garage_rpc_secret
+        mode: 0600
+      - source: opendox_garage_admin_token
+        target: garage_admin_token
+        mode: 0600
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # One-shot idempotent setup: cluster layout, bucket, S3 access key.
+  # Exits 0 once configured; `on-failure` keeps retrying until `garage` is up
+  # (no depends_on/service_healthy under Swarm — see header comment).
+  garage-init:
+    image: registry.nutsolution.de/opendox-garage-init:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    environment:
+      GARAGE_HOST: garage
+      GARAGE_ADMIN_TOKEN_FILE: /run/secrets/garage_admin_token
+      GARAGE_RPC_SECRET_FILE: /run/secrets/garage_rpc_secret
+      GARAGE_BUCKET: ${S3_BUCKET:-opendox-audio}
+      GARAGE_KEY_ID_FILE: /run/secrets/s3_access_key_id
+      GARAGE_KEY_SECRET_FILE: /run/secrets/s3_secret_access_key
+    secrets:
+      - source: opendox_garage_admin_token
+        target: garage_admin_token
+        mode: 0600
+      - source: opendox_garage_rpc_secret
+        target: garage_rpc_secret
+        mode: 0600
+      - source: opendox_s3_access_key_id
+        target: s3_access_key_id
+      - source: opendox_s3_secret_access_key
+        target: s3_secret_access_key
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 30
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Whisper Server (OpenAI-compatible API for transcription)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  whisper:
+    image: registry.nutsolution.de/opendox-whisper:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    volumes:
+      - whisper-data:/var/lib/whisper
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      WHISPER_API_KEY_FILE: /run/secrets/whisper_api_key
+    secrets:
+      - source: opendox_whisper_api_key
+        target: whisper_api_key
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      # Swarm's native deploy.resources schema has no GPU/device-reservation
+      # support at all (unlike `docker compose`, which forwards
+      # reservations.devices straight to the local engine) — this isn't a
+      # config detail, Swarm genuinely cannot schedule by GPU. The
+      # standard workaround: pin this service to the GPU node with a
+      # placement constraint, and make the GPU available to *every*
+      # container on that node via the daemon's default runtime, set up
+      # once on that node with:
+      #   nvidia-ctk runtime configure --runtime=docker --set-as-default
+      #   systemctl restart docker
+      #   docker node update --label-add gpu=true <node-hostname>
+      placement:
+        constraints:
+          - node.labels.gpu == true
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Parakeet Server (onnx-asr, OpenAI-compatible API for live ASR)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  parakeet:
+    image: registry.nutsolution.de/opendox-parakeet:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      # See the `whisper` service above — same GPU-node placement approach.
+      placement:
+        constraints:
+          - node.labels.gpu == true
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # openDox Application (FastAPI + React)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  app:
+    image: registry.nutsolution.de/opendox:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    ports:
+      - "${APP_PORT:-20000}:5000"
+    environment:
+      # Database (service name as host inside the Swarm overlay network)
+      SQL_USER: ${SQL_USER:-postgres}
+      SQL_PASS_FILE: /run/secrets/sql_pass
+      SQL_HOST: postgres
+      SQL_PORT: 5432
+      SQL_DB: ${SQL_DB:-opendox}
+      # Security / Auth
+      SECRET_KEY_FILE: /run/secrets/secret_key
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      # Field Encryption (DSGVO / § 203 StGB)
+      ENCRYPTION_KEY_FILE: /run/secrets/encryption_key
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Redis Session Store
+      REDIS_URL: redis://redis:6379/0
+      # Root path for sub-path deployment (e.g. /app)
+      ROOT_PATH: ${ROOT_PATH:-}
+      # S3-compatible object storage for persisted audio downloads
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://garage:3900}
+      S3_BUCKET: ${S3_BUCKET:-opendox-audio}
+      S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key_id
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_access_key
+      S3_REGION: ${S3_REGION:-garage}
+    secrets:
+      - source: opendox_sql_pass
+        target: sql_pass
+      - source: opendox_secret_key
+        target: secret_key
+      - source: opendox_encryption_key
+        target: encryption_key
+      - source: opendox_s3_access_key_id
+        target: s3_access_key_id
+      - source: opendox_s3_secret_access_key
+        target: s3_secret_access_key
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      # Must stay at 1: /app/chunks (live-recording PCM scratch space) is
+      # local-disk-only and keyed by session_id, with no cross-instance
+      # sharing. See docs/TODO.md Tier 4.
+      replicas: 1
+      restart_policy:
+        condition: any
+
+volumes:
+  postgres-data:
+  redis-data:
+  whisper-data:
+  garage-data:
+
+secrets:
+  opendox_sql_pass:
+    external: true
+  opendox_secret_key:
+    external: true
+  opendox_encryption_key:
+    external: true
+  opendox_whisper_api_key:
+    external: true
+  opendox_s3_access_key_id:
+    external: true
+  opendox_s3_secret_access_key:
+    external: true
+  opendox_garage_rpc_secret:
+    external: true
+  opendox_garage_admin_token:
+    external: true

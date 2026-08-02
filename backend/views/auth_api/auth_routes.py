@@ -95,18 +95,22 @@ async def login(user_in: UserLogin, db: SessionDep):
         auth_result = ldap_service.authenticate(user_in.name, user_in.password)
 
         if auth_result["success"]:
+            role = auth_result.get("role", "user")
             # Sync user to DB
             if not user:
                 user = User(
                     name=user_in.name,
                     hashed_password="",  # No password for LDAP users
                     is_active=True,
+                    role=role,
                 )
                 db.add(user)
 
             else:
-                # Update existing user if needed (e.g. reactivate)
+                # Update existing user if needed (e.g. reactivate, re-sync role
+                # from current LDAP group membership on every login)
                 user.is_active = True
+                user.role = role
 
             db.commit()
             db.refresh(user)

@@ -18,7 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import os
-import shutil
 from datetime import datetime
 from typing import Any
 
@@ -419,17 +418,40 @@ async def test_ldap_connection(
 
 @settings_bp.post("/ldap-settings/upload-cert/")
 async def upload_ldap_cert(
+    db: SessionDep,
     file: UploadFile = File(...),
     _: User = Depends(_require_admin),
 ):
-    certs_dir = "certs"
-    os.makedirs(certs_dir, exist_ok=True)
-    file_path = os.path.join(certs_dir, file.filename)
+    """Store an uploaded LDAP CA certificate directly in the settings row.
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    The certificate content (PEM text) is persisted in the database and
+    passed to ``ldap3.Tls`` as ``ca_certs_data`` at connect time — no file is
+    ever written to disk, so the upload's filename cannot be used to write
+    outside a managed directory.
+    """
+    raw = await file.read()
+    try:
+        cert_text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400, detail="Zertifikat muss eine PEM-Textdatei sein"
+        )
+    if not cert_text.strip():
+        raise HTTPException(status_code=400, detail="Zertifikatsdatei ist leer")
 
-    return {"filename": file.filename}
+    display_name = os.path.basename(file.filename or "certificate.pem")
+
+    settings = db.exec(select(LdapSettingsModel)).first()
+    if not settings:
+        settings = LdapSettingsModel(
+            server_host="", server_port=389, base_dn="", user_dn=""
+        )
+    settings.cert_data = cert_text
+    settings.cert_filename = display_name
+    db.add(settings)
+    db.commit()
+
+    return {"filename": display_name}
 
 
 # Categories Endpoints

@@ -52,8 +52,10 @@ COPY --from=frontend-builder /app/backend/static ./backend/static/
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# Create runtime directories
-RUN mkdir -p logs chunks audio models_cache certs
+# Create runtime directory for transient PCM recording chunks (ephemeral,
+# self-cleaning at startup — see run.py). Everything durable now lives in
+# Postgres or S3-compatible object storage, not on local disk.
+RUN mkdir -p chunks
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -26,8 +26,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import numpy as np
-from fastapi import Depends, File, Form, HTTPException, UploadFile, WebSocket
-from fastapi.responses import FileResponse
+from fastapi import Depends, File, Form, HTTPException, Response, UploadFile, WebSocket
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
@@ -1026,22 +1025,21 @@ async def delete_record(
     record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
 ):
     """Delete a record permanently"""
+    from backend.components.services import audio_storage
+
     record = db.get(Record, record_id)
     if not record:
         return {"error": "Record not found"}
     _require_owner(current_user, record.user_id)
 
-    audio_path = record.file if record.file else None
+    audio_key = record.file if record.file else None
 
     db.delete(record)
     db.commit()
 
-    if audio_path and os.path.exists(audio_path):
-        try:
-            os.remove(audio_path)
-            logger.info(f"[DELETE] Audio file removed: {audio_path}")
-        except OSError as e:
-            logger.warning(f"[DELETE] Could not remove audio file {audio_path}: {e}")
+    if audio_key:
+        audio_storage.delete(audio_key)
+        logger.info(f"[DELETE] Audio object removed: {audio_key}")
 
     return {"status": "success", "message": "Record deleted"}
 
@@ -1167,14 +1165,16 @@ async def download_audio(
     """Download the persisted MP3 audio for a record.
 
     The caller must be authenticated and own the record (or be an admin).
-    The served path is constrained to the audio directory as defense in depth.
+    The audio is fetched from S3, decrypted, and streamed back — it is never
+    written to local disk.
 
     Returns:
-        FileResponse with the MP3 file and a Content-Disposition header.
-        404 if no audio file is associated with the record.
+        The decrypted MP3 bytes with a Content-Disposition header.
+        404 if no audio is associated with the record.
     """
+    from backend.components.security.field_encryption import decrypt_bytes
+    from backend.components.services import audio_storage
     from backend.components.services.background_transcription_service import (
-        AUDIO_DIR,
         _sanitize_filename,
     )
 
@@ -1188,19 +1188,16 @@ async def download_audio(
             status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
         )
 
-    # Defense in depth: only serve files inside the managed audio directory,
-    # regardless of what is stored in record.file.
-    abs_audio_dir = os.path.abspath(AUDIO_DIR)
-    abs_file = os.path.abspath(record.file)
-    if os.path.commonpath([abs_audio_dir, abs_file]) != abs_audio_dir:
-        logger.warning(
-            f"[AUDIO] Refusing download of path outside audio dir: {record.file}"
-        )
-        raise HTTPException(status_code=404, detail="Audio file not available")
-    if not os.path.exists(abs_file):
+    encrypted = audio_storage.download_bytes(record.file)
+    if encrypted is None:
         raise HTTPException(
             status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
         )
 
+    plaintext = decrypt_bytes(encrypted)
     filename = f"{_sanitize_filename(record.title)}.mp3"
-    return FileResponse(path=abs_file, media_type="audio/mpeg", filename=filename)
+    return Response(
+        content=plaintext,
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

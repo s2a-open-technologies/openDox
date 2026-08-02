@@ -31,3 +31,7 @@ class LdapSettingsModel(SQLModel, table=True):
     bind_user_dn: Optional[str] = None
     bind_user_password: Optional[str] = None
     cert_filename: Optional[str] = None
+    cert_data: Optional[str] = None
+    allowed_groups: Optional[str] = None
+    admin_groups: Optional[str] = None
+    moderator_groups: Optional[str] = None

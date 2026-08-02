@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import json
 import os
 import subprocess
+import tempfile
 
 # Third party
 from sqlmodel import select
@@ -29,6 +30,8 @@ from backend.components.models.categories import Categories  # noqa: E402
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import Record
 from backend.components.modules.logger import get_logger
+from backend.components.security.field_encryption import encrypt_bytes
+from backend.components.services import audio_storage
 from backend.components.services.asr_factory import get_final_backend
 from backend.components.services.sanitizing_service import (
     _PRESERVE_TOKENS_INSTRUCTION,
@@ -44,8 +47,6 @@ from backend.components.sql.sql_engine import get_session_factory
 
 logger = get_logger(__name__)
 session_factory = get_session_factory()
-AUDIO_DIR = "audio"
-os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -57,21 +58,24 @@ def _sanitize_filename(filename: str) -> str:
 
 
 def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
-    """Convert audio to MP3 and persist for download.
+    """Convert audio to MP3, encrypt it, and upload it to S3 for download.
 
     Args:
         file_path: Path to source audio file (WAV or any ffmpeg-compatible format).
-        record: Record instance to update with the persisted file path.
+        record: Record instance the persisted audio belongs to.
 
     Returns:
-        Path to the persisted MP3 file, or None if disabled or conversion failed.
+        The S3 object key the encrypted MP3 was stored under, or None if
+        disabled or conversion/upload failed.
     """
     audio_settings = get_audio_settings()
     if not audio_settings.audio_download_enabled:
         return None
 
+    tmp_path = None
     try:
-        out_path = os.path.join(AUDIO_DIR, f"record_{record.id}.mp3")
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp_path = tmp.name
         cmd = [
             "ffmpeg",
             "-y",
@@ -85,15 +89,24 @@ def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
             audio_settings.audio_bitrate or "64k",
             "-loglevel",
             "error",
-            out_path,
+            tmp_path,
         ]
         subprocess.run(cmd, check=True, capture_output=True)
-        return out_path
-    except (subprocess.CalledProcessError, OSError) as e:
+
+        with open(tmp_path, "rb") as f:
+            plaintext = f.read()
+
+        key = f"records/{record.id}.mp3.enc"
+        audio_storage.upload_bytes(key, encrypt_bytes(plaintext))
+        return key
+    except (subprocess.CalledProcessError, OSError, RuntimeError) as e:
         logger.warning(
-            f"[TASK] Failed to convert audio to MP3 for record {record.id}: {e}"
+            f"[TASK] Failed to persist audio to S3 for record {record.id}: {e}"
         )
         return None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def background_transcription_task(
@@ -204,14 +217,12 @@ def background_transcription_task(
         update_task_status(db, task_id, "finished")
 
         if record and file_path:
-            mp3_path = _persist_audio_as_mp3(file_path, record)
-            if mp3_path and os.path.exists(mp3_path):
-                record.file = mp3_path
+            s3_key = _persist_audio_as_mp3(file_path, record)
+            if s3_key:
+                record.file = s3_key
                 db.add(record)
                 db.commit()
-                logger.info(
-                    f"[TASK {task_id}] Audio persisted for download: {mp3_path}"
-                )
+                logger.info(f"[TASK {task_id}] Audio persisted for download: {s3_key}")
 
         # Delete audio file after successful processing — patient audio must not persist
         if file_path and os.path.exists(file_path):

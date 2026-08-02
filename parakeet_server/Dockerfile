@@ -49,8 +49,14 @@ RUN pip3 install --no-cache-dir -r requirements.${DEVICE}.txt
 # into a flat directory under /app/models/silero-vad so onnxruntime accepts it
 # (the HF cache stores files as symlinks into blobs/, which onnxruntime rejects
 # for the raw VAD session we drive directly in streaming.py).
-RUN python -c "import onnx_asr; onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3')" \
-    && python -c "import onnx_asr; onnx_asr.load_vad('silero', path='/app/models/silero-vad')"
+# providers=["CPUExecutionProvider"] here only affects this one-time download
+# session — `docker build` never has GPU access (unlike `docker run --gpus`),
+# so leaving the default provider list would just make onnxruntime try CUDA,
+# fail with "GPU=-1 cudaSetDevice()", and silently retry on CPU anyway. The
+# actual runtime provider selection is independent (main.py/streaming.py
+# re-resolve providers fresh at server start).
+RUN python -c "import onnx_asr; onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3', providers=['CPUExecutionProvider'])" \
+    && python -c "import onnx_asr; onnx_asr.load_vad('silero', path='/app/models/silero-vad', providers=['CPUExecutionProvider'])"
 
 COPY parakeet_server/streaming.py .
 COPY parakeet_server/main.py .

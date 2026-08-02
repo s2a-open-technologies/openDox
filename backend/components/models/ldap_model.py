@@ -17,7 +17,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
 
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+
+from backend.components.security.field_encryption import EncryptedString
 
 
 class LdapSettingsModel(SQLModel, table=True):
@@ -29,7 +32,9 @@ class LdapSettingsModel(SQLModel, table=True):
     user_dn: str
     search_filter: Optional[str] = Field(default=None)
     bind_user_dn: Optional[str] = None
-    bind_user_password: Optional[str] = None
+    bind_user_password: Optional[str] = Field(
+        default=None, sa_column=Column(EncryptedString, nullable=True)
+    )
     cert_filename: Optional[str] = None
     cert_data: Optional[str] = None
     allowed_groups: Optional[str] = None

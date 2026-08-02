@@ -17,7 +17,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
 
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+
+from backend.components.security.field_encryption import EncryptedString
 
 
 class OidcSettingsModel(SQLModel, table=True):
@@ -41,7 +44,9 @@ class OidcSettingsModel(SQLModel, table=True):
     enabled: bool = Field(default=False)
     provider_url: str = Field(default="")
     client_id: str = Field(default="")
-    client_secret: str = Field(default="")
+    client_secret: str = Field(
+        default="", sa_column=Column(EncryptedString, nullable=False, default="")
+    )
     scopes: str = Field(default="openid email profile")
     group_claim: str = Field(default="groups")
     admin_groups: str = Field(default="")

@@ -36,7 +36,7 @@ graph TB
     subgraph Backend["FastAPI Backend (Python 3.12)"]
         E[WebSocket Handler]
         F[REST API]
-        G[Session Store<br/>(In-Memory, PCM on Disk)"]
+        G["Session Store<br/>(In-Memory, PCM on Disk)"]
         H[ASR Factory]
         I[Task Service]
         J[Chunk Correction Service]

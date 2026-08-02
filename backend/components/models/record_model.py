@@ -29,7 +29,7 @@ class Record(SQLModel, table=True):
     session_id: str = Field(index=True)
     user_id: int
     category_id: Optional[int] = Field(default=None, foreign_key="categories.id")
-    title: str = Field()
+    title: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     content: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     timestamp: str = Field()
     summarize: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))

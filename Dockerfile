@@ -53,7 +53,7 @@ COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
 # Create runtime directories
-RUN mkdir -p logs chunks models_cache certs
+RUN mkdir -p logs chunks audio models_cache certs
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

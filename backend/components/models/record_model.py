@@ -52,7 +52,7 @@ class Record(SQLModel, table=True):
             "content": self.content,
             "timestamp": self.timestamp,
             "summarize": self.summarize,
-            "file": self.file,
+            "has_audio": bool(self.file),
             "archived": self.archived,
             "task_id": self.task_id,
         }
@@ -71,7 +71,6 @@ class RecordCreate(SQLModel):
 class RecordUpdate(SQLModel):
     title: Optional[str] = None
     content: Optional[str] = None
-    file: Optional[str] = None
     summarize: Optional[str] = None
     category_id: Optional[int] = None
 
@@ -85,7 +84,7 @@ class RecordRead(RecordBase):
     content: str
     summarize: Optional[str] = ""
     timestamp: str
-    file: str
+    has_audio: bool = False
     archived: bool = False
     task_id: Optional[int] = None
 

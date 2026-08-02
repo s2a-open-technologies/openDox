@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # Standard library
 import json
 import os
+import subprocess
 
 # Third party
 from sqlmodel import select
@@ -34,12 +35,65 @@ from backend.components.services.sanitizing_service import (
     reinject,
     sanitize,
 )
-from backend.components.services.settings_service import get_whisper_params
+from backend.components.services.settings_service import (
+    get_audio_settings,
+    get_whisper_params,
+)
 from backend.components.services.task_service import update_task_status
 from backend.components.sql.sql_engine import get_session_factory
 
 logger = get_logger(__name__)
 session_factory = get_session_factory()
+AUDIO_DIR = "audio"
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Remove/rename characters unsafe for filesystems and HTTP headers."""
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        filename = filename.replace(char, "_")
+    return filename[:200]
+
+
+def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
+    """Convert audio to MP3 and persist for download.
+
+    Args:
+        file_path: Path to source audio file (WAV or any ffmpeg-compatible format).
+        record: Record instance to update with the persisted file path.
+
+    Returns:
+        Path to the persisted MP3 file, or None if disabled or conversion failed.
+    """
+    audio_settings = get_audio_settings()
+    if not audio_settings.audio_download_enabled:
+        return None
+
+    try:
+        out_path = os.path.join(AUDIO_DIR, f"record_{record.id}.mp3")
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            file_path,
+            "-ac",
+            "1",
+            "-ar",
+            str(audio_settings.audio_sample_rate or 16000),
+            "-b:a",
+            audio_settings.audio_bitrate or "64k",
+            "-loglevel",
+            "error",
+            out_path,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+        return out_path
+    except (subprocess.CalledProcessError, OSError) as e:
+        logger.warning(
+            f"[TASK] Failed to convert audio to MP3 for record {record.id}: {e}"
+        )
+        return None
 
 
 def background_transcription_task(
@@ -148,6 +202,16 @@ def background_transcription_task(
             db.refresh(record)
 
         update_task_status(db, task_id, "finished")
+
+        if record and file_path:
+            mp3_path = _persist_audio_as_mp3(file_path, record)
+            if mp3_path and os.path.exists(mp3_path):
+                record.file = mp3_path
+                db.add(record)
+                db.commit()
+                logger.info(
+                    f"[TASK {task_id}] Audio persisted for download: {mp3_path}"
+                )
 
         # Delete audio file after successful processing — patient audio must not persist
         if file_path and os.path.exists(file_path):

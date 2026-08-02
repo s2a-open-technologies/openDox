@@ -16,6 +16,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # Import all SQLModel tables for Alembic autogenerate support
+from backend.components.models.audio_settings_model import AudioSettingsModel
 from backend.components.models.categories import (
     Categories,
     CategoriesCreate,
@@ -45,6 +46,7 @@ from backend.components.models.token_model import Token
 from backend.components.models.user_model import User
 
 __all__ = [
+    "AudioSettingsModel",
     "Categories",
     "CategoriesCreate",
     "CategoriesRead",

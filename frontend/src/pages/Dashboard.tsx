@@ -56,6 +56,7 @@ export interface Recording {
   summarize: string;
   userid: string;
   taskId?: string | number;
+  hasAudio?: boolean;
 }
 
 interface Category {
@@ -105,6 +106,7 @@ const Dashboard = () => {
           summarize: d.summarize || "",
           userid: d.user_id.toString(),
           taskId: d.task_id || undefined,
+          hasAudio: d.has_audio || false,
         })));
       }
     } catch (err) {

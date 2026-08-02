@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 from fastapi import Depends, File, Form, HTTPException, UploadFile, WebSocket
+from fastapi.responses import FileResponse
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
@@ -882,15 +883,25 @@ async def update_record(
         record.content = data.content
     if data.summarize is not None:
         record.summarize = data.summarize
-    if data.file is not None:
-        record.file = data.file
     if data.category_id is not None:
         record.category_id = data.category_id
 
     db.add(record)
     db.commit()
     db.refresh(record)
-    return record
+    return RecordRead(
+        id=record.id,
+        session_id=record.session_id,
+        user_id=record.user_id,
+        category_id=record.category_id,
+        title=record.title,
+        content=record.content,
+        summarize=record.summarize,
+        timestamp=record.timestamp,
+        has_audio=bool(record.file),
+        archived=record.archived,
+        task_id=record.task_id,
+    )
 
 
 # Route for showing records in frontend
@@ -929,7 +940,19 @@ async def get_record_by_session(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
-    return record
+    return RecordRead(
+        id=record.id,
+        session_id=record.session_id,
+        user_id=record.user_id,
+        category_id=record.category_id,
+        title=record.title,
+        content=record.content,
+        summarize=record.summarize,
+        timestamp=record.timestamp,
+        has_audio=bool(record.file),
+        archived=record.archived,
+        task_id=record.task_id,
+    )
 
 
 STALE_TASK_THRESHOLD_MINUTES = 7
@@ -983,7 +1006,19 @@ async def get_record(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
-    return record
+    return RecordRead(
+        id=record.id,
+        session_id=record.session_id,
+        user_id=record.user_id,
+        category_id=record.category_id,
+        title=record.title,
+        content=record.content,
+        summarize=record.summarize,
+        timestamp=record.timestamp,
+        has_audio=bool(record.file),
+        archived=record.archived,
+        task_id=record.task_id,
+    )
 
 
 @record_bp.delete("/record/{record_id}")
@@ -1123,3 +1158,49 @@ async def unarchive_record(
     db.commit()
     db.refresh(record)
     return record.to_dict()
+
+
+@record_bp.get("/record/{record_id}/audio")
+async def download_audio(
+    record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
+    """Download the persisted MP3 audio for a record.
+
+    The caller must be authenticated and own the record (or be an admin).
+    The served path is constrained to the audio directory as defense in depth.
+
+    Returns:
+        FileResponse with the MP3 file and a Content-Disposition header.
+        404 if no audio file is associated with the record.
+    """
+    from backend.components.services.background_transcription_service import (
+        AUDIO_DIR,
+        _sanitize_filename,
+    )
+
+    record = db.get(Record, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    _require_owner(current_user, record.user_id)
+
+    if not record.file:
+        raise HTTPException(
+            status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
+        )
+
+    # Defense in depth: only serve files inside the managed audio directory,
+    # regardless of what is stored in record.file.
+    abs_audio_dir = os.path.abspath(AUDIO_DIR)
+    abs_file = os.path.abspath(record.file)
+    if os.path.commonpath([abs_audio_dir, abs_file]) != abs_audio_dir:
+        logger.warning(
+            f"[AUDIO] Refusing download of path outside audio dir: {record.file}"
+        )
+        raise HTTPException(status_code=404, detail="Audio file not available")
+    if not os.path.exists(abs_file):
+        raise HTTPException(
+            status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
+        )
+
+    filename = f"{_sanitize_filename(record.title)}.mp3"
+    return FileResponse(path=abs_file, media_type="audio/mpeg", filename=filename)

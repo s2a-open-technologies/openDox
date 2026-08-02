@@ -19,7 +19,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Mic, Check, Loader2, AlertCircle, Copy, Save, AlertTriangle, Pencil, Eye } from "lucide-react";
+import { Mic, Check, Loader2, AlertCircle, Copy, Save, AlertTriangle, Pencil, Eye, Download } from "lucide-react";
 import { TfiReload } from "react-icons/tfi";
 import type { Recording } from "@/pages/Dashboard";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
   const [isEditingSummary, setIsEditingSummary] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [hasAudio, setHasAudio] = useState<boolean>(!!transcript?.hasAudio);
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
@@ -75,9 +76,10 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
       setHasUnsavedChanges(false);
       setIsEditingSummary(false);
       setConfirmDialogOpen(false);
+      setHasAudio(!!transcript?.hasAudio);
       prevId.current = transcript?.id;
     }
-  }, [transcript?.id, transcript?.content, transcript?.summarize]);
+  }, [transcript?.id, transcript?.content, transcript?.summarize, transcript?.hasAudio]);
 
   useEffect(() => {
     const contentDiff = (transcript?.content || "") !== editedContent;
@@ -112,6 +114,9 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
               }
               if (recData.summarize && recData.summarize !== editedSummaryRef.current) {
                 setEditedSummary(recData.summarize);
+              }
+              if (typeof recData.has_audio === "boolean") {
+                setHasAudio(recData.has_audio);
               }
             }
           }
@@ -218,6 +223,28 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
     }
   };
 
+  const handleDownloadAudio = async () => {
+    if (!transcript?.dbId) return;
+    try {
+      const res = await authFetch(`/api/v1/records/record/${transcript.dbId}/audio`);
+      if (!res.ok) throw new Error("Download fehlgeschlagen");
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : `${transcript.title}.mp3`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Download fehlgeschlagen");
+    }
+  };
+
   return (
     <div className="h-full flex flex-col p-8 gap-6 bg-background">
       {isProcessing && (
@@ -236,6 +263,12 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
           {getStatusBadge()}
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-2">
+          {hasAudio && (
+            <Button onClick={handleDownloadAudio} variant="outline">
+              <Download className="w-4 h-4 mr-2" />
+              Audio
+            </Button>
+          )}
           <Button onClick={handleSave} disabled={!hasUnsavedChanges || isSaving} variant="outline">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             {isSaving ? "Speichere..." : "Speichern"}

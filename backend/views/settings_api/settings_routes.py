@@ -27,6 +27,7 @@ from fastapi import Depends, File, HTTPException, UploadFile
 from sqlmodel import select
 
 from backend.components.llm.llm_model import SummarizeModel, normalize_openai_base_url
+from backend.components.models.audio_settings_model import AudioSettingsModel
 from backend.components.models.categories import (
     Categories,
     CategoriesCreate,
@@ -575,6 +576,7 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
     whisper = db.exec(select(WhisperSettingsModel)).first()
     llm = db.exec(select(LlmSettingsModel)).first()
     ldap = db.exec(select(LdapSettingsModel)).first()
+    audio = db.exec(select(AudioSettingsModel)).first()
     categories = db.exec(select(Categories)).all()
     languages = db.exec(select(Languages)).all()
     terminology = db.exec(select(Terminology)).all()
@@ -586,6 +588,7 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
             "whisper": _serialize_model(whisper) if whisper else None,
             "llm": _serialize_model(llm) if llm else None,
             "ldap": _serialize_model(ldap) if ldap else None,
+            "audio": _serialize_model(audio) if audio else None,
             "categories": [_serialize_model(c) for c in categories],
             "languages": [_serialize_model(lang) for lang in languages],
             "terminology": [_serialize_model(t) for t in terminology],
@@ -615,6 +618,7 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
         (WhisperSettingsModel, "whisper"),
         (LlmSettingsModel, "llm"),
         (LdapSettingsModel, "ldap"),
+        (AudioSettingsModel, "audio"),
     ]:
         row_data = settings.get(key)
         if not row_data or not isinstance(row_data, dict):
@@ -727,4 +731,38 @@ async def update_oidc_settings(
         db.add(settings)
     db.commit()
     db.refresh(settings)
+    return settings
+
+
+@settings_bp.get("/audio-settings/", response_model=AudioSettingsModel)
+async def get_audio_settings(db: SessionDep):
+    """Return current audio download settings, creating a default row if none."""
+    settings = db.exec(select(AudioSettingsModel)).first()
+    if not settings:
+        settings = AudioSettingsModel()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@settings_bp.put("/audio-settings/", response_model=AudioSettingsModel)
+async def update_audio_settings(
+    settings_in: AudioSettingsModel,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
+    """Upsert audio download settings from the admin UI."""
+    settings = db.exec(select(AudioSettingsModel)).first()
+    if not settings:
+        settings = AudioSettingsModel(**settings_in.dict(exclude={"id"}))
+        db.add(settings)
+    else:
+        settings_data = settings_in.dict(exclude_unset=True, exclude={"id"})
+        for key, value in settings_data.items():
+            setattr(settings, key, value)
+        db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    get_settings_service().invalidate_cache()
     return settings

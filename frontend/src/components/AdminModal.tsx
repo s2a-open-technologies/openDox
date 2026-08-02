@@ -21,7 +21,7 @@ import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  GlobeLock, BookOpenCheck, Settings, Users, Server, HardDrive, Mic, Brain
+  GlobeLock, BookOpenCheck, Settings, Users, Server, HardDrive, Mic, Brain, Download
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +34,7 @@ import UserSettings from './settings/UserSettings';
 import SystemSettings from './settings/SystemSettings';
 import CategorySettings from './settings/CategorySettings';
 import BackupSettings from './settings/BackupSettings';
+import AudioConfig from './settings/AudioConfig';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -49,6 +50,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
   const navItems = [
     ...(isAdmin ? [
       { id: 'services', label: 'Dienste', icon: Server },
+      { id: 'audio', label: 'Audio', icon: Download },
       { id: 'users', label: 'Benutzer', icon: Users },
       { id: 'auth', label: 'Authentifizierung', icon: GlobeLock },
       { id: 'backup', label: 'Backup', icon: HardDrive },
@@ -87,6 +89,13 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
                 <LlmConfig />
               </TabsContent>
             </Tabs>
+          </div>
+        );
+      case 'audio':
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Audio-Download-Einstellungen</h3>
+            <AudioConfig />
           </div>
         );
       case 'users':

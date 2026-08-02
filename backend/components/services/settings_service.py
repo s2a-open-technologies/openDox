@@ -22,11 +22,12 @@ from typing import Optional
 from sqlmodel import select
 
 # Custom imports
+from backend.components.models.audio_settings_model import AudioSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
+from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger
 from backend.components.sql.sql_engine import get_session_factory
-from backend.components.modules.env import env_or_file
 
 logger = get_logger(__name__)
 
@@ -40,6 +41,7 @@ class SettingsService:
     _instance: Optional["SettingsService"] = None
     _whisper_settings: Optional[WhisperSettingsModel] = None
     _llm_settings: Optional[LlmSettingsModel] = None
+    _audio_settings: Optional[AudioSettingsModel] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -61,6 +63,12 @@ class SettingsService:
         if self._llm_settings is None:
             self._load_llm_settings()
         return self._llm_settings
+
+    def get_audio_settings(self) -> AudioSettingsModel:
+        """Get current audio download settings from database or create defaults."""
+        if self._audio_settings is None:
+            self._load_audio_settings()
+        return self._audio_settings
 
     def _load_whisper_settings(self) -> None:
         """Load Whisper settings from database or create defaults.
@@ -131,10 +139,30 @@ class SettingsService:
         finally:
             session.close()
 
+    def _load_audio_settings(self) -> None:
+        """Load audio download settings from database or create defaults."""
+        session = self._session_factory()
+        try:
+            settings = session.exec(select(AudioSettingsModel)).first()
+            if settings is None:
+                logger.info("No audio settings found, creating defaults")
+                settings = AudioSettingsModel()
+                session.add(settings)
+                session.commit()
+                session.refresh(settings)
+            self._audio_settings = settings
+            logger.info("Audio settings loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load audio settings: {e}, using defaults")
+            self._audio_settings = AudioSettingsModel()
+        finally:
+            session.close()
+
     def invalidate_cache(self) -> None:
         """Invalidate all settings caches. Call this after updating settings."""
         self._whisper_settings = None
         self._llm_settings = None
+        self._audio_settings = None
         logger.debug("Settings cache invalidated")
 
     def reload(self) -> WhisperSettingsModel:
@@ -184,6 +212,11 @@ def get_whisper_params(live: bool) -> dict:
 def get_llm_settings() -> LlmSettingsModel:
     """Convenience function to get current LLM settings."""
     return get_settings_service().get_llm_settings()
+
+
+def get_audio_settings() -> AudioSettingsModel:
+    """Convenience function to get current audio download settings."""
+    return get_settings_service().get_audio_settings()
 
 
 def reload_settings() -> WhisperSettingsModel:

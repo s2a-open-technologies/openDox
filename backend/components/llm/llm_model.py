@@ -168,37 +168,66 @@ class SummarizeModel:
             pass
 
     def get_system_prompt(self) -> str:
-        """Returns a default system prompt for the Ollama model."""
-        prompt = """
-            You are a powerfull grammar und summarization specialist.
-            There is a whipser transcription of a german audio file.
-            Your task is to correct the grammar and summarize the content in a concise manner.
-            Provide the output in well-structured german sentences.
-            Keep the meaning of the original transcription intact.
-            It is very important to only correct grammar and not change any words or meaning.
-            Use the following format:
-            
-            --- Original Transcription ---
-            {message}
-            --- Original Transcription End ---  
-            
-            --- Corrected and Summarized Transcription ---
-            
-            Do not use more words than necessary.
-            Do not add any explanations or additional information.
-            Do not mention that you are an AI model.
-            Do not apologize.
-            Do not self-reference.
-            Do not use emoticons or special characters.            
-            """
+        """Return the fallback system prompt.
 
-        return prompt
+        Used when a record has no category (or its category has no
+        ``system_prompt`` configured). Kept deliberately generic/non-medical
+        — this fallback fires for any uncategorized recording, not just
+        clinical ones. The placeholder-hallucination hardening rule (see
+        ``generate_response()``) is deliberately NOT duplicated here — it's
+        appended unconditionally to every prompt in code, so it also covers
+        custom category prompts an admin writes via the UI without them
+        having to know it exists.
+        """
+        return (
+            "Du bist ein Assistent zur Bereinigung und Strukturierung von Diktaten. "
+            "Du erhältst die Rohtranskription eines deutschen Audio-Diktats — der "
+            "Inhalt kann, muss aber nicht medizinischer Natur sein.\n\n"
+            "Aufgabe:\n"
+            "- Entferne Füllwörter, Wiederholungen, Versprecher und gesprochene "
+            "Korrekturen (z. B. \"nein, streich das\") und übernimm nur die final "
+            "gemeinte Aussage.\n"
+            "- Korrigiere Grammatik und Zeichensetzung, ohne den inhaltlichen Sinn "
+            "zu verändern.\n"
+            "- Erfinde keine Informationen, Fakten oder Details, die nicht im "
+            "Diktat genannt wurden.\n"
+            "- Ignoriere Nebenbemerkungen und Meta-Kommentare des Diktierenden, die "
+            "nicht Teil des eigentlichen Inhalts sind (z. B. Testansagen, "
+            "Kommentare über die Software oder Aufnahme, Selbstgespräche, "
+            "unzusammenhängende Zahlen ohne erkennbaren Bezug).\n"
+            "- Übernimm Zahlen, Maßeinheiten und Werte exakt wie diktiert.\n"
+            "- Strukturiere den Text sinnvoll entsprechend seinem tatsächlichen "
+            "Inhalt in Absätze — erzwinge keine medizinische Gliederung (z. B. "
+            "Anamnese/Befund/Beurteilung/Prozedere), wenn der Inhalt das nicht "
+            "hergibt.\n"
+            "- Schreibe in vollständigen, klaren deutschen Sätzen.\n\n"
+            "Gib ausschließlich den fertigen Text aus, ohne Einleitung, "
+            "Meta-Kommentare oder Wiederholung dieser Anweisung."
+        )
 
     def generate_response(
         self, message: str, custom_system_prompt: str | None = None
     ) -> str:
         prompt = (
             custom_system_prompt if custom_system_prompt else self.get_system_prompt()
+        )
+        # Unconditional hardening, appended to every prompt regardless of
+        # source (default fallback, seeded category, or a category an admin
+        # just created via the UI) — a category author has no way of
+        # knowing the local model tends to invent bracket placeholders for
+        # missing info, so this can't rely on being written into the prompt
+        # text itself. Narrowed to not conflict with
+        # sanitizing_service._PRESERVE_TOKENS_INSTRUCTION, which separately
+        # tells the model to keep EntityGuard's own [PERSON]/[LOCATION]
+        # tokens as-is when PII sanitizing is active.
+        prompt = (
+            prompt.rstrip()
+            + "\nErfinde niemals neue Platzhalter in eckigen Klammern für "
+            'fehlende Informationen (z. B. schreibe nicht "[DATUM]" oder '
+            '"[WERT]", wenn etwas nicht diktiert wurde) - lasse den '
+            "betroffenen Satz oder Abschnitt stattdessen komplett weg. "
+            "Kommen im Text bereits Platzhalter wie [PERSON] oder [LOCATION] "
+            "vor (aus der PII-Anonymisierung), übernimm diese unverändert."
         )
         # Suppress thinking output for all models — harmless for non-thinking models
         prompt = (

@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Mic, Check, Loader2, AlertCircle, Copy, Save, AlertTriangle, Pencil, Eye, Download } from "lucide-react";
 import { TfiReload } from "react-icons/tfi";
-import type { Recording } from "@/pages/Dashboard";
+import type { Recording, Category } from "@/pages/Dashboard";
 import { cn } from "@/lib/utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +34,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -41,11 +48,13 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface TranscriptViewProps {
   transcript: Recording | null;
+  categories: Category[];
   onNewRecording: () => void;
   onSave: (id: string, content: string, summarize: string) => Promise<void>;
+  onCategoryChange: (id: string, categoryId: number) => Promise<void>;
 }
 
-const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewProps) => {
+const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCategoryChange }: TranscriptViewProps) => {
   const { authFetch } = useAuth();
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState(transcript?.content || "");
@@ -57,6 +66,7 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [hasAudio, setHasAudio] = useState<boolean>(!!transcript?.hasAudio);
+  const [isChangingCategory, setIsChangingCategory] = useState(false);
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
@@ -201,6 +211,17 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
 
   const isProcessing = taskStatus === 'pending' || taskStatus === 'running' || taskStatus === 'transcribing' || taskStatus === 'processing_llm';
 
+  const handleCategorySelect = async (val: string) => {
+    const newCategoryId = parseInt(val);
+    if (!transcript || newCategoryId === transcript.categoryId) return;
+    setIsChangingCategory(true);
+    try {
+      await onCategoryChange(transcript.id, newCategoryId);
+    } finally {
+      setIsChangingCategory(false);
+    }
+  };
+
   const handleRegenerateSummary = async () => {
     if (!transcript?.dbId) return;
     const targetId = transcript.dbId;
@@ -258,9 +279,23 @@ const TranscriptView = ({ transcript, onNewRecording, onSave }: TranscriptViewPr
         </div>
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <h2 className="text-3xl font-bold text-foreground">{transcript.title}</h2>
           {getStatusBadge()}
+          <Select
+            value={transcript.categoryId?.toString() || ""}
+            onValueChange={handleCategorySelect}
+            disabled={isChangingCategory || categories.length === 0}
+          >
+            <SelectTrigger className="w-auto h-8 text-xs gap-2">
+              <SelectValue placeholder="Kategorie auswählen..." />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-2">
           {hasAudio && (

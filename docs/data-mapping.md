@@ -53,7 +53,7 @@ flowchart TB
     App -- "content/summarize/pii_mapping, verschlüsselt" --> DB
     App -- "Session-Metadaten" --> Redis
     App -- "PCM/WAV, wird nach Verarbeitung gelöscht" --> Chunks
-    App -- "5 MP3, verschlüsselt, optional" --> S3
+    App -- "5 Audio, verschlüsselt, optional" --> S3
     App -- "Login-Anfrage" --> LDAPSrv
     App -- "Auth-Code-Flow" --> OIDCSrv
     Browser -- "HTTPS, JWT" --> App
@@ -71,7 +71,7 @@ PII-Sanitizer aktiv ist).
 | Patientenbezogene Identifikatoren | Namen, Orte, Daten, die im Transkript vorkommen (nicht strukturiert, Freitext) | Teil von `record.content`/`record.summarize`; ggf. maskiert falls Sanitizer aktiv |
 | Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle | `User`-Tabelle |
 | Zugangsdaten zu Drittsystemen | LDAP-Bind-Passwort, OIDC-Client-Secret, API-Keys für LLM/Whisper/Sanitizer | Settings-Tabellen (siehe Verschlüsselung unten) |
-| Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes MP3 | `chunks/` (temporär), Objektspeicher (optional, dauerhaft bis Löschung) |
+| Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes Audio (Format konfigurierbar: MP3/WAV/FLAC/OGG) | `chunks/` (temporär, bei fehlgeschlagener Transkription länger, siehe unten), Objektspeicher (optional, dauerhaft bis Löschung) |
 
 ## Verarbeitungsschritte im Detail
 
@@ -145,24 +145,34 @@ Drittland im Spiel ist:**
 
 ## Aufbewahrung & Löschung
 
-- **Rohes Audio (PCM/WAV)**: wird nach jeder Verarbeitung (Erfolg oder
-  Fehler) automatisch gelöscht, zusätzlich abgesichert durch einen
+- **Rohes Audio (PCM/WAV)**: wird nach **erfolgreicher** Verarbeitung
+  automatisch gelöscht, zusätzlich abgesichert durch einen
   Stale-Session-Cleanup (>30 Min. Inaktivität) und eine
   Startup-Bereinigung verwaister Dateien — siehe `AGENTS.md` Abschnitt
-  „Audio File Cleanup". Es gibt **keine** Konfigurationsoption, das rohe
-  Audio dauerhaft aufzubewahren.
+  „Audio File Cleanup". **Bei einer fehlgeschlagenen Transkription wird
+  die Datei stattdessen unverschlüsselt in `chunks/failed/` aufbewahrt**
+  (kein automatisches Ablaufdatum), damit ein Admin die Verarbeitung über
+  „Fehlgeschlagene Transkriptionen" erneut anstoßen kann — sie bleibt dort
+  bis zu einem erfolgreichen Retry oder einer manuellen Bereinigung durch
+  den Betreiber liegen. Es gibt **keine** Konfigurationsoption, das rohe
+  Audio einer erfolgreich verarbeiteten Aufnahme dauerhaft aufzubewahren —
+  der Fehlerfall ist die einzige Ausnahme von der sofortigen Löschung.
 - **Transkript, Zusammenfassung, PII-Mapping**: bleiben bis zur manuellen
   Löschung des Datensatzes durch einen Nutzer bestehen (kein automatisches
   Ablaufdatum).
-- **Persistiertes Audio-MP3** (falls Feature aktiviert): bleibt bis zur
-  manuellen Löschung des Datensatzes bestehen, wird dann aus dem
-  Objektspeicher entfernt.
+- **Persistiertes Audio** (falls Feature aktiviert, Format konfigurierbar):
+  bleibt bis zur manuellen Löschung des Datensatzes bestehen, wird dann aus
+  dem Objektspeicher entfernt.
 
 ## Bekannte Lücken (Stand: siehe Git-Historie)
 
 - Ob Verbindungen zu extern konfigurierten Endpunkten (LLM, Sanitizer, LDAP)
   TLS nutzen, liegt vollständig in der Verantwortung der Konfiguration —
   die Anwendung erzwingt es nicht.
+- `chunks/failed/` (rohes Audio nach fehlgeschlagener Transkription, siehe
+  oben) hat kein automatisches Ablaufdatum — liegt unverschlüsselt auf der
+  Platte, bis ein Admin erfolgreich einen Retry durchführt oder die Datei
+  manuell entfernt.
 
 ## Verweise
 

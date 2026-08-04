@@ -310,7 +310,12 @@ async def upload_audio(
         raise HTTPException(status_code=500, detail=f"Failed to save upload: {e}")
 
     async def run_pipeline() -> None:
-        """Run the background transcription task and clean up the audio file."""
+        """Run the background transcription task.
+
+        ``background_transcription_task`` owns ``upload_path``'s fate itself —
+        it deletes the file on success and moves it to a ``failed/`` dir for
+        a manual retry on failure — so no cleanup is needed here.
+        """
         try:
             await asyncio.to_thread(
                 background_transcription_task,
@@ -321,11 +326,6 @@ async def upload_audio(
             )
         except Exception as e:
             logger.error("[UPLOAD] background_transcription_task failed: %s", e)
-        finally:
-            try:
-                os.remove(upload_path)
-            except OSError:
-                pass
 
     asyncio.create_task(run_pipeline())
 
@@ -826,10 +826,11 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         async def finalize():
             """Convert PCM → WAV and launch background transcription.
 
-            Both the PCM and WAV file are deleted in the ``finally`` block so
-            nothing survives on disk even if transcription fails or the task
-            crashes. ``background_transcription_task`` also deletes the WAV on
-            success — the double removal is harmless (OSError is swallowed).
+            The PCM is always removed in the ``finally`` block — it's fully
+            redundant once the WAV exists. The WAV's fate is NOT decided here
+            anymore: ``background_transcription_task`` deletes it on success
+            and moves it to a ``failed/`` dir for a manual retry on failure,
+            so a crashed/failed transcription no longer loses the recording.
             """
             wav_path = os.path.splitext(pcm_path)[0] + ".wav"
             try:
@@ -847,11 +848,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             except Exception as e:
                 print(f"[FINALIZE-ERROR] {e}")
             finally:
-                for path in (pcm_path, wav_path):
-                    try:
-                        os.remove(path)
-                    except OSError:
-                        pass
+                try:
+                    os.remove(pcm_path)
+                except OSError:
+                    pass
 
         asyncio.create_task(finalize())
 
@@ -883,6 +883,8 @@ async def update_record(
     if data.summarize is not None:
         record.summarize = data.summarize
     if data.category_id is not None:
+        if not db.get(Categories, data.category_id):
+            raise HTTPException(status_code=404, detail="Kategorie nicht gefunden")
         record.category_id = data.category_id
 
     db.add(record)
@@ -992,6 +994,94 @@ async def transcription_status(
         "result": task.result,
         "error": task.error,
     }
+
+
+def _require_admin(current_user: User) -> None:
+    """Raise 403 unless the current user is an admin."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized for this resource")
+
+
+@record_bp.get("/tasks/failed")
+async def list_failed_tasks(
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+    offset: int = 0,
+    limit: int = 100,
+):
+    """List failed transcription tasks that still have a retained audio file.
+
+    Admin-only. Backs the "Fehlgeschlagene Transkriptionen" admin UI.
+    """
+    _require_admin(current_user)
+    rows = db.exec(
+        select(Task, Record)
+        .join(Record, Record.task_id == Task.id)
+        .where(Task.status == "error", Task.retry_audio_path.is_not(None))
+        .order_by(_sql_desc(Task.updated_at))
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "task_id": task.id,
+            "record_id": record.id,
+            "title": record.title,
+            "error": task.error,
+            "updated_at": task.updated_at.isoformat(),
+        }
+        for task, record in rows
+    ]
+
+
+@record_bp.post("/tasks/{task_id}/retry")
+async def retry_failed_task(
+    task_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+):
+    """Re-run the transcription pipeline on a failed task's retained audio.
+
+    Admin-only. Fires the pipeline in the background and returns immediately,
+    mirroring the ``finalize()``/``run_pipeline()`` fire-and-forget pattern.
+    """
+    _require_admin(current_user)
+
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != "error" or not task.retry_audio_path:
+        raise HTTPException(
+            status_code=409,
+            detail="Task hat keine zum Wiederholen vorgemerkte Audiodatei",
+        )
+    if not os.path.exists(task.retry_audio_path):
+        raise HTTPException(
+            status_code=410, detail="Aufbewahrte Audiodatei nicht mehr vorhanden"
+        )
+
+    record = db.exec(select(Record).where(Record.task_id == task_id)).one_or_none()
+    if not record:
+        raise HTTPException(
+            status_code=404, detail="Zugehörige Aufnahme nicht gefunden"
+        )
+
+    retry_path = task.retry_audio_path
+    task.status = "pending"
+    task.error = None
+    task.retry_audio_path = None
+    db.add(task)
+    db.commit()
+
+    asyncio.create_task(
+        asyncio.to_thread(
+            background_transcription_task,
+            task_id,
+            record.session_id,
+            None,
+            file_path=retry_path,
+        )
+    )
+
+    return {"task_id": task_id, "status": "pending"}
 
 
 # CRUD Records
@@ -1158,18 +1248,29 @@ async def unarchive_record(
     return record.to_dict()
 
 
+_AUDIO_MEDIA_TYPES = {
+    "mp3": "audio/mpeg",
+    "wav": "audio/wav",
+    "flac": "audio/flac",
+    "ogg": "audio/ogg",
+}
+
+
 @record_bp.get("/record/{record_id}/audio")
 async def download_audio(
     record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
 ):
-    """Download the persisted MP3 audio for a record.
+    """Download the persisted audio for a record.
 
     The caller must be authenticated and own the record (or be an admin).
     The audio is fetched from S3, decrypted, and streamed back — it is never
     written to local disk.
 
     Returns:
-        The decrypted MP3 bytes with a Content-Disposition header.
+        The decrypted audio bytes with a Content-Disposition header. Format
+        (mp3/wav/flac/ogg) is derived from the S3 key's extension
+        (``records/{id}.{ext}.enc``), since it's configurable and may differ
+        between recordings made under different admin settings over time.
         404 if no audio is associated with the record.
     """
     from backend.components.security.field_encryption import decrypt_bytes
@@ -1194,10 +1295,15 @@ async def download_audio(
             status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
         )
 
+    # record.file is "records/{id}.{ext}.enc" — the middle segment is the format.
+    ext = record.file.rsplit(".", 2)[-2] if record.file.count(".") >= 2 else "mp3"
+    media_type = _AUDIO_MEDIA_TYPES.get(ext, "audio/mpeg")
+    ext = ext if ext in _AUDIO_MEDIA_TYPES else "mp3"
+
     plaintext = decrypt_bytes(encrypted)
-    filename = f"{_sanitize_filename(record.title)}.mp3"
+    filename = f"{_sanitize_filename(record.title)}.{ext}"
     return Response(
         content=plaintext,
-        media_type="audio/mpeg",
+        media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

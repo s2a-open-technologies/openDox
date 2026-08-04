@@ -22,7 +22,7 @@ flowchart TD
     F2a --> F3[(record.pii_mapping\nverschlüsselt)]
     F2b --> F3
 
-    F1 --> G["OllamaModel.generate_response()\nsystem_prompt + PRESERVE_TOKENS_INSTRUCTION"]
+    F1 --> G["SummarizeModel.generate_response()\nsystem_prompt + PRESERVE_TOKENS_INSTRUCTION"]
 
     G --> H["summary_anonymized\n'...behandelt [PERSON_1]...'"]
 
@@ -33,6 +33,14 @@ flowchart TD
 
     J[(record.summarize\nechte Namen)]
 ```
+
+`generate_response()` (`llm_model.py`) hängt zusätzlich zu `PRESERVE_TOKENS_INSTRUCTION`
+unconditional eine Anti-Halluzinations-Regel an **jeden** Prompt an (nicht nur
+bei aktivem Sanitizer) — sie verbietet dem Modell, neue eckige-Klammer-Platzhalter
+(z. B. `[DATUM]`) für fehlende Informationen zu erfinden, ist aber bewusst so
+formuliert, dass sie bestehende EntityGuard-Token wie `[PERSON]`/`[LOCATION]`
+ausdrücklich ausnimmt — sonst würden sich beide Instruktionen widersprechen
+(siehe Alembic-Revision `a599665d9034`).
 
 ## Felder in der Datenbank
 

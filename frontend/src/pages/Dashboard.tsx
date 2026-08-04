@@ -59,7 +59,7 @@ export interface Recording {
   hasAudio?: boolean;
 }
 
-interface Category {
+export interface Category {
   id: number;
   name: string;
 }
@@ -313,6 +313,28 @@ const Dashboard = () => {
     } catch (err) {
       console.error(err);
       toast.error("Fehler beim Speichern");
+    }
+  };
+
+  const handleCategoryChange = async (id: string, newCategoryId: number) => {
+    const rec = recordings.find(r => r.id === id);
+    if (!rec?.dbId) return;
+    try {
+      const res = await authFetch(`/api/v1/records/record/${rec.dbId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category_id: newCategoryId }),
+      });
+      if (!res.ok) throw new Error("Failed to change category");
+      const categoryName = categories.find(c => c.id === newCategoryId)?.name || "Unkategorisiert";
+      toast.success("Kategorie geändert");
+      setRecordings(prev => prev.map(r => r.id === id ? { ...r, categoryId: newCategoryId, categoryName } : r));
+      if (selectedRecording?.id === id) {
+        setSelectedRecording(prev => prev ? { ...prev, categoryId: newCategoryId, categoryName } : null);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Ändern der Kategorie");
     }
   };
 
@@ -672,6 +694,7 @@ const Dashboard = () => {
         ) : (
           <TranscriptView
             transcript={selectedRecording}
+            categories={categories}
             onNewRecording={async () => {
               setSelectedRecording(null);
               setCategoryId(null);
@@ -680,6 +703,7 @@ const Dashboard = () => {
               await fetchRecords();
             }}
             onSave={handleSaveRecording}
+            onCategoryChange={handleCategoryChange}
           />
         )}
         </div>

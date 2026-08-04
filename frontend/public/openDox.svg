@@ -18,7 +18,7 @@
   <text x="150" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-primary" letter-spacing="-2">D</text>
   
   <!-- Text: ox -->
-  <text x="195" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-accent" letter-spacing="-2">ox</text>
+  <text x="195" y="70" font-family="Arial, sans-serif" font-weight="bold" font-size="60" class="text-accent" letter-spacing="-2">Dox</text>
 
   <!-- Heartbeat / EKG Line -->
   <path d="M 130 55 L 165 55 L 170 35 L 180 80 L 190 45 L 195 55 L 230 55" class="pulse-line" stroke-dasharray="300" stroke-dashoffset="0">

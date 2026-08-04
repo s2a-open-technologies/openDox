@@ -26,9 +26,17 @@ zurückgestellte Zukunftsarbeit.
 
 ## Tier 1 — Muss vor dem Deploy erledigt werden
 
-### 1.1 Den unechten `/api/health`-Endpoint reparieren, bevor ein Probe darauf zeigt
+### 1.1 Den unechten `/api/health`-Endpoint reparieren, bevor ein Probe darauf zeigt — ✅ erledigt
 
-- **Problem**: `/api/health` ist nirgends registriert; der Request fällt
+**Update:** `/api/ready` existierte bereits, war aber kaputt — `readiness_check()`
+importierte `RedisSessionStore` aus dem falschen Modul (`session_store`
+statt `session_store_redis`), jeder Aufruf warf einen `ImportError` (500).
+Fix: korrekter Import, mit `TestClient` gegen eine echte Postgres-Instanz
+verifiziert (`GET /api/ready` → 200 `{"status": "ready"}`). Der tote
+`root_view`-Code (`/api/health`) wurde bewusst nicht angefasst, wie in der
+ursprünglichen Aktion vorgesehen.
+
+- **Problem (historisch)**: `/api/health` ist nirgends registriert; der Request fällt
   durch `SPAStaticFiles`s 404→`index.html`-Fallback in `backend/run.py` und
   liefert HTTP 200 mit der SPA-Shell zurück — egal wie kaputt Backend/DB
   gerade sind. Die echten, funktionierenden Endpoints sind `/api/endpoint`
@@ -48,9 +56,14 @@ zurückgestellte Zukunftsarbeit.
   `backend/views/settings_api/settings_routes.py` (Vorbild),
   `backend/views/root_view/`.
 
-### 1.2 Alembic-Migrationen aus dem Pod-Start herauslösen
+### 1.2 Alembic-Migrationen aus dem Pod-Start herauslösen — ✅ erledigt
 
-- **Problem**: Migrationen laufen aktuell **zweimal** pro Boot — einmal über
+**Update:** `backend/run.py` hat keine `_run_alembic_migrations()`-Funktion
+mehr, keine Alembic-Aufrufe irgendwo unter `backend/` — Migrationen laufen
+nur noch über `entrypoint.sh: alembic upgrade head`, an genau einer Stelle.
+Ursprüngliches Problem unten als Referenz stehen gelassen.
+
+- **Problem (historisch)**: Migrationen liefen **zweimal** pro Boot — einmal über
   den Dockerfile-`CMD` (`Dockerfile:61`,
   `alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 5000`),
   und nochmal über `_run_alembic_migrations()`, synchron in `create_app()`
@@ -72,9 +85,26 @@ zurückgestellte Zukunftsarbeit.
 - **Betrifft**: `backend/run.py` (`_run_alembic_migrations`,
   `create_app()`), `Dockerfile:61`, `alembic.ini`, `alembic/`.
 
-### 1.3 Secrets und Konfiguration trennen
+### 1.3 Secrets und Konfiguration trennen — ✅ erledigt (für den Produktionspfad)
 
-- **Problem**: `docker-compose.yml` liefert schwache Defaults direkt mit
+**Update:** `docker-compose.yml` bleibt bewusst der lokale Dev-/Demo-Stack
+mit schwachen Klartext-Defaults (unten als Problem beschrieben — für diesen
+Zweck jetzt explizit so gewollt, nicht mehr offen). Für Produktion gibt es
+stattdessen **`docker-swarm.yml`** + **`create_docker_secrets.sh`**: alle
+sensiblen Variablen (`SECRET_KEY`, `SQL_PASS`, `ENCRYPTION_KEY`,
+`WHISPER_API_KEY`, S3-/Garage-Credentials) laufen über Swarms native
+`secrets:` + die bestehende `{VAR}_FILE`-Konvention, keine Klartext-Defaults
+im Manifest. `ENCRYPTION_KEY_PREVIOUS` ist bewusst **nicht** Teil des
+Standard-Deploys (ein zufällig generierter „vorheriger" Schlüssel wäre
+sinnlos) — stattdessen ein optionales Overlay `docker-swarm.rotation.yml`,
+das nur während einer aktiven Schlüsselrotation dazugeschaltet wird (siehe
+Kommentar dort für den vollen Rotations-Ablauf). OIDC-Client-Secret bleibt
+unangetastet, liegt DB-seitig in `OidcSettingsModel`, nicht als Env-Var.
+Der auf srv01 hartkodierte `ENCRYPTION_KEY`/LangSmith-Key (Gespräch vom
+2026-07-13) ist davon unberührt — das ist eine separate, manuelle Migration
+auf dem echten Produktivserver, kein Code-/Manifest-Thema.
+
+- **Problem (historisch, gilt für `docker-compose.yml` als Dev-Stack weiter)**: `docker-compose.yml` liefert schwache Defaults direkt mit
   (`SECRET_KEY: ${SECRET_KEY:-ChangeThisInProduction}`,
   `SQL_PASS: ${SQL_PASS:-postgres}`,
   `WHISPER_API_KEY: ${WHISPER_API_KEY:-loc-123}`) — für lokales
@@ -100,9 +130,39 @@ zurückgestellte Zukunftsarbeit.
 - **Betrifft**: `backend/components/modules/env.py` (Referenz, keine
   Änderung), `docker-compose.yml`, künftige k8s-Manifeste (falls relevant).
 
-### 1.4 Reverse-Proxy-Header-Vertrauen absichern
+### 1.4 Reverse-Proxy-Header-Vertrauen absichern — ✅ erledigt (Teil a bleibt Apache-seitig offen)
 
-- **Problem**: Nirgends `ProxyHeadersMiddleware`/`TrustedHostMiddleware`.
+**Update:** Teil (c), `CORSMiddleware.allow_origins`, ist erledigt —
+`CORS_ALLOWED_ORIGINS` (komma-getrennt, `backend/run.py`) statt hartkodiertem
+`"*"`; leer/nicht gesetzt fällt weiterhin auf `"*"` zurück, loggt aber jetzt
+eine Warnung. In `docker-compose.yml`/`docker-swarm.yml`/`.env.example`
+verdrahtet. Konkreter Origin-Wert für srv01 noch nicht gesetzt (unbekannt,
+folgt sobald klar).
+
+Teil (b) ist erledigt, aber anders gelöst als ursprünglich skizziert: statt
+uvicorns `--proxy-headers`/`--forwarded-allow-ips` (das hätte
+`request.url.scheme` korrigiert, aber `_build_redirect_uri` liest
+`X-Forwarded-Host` direkt aus den Headern — Starlette hat dafür keinen
+eingebauten Trust-Mechanismus) gibt es jetzt eine eigene
+`mark_trusted_proxy`-Middleware (`backend/run.py`), die `request.state.trusted_proxy`
+setzt, bevor irgendein Downstream-Code den Peer sieht. `_build_redirect_uri`
+(`oidc_routes.py`) ignoriert `X-Forwarded-Proto`/`-Host` komplett, wenn der
+direkte Peer kein vertrauenswürdiger Proxy ist. Vertrauenswürdige IPs kommen
+aus `TRUSTED_PROXY_IPS` (komma-getrennt) — leer/nicht gesetzt erkennt
+automatisch Loopback + die Docker-Gateway-IP des Containers
+(`get_trusted_proxy_ips()`/`_detect_docker_gateway()` in
+`backend/components/modules/env.py`, parst `/proc/net/route`, kein
+`ip`-Binary nötig). Wichtiger Fund dabei: eine auf **demselben Host**
+laufende Reverse-Proxy-Verbindung (`Apache → 127.0.0.1:APP_PORT`) kommt im
+Container **nicht** als `127.0.0.1` an, sondern als die Docker-Gateway-IP
+(NAT durch das Port-Publishing) — empirisch verifiziert, `127.0.0.1` allein
+als Trust-Wert hätte hier nicht funktioniert.
+
+**Teil (a) — dass Apache selbst `X-Forwarded-For` kontrolliert statt
+Client-Werte durchzureichen — ist reine VHost-Konfiguration, kann nicht aus
+diesem Repo heraus behoben werden, bleibt offen.**
+
+- **Problem (historisch)**: Nirgends `ProxyHeadersMiddleware`/`TrustedHostMiddleware`.
   `_build_redirect_uri` in `backend/views/auth_api/oidc_routes.py` liest
   `X-Forwarded-Proto`/`X-Forwarded-Host` direkt aus den rohen
   Request-Headern, ohne Validierung. `CORSMiddleware` ist mit

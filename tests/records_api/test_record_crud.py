@@ -5,6 +5,7 @@ involvement (GET/PUT/DELETE by id, list-records) — the recording pipeline
 itself is out of scope for this suite.
 """
 
+from backend.components.models.categories import Categories
 from backend.components.models.record_model import Record
 
 
@@ -102,6 +103,43 @@ def test_update_record_persists_new_content(
     assert body["content"] == "updated note"
     assert body["summarize"] == "updated summary"
     assert body["title"] == "New title"
+
+
+def test_update_record_changes_category(
+    client, create_user, auth_headers, session_factory
+):
+    owner = create_user("dr.mueller")
+    record = _create_record(session_factory, user_id=owner.id)
+    with session_factory() as session:
+        category = Categories(
+            name="Kardiologie", description="", system_prompt="prompt"
+        )
+        session.add(category)
+        session.commit()
+        session.refresh(category)
+        category_id = category.id
+    url = f"/api/v1/records/record/{record.id}"
+
+    response = client.put(
+        url, headers=auth_headers(owner), json={"category_id": category_id}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["category_id"] == category_id
+
+
+def test_update_record_with_unknown_category_returns_404(
+    client, create_user, auth_headers, session_factory
+):
+    owner = create_user("dr.mueller")
+    record = _create_record(session_factory, user_id=owner.id)
+    url = f"/api/v1/records/record/{record.id}"
+
+    response = client.put(
+        url, headers=auth_headers(owner), json={"category_id": 999}
+    )
+
+    assert response.status_code == 404
 
 
 def test_delete_record_as_owner_removes_it(

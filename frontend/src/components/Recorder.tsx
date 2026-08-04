@@ -71,6 +71,14 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
   const processingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [liveEnabled, setLiveEnabled] = useState(true);
+  const liveTranscriptRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = liveTranscriptRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [stableTranscript, liveTranscript]);
 
   useImperativeHandle(ref, () => ({
     waitForUploads: async () => {
@@ -374,11 +382,17 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
         </div>
 
         {/* Transcription Area */}
-        <div className="flex-1 overflow-y-auto p-8 font-sans">
+        <div ref={liveTranscriptRef} className="flex-1 overflow-y-auto p-8 font-sans">
           {liveEnabled ? (
             <div className="w-full max-w-3xl mx-auto space-y-2">
+              <p className="text-xs text-muted-foreground/70 text-center italic">
+                Live-Vorschau dient nur der groben Übersicht während der Aufnahme — nicht das endgültige Transkriptionsergebnis.
+              </p>
               {stableTranscript || liveTranscript ? (
-                <p className="text-xl md:text-2xl font-light leading-relaxed text-foreground/90 tracking-wide selection:bg-primary/20">
+                <p
+                  className="select-none text-base md:text-lg font-light leading-relaxed text-foreground/90 tracking-wide"
+                  onCopy={(e) => e.preventDefault()}
+                >
                   {stableTranscript}
                   {liveTranscript && (
                     <span className="text-primary/70 animate-pulse font-normal ml-1 border-b border-primary/30 pb-0.5">

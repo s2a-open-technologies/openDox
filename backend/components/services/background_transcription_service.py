@@ -29,6 +29,7 @@ from backend.components.llm.llm_model import SummarizeModel
 from backend.components.models.categories import Categories  # noqa: E402
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import Record
+from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
 from backend.components.security.field_encryption import encrypt_bytes
 from backend.components.services import audio_storage
@@ -57,24 +58,42 @@ def _sanitize_filename(filename: str) -> str:
     return filename[:200]
 
 
-def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
-    """Convert audio to MP3, encrypt it, and upload it to S3 for download.
+def _build_ffmpeg_args(fmt: str, bitrate: str) -> tuple[list[str], str]:
+    """Return (codec/bitrate ffmpeg args, file extension) for an audio format.
+
+    Falls back to mp3 for unknown/empty values so old settings rows without
+    the audio_format column keep working.
+    """
+    if fmt == "wav":
+        return ["-c:a", "pcm_s16le"], "wav"
+    if fmt == "flac":
+        return ["-c:a", "flac", "-compression_level", "8"], "flac"
+    if fmt == "ogg":
+        return ["-c:a", "libopus", "-b:a", bitrate], "ogg"
+    return ["-c:a", "libmp3lame", "-b:a", bitrate], "mp3"
+
+
+def _persist_audio(file_path: str, record: Record) -> str | None:
+    """Convert audio to the configured format, encrypt it, and upload to S3.
 
     Args:
         file_path: Path to source audio file (WAV or any ffmpeg-compatible format).
         record: Record instance the persisted audio belongs to.
 
     Returns:
-        The S3 object key the encrypted MP3 was stored under, or None if
+        The S3 object key the encrypted audio was stored under, or None if
         disabled or conversion/upload failed.
     """
     audio_settings = get_audio_settings()
     if not audio_settings.audio_download_enabled:
         return None
 
+    fmt = (audio_settings.audio_format or "mp3").lower()
+    codec_args, ext = _build_ffmpeg_args(fmt, audio_settings.audio_bitrate or "64k")
+
     tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp:
             tmp_path = tmp.name
         cmd = [
             "ffmpeg",
@@ -85,8 +104,7 @@ def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
             "1",
             "-ar",
             str(audio_settings.audio_sample_rate or 16000),
-            "-b:a",
-            audio_settings.audio_bitrate or "64k",
+            *codec_args,
             "-loglevel",
             "error",
             tmp_path,
@@ -96,7 +114,7 @@ def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
         with open(tmp_path, "rb") as f:
             plaintext = f.read()
 
-        key = f"records/{record.id}.mp3.enc"
+        key = f"records/{record.id}.{ext}.enc"
         audio_storage.upload_bytes(key, encrypt_bytes(plaintext))
         return key
     except (subprocess.CalledProcessError, OSError, RuntimeError) as e:
@@ -109,12 +127,55 @@ def _persist_audio_as_mp3(file_path: str, record: Record) -> str | None:
             os.remove(tmp_path)
 
 
+def _retain_audio_for_retry(db, task_id: int, file_path: str) -> None:
+    """Move a failed task's source audio out of the ephemeral scratch dir.
+
+    Keeps it out of reach of the session/startup cleanup loops (which only
+    match ``session_*`` files at the top level of their scratch dir) and
+    records its new location on the Task so ``POST /tasks/{id}/retry`` can
+    find it again.
+    """
+    if not file_path or not os.path.exists(file_path):
+        return
+    try:
+        parent = os.path.dirname(file_path) or "."
+        # A retried task that fails again already lives under .../failed —
+        # reuse that dir instead of nesting failed/failed/...
+        failed_dir = (
+            parent
+            if os.path.basename(parent) == "failed"
+            else os.path.join(parent, "failed")
+        )
+        os.makedirs(failed_dir, exist_ok=True)
+        ext = os.path.splitext(file_path)[1]
+        retry_path = os.path.join(failed_dir, f"task_{task_id}{ext}")
+        if os.path.abspath(retry_path) != os.path.abspath(file_path):
+            os.replace(file_path, retry_path)
+        task = db.get(Task, task_id)
+        if task:
+            task.retry_audio_path = retry_path
+            db.add(task)
+            db.commit()
+        logger.warning(f"[TASK {task_id}] Kept audio for retry: {retry_path}")
+    except OSError as e:
+        logger.error(f"[TASK {task_id}] Failed to retain audio for retry: {e}")
+
+
 def background_transcription_task(
     task_id: int,
     session_id: str,
     pcm_buffer: bytes | None,
     file_path: str | None = None,
-):
+) -> bool:
+    """Run transcription → PII sanitize → LLM summary → audio persist.
+
+    Returns:
+        True if the task reached "finished", False if any step raised. The
+        caller (``finalize()``/``run_pipeline()``/the retry endpoint) uses
+        this to decide whether to delete ``file_path`` or keep it — the
+        actual deletion/retention happens inside this function itself, see
+        the end of the try block and ``_retain_audio_for_retry``.
+    """
     db = session_factory()
 
     text = ""
@@ -217,7 +278,7 @@ def background_transcription_task(
         update_task_status(db, task_id, "finished")
 
         if record and file_path:
-            s3_key = _persist_audio_as_mp3(file_path, record)
+            s3_key = _persist_audio(file_path, record)
             if s3_key:
                 record.file = s3_key
                 db.add(record)
@@ -232,6 +293,8 @@ def background_transcription_task(
             except OSError as e:
                 logger.warning(f"[TASK {task_id}] Could not delete audio file {file_path}: {e}")
 
+        return True
+
     except Exception as e:
         logger.error(
             f"[TASK {task_id}] Error during transcription/llm: {e}", exc_info=True
@@ -239,8 +302,11 @@ def background_transcription_task(
         try:
             db.rollback()
             update_task_status(db, task_id, "error", error=str(e))
+            if file_path:
+                _retain_audio_for_retry(db, task_id, file_path)
         except Exception as inner:
             logger.error(f"[TASK {task_id}] Failed to set error status: {inner}")
+        return False
 
     finally:
         db.close()

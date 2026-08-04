@@ -59,6 +59,17 @@ def _fake_client(content: str) -> RunnableLambda:
     return RunnableLambda(lambda _: AIMessage(content=content))
 
 
+def _capturing_client(content: str) -> tuple[RunnableLambda, dict]:
+    """A fake Runnable that also records the rendered messages it received."""
+    captured: dict = {}
+
+    def _invoke(prompt_value):
+        captured["messages"] = prompt_value.to_messages()
+        return AIMessage(content=content)
+
+    return RunnableLambda(_invoke), captured
+
+
 def test_constructs_chat_openai_with_a_timeout(monkeypatch, patched_engine):
     captured = {}
 
@@ -129,3 +140,44 @@ def test_generate_response_raises_on_whitespace_only_output(patched_engine):
 
     with pytest.raises(ValueError, match="empty"):
         model.generate_response("irrelevant input")
+
+
+def test_placeholder_rule_reaches_default_prompt(patched_engine):
+    """The default fallback prompt must carry the anti-hallucination rule."""
+    model = SummarizeModel()
+    model.client, captured = _capturing_client("Ergebnis")
+
+    model.generate_response("Text")
+
+    system_content = captured["messages"][0].content
+    assert "Platzhalter" in system_content
+    assert "[PERSON]" in system_content
+
+
+def test_placeholder_rule_reaches_custom_category_prompt_without_it(patched_engine):
+    """A freshly created category prompt has no idea about the rule.
+
+    It must still be enforced, since the admin who wrote it has no way of
+    knowing the local model tends to invent bracket placeholders.
+    """
+    model = SummarizeModel()
+    model.client, captured = _capturing_client("Ergebnis")
+    custom_prompt = "Du bist ein hilfreicher Assistent für Notizen."
+
+    model.generate_response("Text", custom_system_prompt=custom_prompt)
+
+    system_content = captured["messages"][0].content
+    assert custom_prompt in system_content
+    assert "Platzhalter" in system_content
+    assert "[PERSON]" in system_content
+
+
+def test_get_system_prompt_no_longer_hardcodes_the_placeholder_rule(patched_engine):
+    """The rule lives solely in generate_response() now.
+
+    Duplicating it in prompt text would let the two copies drift out of
+    sync over time.
+    """
+    model = SummarizeModel()
+
+    assert "Erfinde niemals neue Platzhalter" not in model.get_system_prompt()

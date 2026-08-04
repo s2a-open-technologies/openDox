@@ -12,11 +12,14 @@
 
 ### Kernfeatures
 
-- 🎤 **Zwei-Stufen-Transkription**: Parakeet (Live, CPU) + Whisper (Final, GPU)
-- 🤖 **KI-Zusammenfassung**: Automatische Grammatikkorrektur und Strukturierung
-- 🔐 **DSGVO-konform**: Feldweise Verschlüsselung für patientenbezogene Daten
-- 🏢 **Enterprise-Ready**: LDAP-Integration, Redis-Sessions (geplant), horizontale Skalierung
-- 🐳 **Cloud-Native**: Docker-basierte Deployment mit PostgreSQL
+- 🎤 **Zwei-Stufen-Transkription**: Parakeet (Live, VAD-segmentiertes WS-Streaming) + Whisper (Final, GPU)
+- 🏷️ **Kategorien**: jede Aufnahme bekommt eine Kategorie mit eigenem Whisper-Vokabular-Prompt, LLM-System-Prompt und optionalem Per-Kategorie-LLM-Backend
+- 🤖 **KI-Zusammenfassung**: Grammatikkorrektur und Strukturierung über ein beliebiges OpenAI-kompatibles LLM (Ollama, vLLM, Cloud-Anbieter …) — nicht auf Ollama festgelegt
+- 🕵️ **PII-Sanitizer (EntityGuard, optional)**: maskiert Klarnamen vor dem LLM-Call, re-injiziert sie danach wieder in die gespeicherte Zusammenfassung
+- 🔐 **DSGVO-konform**: Feldweise Verschlüsselung (inkl. Key-Rotation) für patientenbezogene Daten, automatische Löschung des Rohaudios nach der Verarbeitung
+- 🎧 **Optionaler Audio-Download**: komprimierte, verschlüsselte Kopie der Aufnahme (Format/Bitrate wählbar) in einem S3-kompatiblen Objektspeicher (self-hosted Garage per Default)
+- 🏢 **Enterprise-Ready**: LDAP- und OIDC/SSO-Integration (inkl. Gruppen→Rollen-Mapping), Redis-Session-Store mit In-Memory-Fallback
+- 🐳 **Cloud-Native**: Docker-Compose-Stack (lokal/Demo) und Docker-Swarm-Produktionsdeploy mit PostgreSQL
 
 ---
 
@@ -32,40 +35,52 @@ graph TB
         C[AuthContext]
         D[Settings Panels]
     end
-    
+
     subgraph Backend["FastAPI Backend (Python 3.12)"]
         E[WebSocket Handler]
         F[REST API]
-        G["Session Store<br/>(In-Memory, PCM on Disk)"]
+        G["Session Store<br/>(Redis oder In-Memory, PCM auf Disk)"]
         H[ASR Factory]
         I[Task Service]
         J[Chunk Correction Service]
+        P[PII Sanitizer<br/>optional]
     end
-    
+
     subgraph Database["Datenbank & Cache"]
-        K[(PostgreSQL 15)]
+        K[(PostgreSQL)]
+        R[(Redis, optional)]
     end
-    
+
     subgraph AIServices["KI-Services"]
         L[Whisper ASR<br/>GPU — Final]
-        M[Parakeet ASR<br/>CPU — Live]
-        N[Ollama LLM]
+        M[Parakeet-Server<br/>VAD + ONNX — Live]
+        N["LLM<br/>OpenAI-kompatibel<br/>(Ollama, vLLM, Cloud, …)"]
     end
-    
-    subgraph Enterprise["Enterprise Services"]
+
+    subgraph Storage["Objektspeicher (optional)"]
+        S[("S3-kompatibel<br/>Garage per Default")]
+    end
+
+    subgraph Enterprise["Auth"]
         O[LDAP/Active Directory]
+        Q[OIDC/SSO-Provider]
     end
-    
+
     A -->|WebSocket PCM| E
     A -->|HTTP Upload| F
     E --> G
+    G -.-> R
     E --> H
-    H -->|Live| M
+    H -->|Live, WS-Streaming| M
     H -->|Final| L
-    E -->|Whisper only| J
+    E -->|Whisper-Chunks| J
+    E --> P
+    P --> N
     F --> K
     F --> O
+    F --> Q
     I --> N
+    I --> S
 ```
 
 ### Transkriptions-Pipeline (Zwei-Stufen-ASR)
@@ -75,42 +90,53 @@ sequenceDiagram
     participant User as 👤 User
     participant Browser as 🌐 Browser
     participant WS as 🔌 WebSocket
-    participant Parakeet as 🎤 Parakeet<br/>(CPU, Live)
+    participant Parakeet as 🎤 Parakeet-Server<br/>(VAD + ONNX, Live)
     participant Whisper as 🎙️ Whisper<br/>(GPU, Final)
+    participant Sanitizer as 🕵️ PII-Sanitizer<br/>(optional)
+    participant LLM as 🤖 LLM<br/>(OpenAI-kompatibel)
     participant DB as 🗄️ PostgreSQL
-    participant LLM as 🤖 Ollama LLM
-    
+
     User->>Browser: Start Recording
     Browser->>Browser: AudioWorklet (16kHz PCM)
-    
-    loop Every 3 seconds
-        Browser->>WS: Send Audio Chunk (Float32)
-        WS->>WS: Write PCM to disk (session_{id}.pcm)
-        
-        alt live_backend = "parakeet"
-            WS->>Parakeet: Transcribe (live, batch)
-            Parakeet-->>WS: Text (mit Interpunktion)
-            WS-->>Browser: Update Live Transcript
-            Note over WS: Kein LLM-Korrektur nötig<br/>(Parakeet liefert fertige Sätze)
-        else live_backend = "api" (Whisper)
-            WS->>Whisper: Transcribe (live)
+
+    alt live_backend = "parakeet"
+        loop Jedes PCM-Frame
+            Browser->>WS: Float32-Frame
+            WS->>WS: PCM auf Disk anhängen (session_{id}.pcm)
+            WS->>Parakeet: Frame weiterleiten (WS-Stream)
+            Parakeet-->>WS: {"partial": ...} / {"committed", "delta"}
+            WS-->>Browser: Live-Transkript aktualisieren
+            Note over Parakeet: Silero-VAD segmentiert an Pausen,<br/>liefert bereits fertige Interpunktion —<br/>keine LLM-Korrektur nötig
+        end
+    else live_backend = "api" (Whisper)
+        loop Alle 3 Sekunden
+            Browser->>WS: Audio-Chunk (Float32)
+            WS->>WS: PCM auf Disk anhängen
+            WS->>Whisper: Transcribe (live, fester Chunk)
             Whisper-->>WS: Partial Text (roh)
-            WS->>WS: Batch-LLM-Korrektur<br/>(alle 5 Chunks)
-            WS-->>Browser: Update Live Transcript
+            WS->>WS: Batch-LLM-Korrektur (alle 5 Chunks)
+            WS-->>Browser: Live-Transkript aktualisieren
         end
     end
-    
+
     User->>Browser: Stop Recording
-    Browser->>Browser: Warte auf Uploads (MediaRecorder)
     Browser->>WS: STOP Event
     WS->>WS: PCM → WAV konvertieren
-    WS->>Whisper: Transcribe (final, full quality)
+    WS->>Whisper: Transcribe (final, initial_prompt = Kategorie-Vokabular)
     Whisper-->>WS: Complete Transcript
-    WS->>DB: Store encrypted content
-    WS->>LLM: Summarize with category prompt
-    LLM-->>WS: Summary (Markdown)
-    WS->>DB: Store encrypted summary
-    WS->>WS: Audio-Datei löschen (DSGVO)
+    WS->>DB: record.content speichern (verschlüsselt)
+
+    opt Sanitizer aktiviert
+        WS->>Sanitizer: Text mit Klarnamen
+        Sanitizer-->>WS: sanitisierter Text + Mapping
+        WS->>DB: pii_mapping speichern (verschlüsselt)
+    end
+
+    WS->>LLM: Zusammenfassen (Kategorie-System-Prompt + Anti-Halluzinations-Regel)
+    LLM-->>WS: Summary (Markdown, ggf. mit Platzhalter-Token)
+    WS->>WS: Platzhalter-Token zurück zu Klarnamen (falls Sanitizer aktiv)
+    WS->>DB: record.summarize speichern (verschlüsselt)
+    WS->>WS: Audio-Datei löschen (DSGVO) — bei Fehler stattdessen für Retry aufbewahrt
     WS-->>Browser: Final Result + Task ID
 ```
 
@@ -129,11 +155,15 @@ sequenceDiagram
 | **Fallback-DB** | SQLite3 | - | Development |
 | **Auth** | python-jose + bcrypt | ≥3.5.0 | JWT-Token |
 | **LDAP** | ldap3 | ≥2.9.1 | Enterprise-Auth |
-| **LLM-Client** | LangChain | ≥1.2.0 | LLM-Orchestrierung |
-| **Live-ASR** | Parakeet (onnx-asr) | - | CPU-basierte Live-Transkription |
+| **OIDC/SSO** | itsdangerous + httpx + python-jose | - | Signierter State, Token-Exchange, JWKS-Verifikation |
+| **LLM-Client** | LangChain | ≥1.2.0 | LLM-Orchestrierung (jedes OpenAI-kompatible Backend, nicht nur Ollama) |
+| **PII-Sanitizer-Client** | requests | - | HTTP-Client für den optionalen EntityGuard-Sanitizer |
+| **Live-ASR** | Parakeet (onnx-asr, Silero-VAD) | - | VAD-segmentiertes WS-Streaming, GPU-Default mit CPU-Fallback |
 | **Final-ASR** | Whisper (faster-whisper) | - | GPU-basierte Final-Transkription |
-| **Verschlüsselung** | cryptography (Fernet) | - | Feldweise Encryption |
-| **Audio** | ffmpeg | System | Chunk-Merging |
+| **Verschlüsselung** | cryptography (Fernet) | - | Feldweise Encryption inkl. Key-Rotation |
+| **Objektspeicher** | boto3 | - | S3-kompatibler Client für den optionalen Audio-Download (self-hosted Garage per Default) |
+| **Session-Cache** | redis | - | Session-Store-Backend, optional (In-Memory-Fallback ohne `REDIS_URL`) |
+| **Audio** | ffmpeg | System | Chunk-Merging, Format-Konvertierung für den Audio-Download |
 | **Server** | Uvicorn | ≥0.38.0 | ASGI-Server |
 
 ### Frontend
@@ -159,33 +189,39 @@ openDox nutzt ein zweistufiges Transkriptionsmodell:
 
 | Stage | Backend | Hardware | Zweck |
 |-------|----------|----------|-------|
-| **Live** | Parakeet (onnx-asr) | CPU | Near-Real-Time WebSocket mit Interpunktion |
+| **Live** | Parakeet-Server (onnx-asr, VAD-segmentiertes WS-Streaming) | GPU-Default mit CPU-Fallback | Near-Real-Time-Transkript mit Interpunktion |
 | **Final** | Whisper (faster-whisper) | GPU | Hochwertige Re-Transkription des vollständigen Audios |
 
 ### ASR Factory (asr_factory.py)
 
-Die `ASRFactory` erstellt den Live-Backend basierend auf der `live_backend`-Einstellung (`"parakeet"` | `"api"` | `"disabled"`):
+Die `ASRFactory` erstellt Live- und Final-Backend unabhängig voneinander, jeweils lazy und gecacht auf der Factory-Instanz. Live wählt anhand der `live_backend`-Einstellung (`"parakeet"` | `"api"` | `"disabled"`):
 
 ```python
-class ASRFactory:
-    def _create_live_backend(self) -> ASRBackend:
-        settings = get_settings()
+def _create_live_backend(self) -> ASRBackend:
+    settings = get_settings()
 
-        if settings.live_backend == "parakeet":
-            endpoint = settings.live_api_endpoint or env_or_file("PARAKEET_API_ENDPOINT")
-            return OpenAICompatibleBackend(
-                endpoint=endpoint,
-                model=settings.live_api_model or "nemo-parakeet-tdt-0.6b-v3",
-            )
-
-        if settings.live_backend == "api":  # Whisper
-            return OpenAICompatibleBackend(
-                endpoint=settings.live_api_endpoint,
-                model=settings.live_api_model or "whisper-1",
-            )
-
+    if settings.live_backend == "disabled":
         return DisabledBackend()
+
+    if settings.live_backend == "parakeet":
+        endpoint = settings.live_api_endpoint or env_or_file("PARAKEET_API_ENDPOINT")
+        if not endpoint:
+            return DisabledBackend()
+        # ParakeetStreamBackend hält die WS-Verbindung zum Parakeet-Server offen
+        # und relayt partial/committed/final-Nachrichten — kein fixer Chunk-Takt
+        return ParakeetStreamBackend(endpoint=endpoint, api_key=settings.live_api_key)
+
+    # Default / "api" (Whisper, fester Chunk-Takt statt Streaming)
+    if not settings.live_api_endpoint:
+        return DisabledBackend()
+    return OpenAICompatibleBackend(
+        endpoint=settings.live_api_endpoint,
+        model=settings.live_api_model or "whisper-1",
+        api_key=settings.live_api_key,
+    )
 ```
+
+`chunk_length_s`/`overlap_s`/`left_context_s`/`merge_overlapping_text` gelten **nur** für den `"api"`-Pfad (Whisper) — beim Parakeet-Streaming-Pfad übernimmt die Segmentierung intern der Parakeet-Server per Silero-VAD.
 
 ### Frontend: AudioWorklet (Recorder.tsx)
 
@@ -270,83 +306,13 @@ const uploadChunk = (chunk: Blob, sessionId: string) => {
 
 ### Backend: WebSocket Handler (record.py)
 
-```python
-@record_bp.websocket("/ws/record")
-async def websocket_record(websocket: WebSocket, db: SessionDep):
-    await websocket.accept()
-    
-    session_id = websocket.query_params.get("session_id")
-    user_id = websocket.query_params.get("user_id")
-    
-    # Session-State initialisieren (PCM auf Disk, nicht im RAM)
-    session = session_store.get_by_session(session_id)
-    if session is None:
-        session = session_store.create_session(
-            user_id=int(user_id),
-            session_id=session_id,
-            record_id=record.id,
-            title=record.title,
-            audio_dir="chunks",
-        )
-    
-    # Audio wird auf Disk geschrieben (session_{id}.pcm)
-    # session["audio_file_path"] zeigt auf die PCM-Datei
-    
-    try:
-        while True:
-            msg = await websocket.receive()
-            
-            if msg.get("bytes"):
-                chunk = msg["bytes"]
-                
-                # PCM auf Disk schreiben (kein RAM-Anstieg bei langen Aufnahmen)
-                with open(session["audio_file_path"], "ab") as _f:
-                    _f.write(chunk)
-                session["audio_file_size"] += len(chunk)
-                
-                # Live-ASR alle 3s
-                buffer_len = session["audio_file_size"]
-                new_data_len = buffer_len - session["last_index"]
-                
-                if new_data_len >= bytes_per_chunk:
-                    start = session["last_index"]
-                    with open(session["audio_file_path"], "rb") as _f:
-                        _f.seek(start)
-                        audio_slice = _f.read(bytes_per_chunk)
-                    
-                    session["last_index"] = start + bytes_per_chunk - bytes_per_overlap
-                    
-                    # KEIN live_prompt — Whisper neigt dazu, Prompt-Text zu wiederholen
-                    backend = get_live_asr()
-                    result_text = await asyncio.to_thread(
-                        backend.transcribe,
-                        audio=audio_slice,
-                        language="de",
-                        prompt=None,
-                        params=whisper_params,
-                    )
-                    
-                    if result_text:
-                        session["live_text"] = (session["live_text"] + " " + result_text).strip()
-                        await websocket.send_json({
-                            "session_id": session_id, "text": result_text
-                        })
-    
-    except Exception as e:
-        logger.error(f"[WS-ERROR] {e}")
-    
-    finally:
-        if stopped:
-            # PCM → WAV konvertieren, dann Hintergrund-Transkription
-            await finalize(session_id, user_id)
-```
+`websocket_record()` in `backend/views/record_api/record.py` ist deutlich umfangreicher als ein einfacher Empfangs-Loop und verzweigt früh nach ASR-Backend-Typ:
 
-**Wichtige Designentscheidungen:**
-
-- **Audio auf Disk:** PCM wird in `session_{id}.pcm` geschrieben, nicht im RAM gehalten — verhindert Memory-Leaks bei langen Aufnahmen
-- **Kein `live_prompt`:** Whisper neigt dazu, Text aus dem Prompt zu wiederholen, was Duplikate im Live-Transkript erzeugt
-- **Parakeet = kein LLM-Korrektur:** Parakeet liefert bereits korrekte Interpunktion und Groß-/Kleinschreibung
-- **Whisper = Batch-LLM-Korrektur:** Rohe Whisper-Chunks werden alle 5 Chunks über `chunk_correction_service.py` bereinigt
+- **Session-Anlage**: `session_store.get_by_session()`/`create_session()` — PCM wird immer auf Disk geschrieben (`chunks/session_{id}.pcm`), nie im RAM gehalten, unabhängig vom gewählten Session-Store-Backend (Redis speichert nur Metadaten).
+- **Parakeet-Streaming-Pfad** (`isinstance(backend, ParakeetStreamBackend)`): jedes empfangene Float32-PCM-Frame wird direkt und ungepuffert an die WebSocket-Verbindung des Parakeet-Servers weitergeleitet. Der Server segmentiert intern per Silero-VAD an Sprechpausen und schickt `{"partial": ...}` (offenes Segment, alle 0.4s neu dekodiert) bzw. `{"committed": ..., "delta": ...}` (abgeschlossenes Segment) zurück — `delta` wird ans `stableTranscript` angehängt, `partial` rendert als Live-Tail. Kein LLM-Korrekturschritt, da Parakeet bereits fertige Interpunktion liefert.
+- **Whisper-`"api"`-Pfad**: fester Chunk-Takt (Default 3s, `overlap_s` für Übergangs-Überlappung), `chunk_correction_service.py` glättet alle 5 Chunks per LLM (Satzzeichen/Übergänge zwischen Chunk-Grenzen).
+- **Kein `initial_prompt` im Live-Pfad**: Whisper neigt dazu, den Prompt-Text zu wiederholen, was im Live-Transkript zu Duplikaten führt — anders als bei der finalen Transkription, wo `category.whisper_prompt` als Vokabular-Hint übergeben wird.
+- **Beenden**: Auf ein `STOP`-Event bzw. Verbindungsabbruch konvertiert `finalize()` die PCM-Datei zu WAV und startet `background_transcription_task` als Hintergrund-Task (finale Whisper-Transkription → optionale PII-Sanitisierung → LLM-Zusammenfassung → optionale Audio-Persistierung). Die WAV-Datei wird bei Erfolg gelöscht, bei einem Fehler stattdessen für einen manuellen Retry aufbewahrt (siehe Abschnitt „Audio-Download").
 
 ### Latenz-Profil
 
@@ -370,7 +336,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 │  ────────────────────────┼─────────────┼──────────────────  │
 │  PCM → WAV Konvertierung │   50-100ms  │ numpy + struct    │
 │  Whisper Inferenz        │    2-10s    │ GPU (CUDA)        │
-│  LLM Zusammenfassung    │    3-15s    │ Ollama CPU        │
+│  LLM Zusammenfassung    │    3-15s    │ abhängig vom Endpunkt │
 │  ────────────────────────┼─────────────┼──────────────────  │
 │  Gesamt (Final)          │   ~5-25s    │ Hintergrund-Task  │
 │                                                               │
@@ -388,7 +354,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
 
 ## Parakeet ASR Server (Eigenständiger Dienst)
 
-Der Parakeet-Server ist ein eigenständiger FastAPI-Dienst, der über die OpenAI-kompatible API `/v1/audio/transcriptions` angesprochen wird.
+Der Parakeet-Server ist ein eigenständiger FastAPI-Dienst (`parakeet_server/main.py`, Port 5001) mit zwei Endpunkten: dem OpenAI-kompatiblen `POST /v1/audio/transcriptions` (One-Shot, für die finale/Batch-Nutzung) und `WS /v1/audio/stream` (VAD-segmentiertes Streaming, siehe `parakeet_server/streaming.py`) — letzterer ist der eigentliche Live-Pfad, den `ParakeetStreamBackend` nutzt. Silero-VAD + Parakeet-ONNX (onnx-asr) werden beim Start geladen; der Dockerfile-Default ist die NVIDIA-GPU-Base (CUDA 12.4.1 + cuDNN) mit automatischer `CUDAExecutionProvider`-Wahl und CPU-Fallback (`PARAKEET_DEVICE=cpu` für ein reines CPU-Image).
 
 ### Architektur
 
@@ -396,22 +362,26 @@ Der Parakeet-Server ist ein eigenständiger FastAPI-Dienst, der über die OpenAI
 graph LR
     subgraph Backend["openDox Backend"]
         A[ASR Factory]
-        B[OpenAICompatibleBackend]
+        B[ParakeetStreamBackend]
     end
-    
+
     subgraph Parakeet["Parakeet Server (Port 5001)"]
-        C["/v1/audio/transcriptions"]
+        C["WS /v1/audio/stream"]
+        C2["POST /v1/audio/transcriptions<br/>(One-Shot, OpenAI-kompatibel)"]
+        VAD[Silero VAD]
         D[get_model - Dict Cache]
         E[onnx_asr Model]
     end
-    
+
     A -->|live_backend="parakeet"| B
-    B -->|HTTP POST| C
-    C --> D
+    B -->|WS, jedes PCM-Frame| C
+    C --> VAD
+    VAD -->|Segment an Sprechpause| D
     D --> E
+    E -->|partial / committed / final| C
 ```
 
-### Implementation (parakeet_server/main.py)
+### Implementation: One-Shot-Endpunkt (parakeet_server/main.py)
 
 ```python
 # Standard library
@@ -484,9 +454,19 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
 **Eigenschaften:**
 - **OpenAI-kompatibel:** Gleiche API wie Whisper — `OpenAICompatibleBackend` funktioniert unverändert
 - **Modell-Cache:** `get_model(name)` mit Dict-Cache, keine Singletons
-- **Lifespan:** Default-Modell wird beim Start vorgeladen (~300MB), bei Shutdown freigegeben
+- **Lifespan:** Default-Modell wird beim Start vorgeladen, bei Shutdown freigegeben
 - **PCM → WAV:** Akzeptiert rohes Float32-PCM (16kHz, Mono) oder WAV-Dateien
-- **CPU-only:** Keine GPU nötig, läuft auf jedem Host
+- **GPU-Default mit CPU-Fallback:** anders als früher kein reiner CPU-Dienst mehr — `CUDAExecutionProvider` wird automatisch gewählt, wenn verfügbar
+
+### Streaming-Endpunkt (WS /v1/audio/stream)
+
+Der eigentliche Live-Pfad: `record.py` leitet jedes empfangene Float32-PCM-Frame direkt an diese WebSocket-Verbindung weiter. `StreamingSession` (`parakeet_server/streaming.py`) kombiniert Silero-VAD mit dem Parakeet-ONNX-Modell:
+
+- **Segmentierung an Sprechpausen** statt festem Zeit-Chunking
+- **Offenes Segment**: wird alle 0.4s neu dekodiert und als `{"partial": <Text>}` zurückgeschickt (Live-Tail im Frontend)
+- **Abgeschlossenes Segment**: bei erkannter Pause committed und als `{"committed": ..., "delta": ...}` zurückgeschickt — `record.py` hängt `delta` an `stableTranscript` an
+- **Ende der Aufnahme**: `{"final": ...}`
+- `chunk_length_s`/`overlap_s`/`left_context_s`/`merge_overlapping_text` (die Whisper-Chunk-Parameter) gelten hier **nicht** — die Segmentierung ist vollständig serverseitig
 
 ---
 
@@ -643,169 +623,126 @@ docker compose -f docker/docker-compose.yml restart app
 
 ---
 
-## Enterprise: LDAP Integration
+## Authentifizierung: Local, LDAP, OIDC
 
-### LDAP-Service (ldap.py)
+Drei Methoden, in dieser Reihenfolge in `auth_routes.py:login()` durchprobiert:
 
-```python
-# ldap.py - Enterprise Authentication Service
-from ldap3 import Server, Connection, ALL, Tls
-from typing import Dict, Optional
+### 1. Local DB
 
-class LdapService:
-    """LDAP authentication service for enterprise environments.
-    
-    Supports:
-    - Active Directory
-    - OpenLDAP
-    - FreeIPA
-    """
-    
-    def __init__(self, settings: LdapSettingsModel):
-        # SSL/TLS Configuration
-        tls = Tls(validate=ssl.CERT_REQUIRED) if settings.use_ssl else None
-        
-        self.server = Server(
-            settings.server_url,
-            get_info=ALL,
-            use_ssl=settings.use_ssl,
-            tls=tls
-        )
-        self.bind_dn = settings.bind_dn
-        self.bind_password = settings.bind_password
-        self.user_search_base = settings.user_search_base
-        self.user_filter = settings.user_filter
-    
-    def authenticate(self, username: str, password: str) -> Dict:
-        """Authenticate user against LDAP server."""
-        try:
-            # Build user DN from filter template
-            user_filter = self.user_filter.format(username=username)
-            
-            # Connect with admin/service credentials
-            conn = Connection(
-                self.server,
-                self.bind_dn,
-                self.bind_password,
-                auto_bind=True
-            )
-            
-            # Search for user
-            conn.search(
-                self.user_search_base,
-                user_filter,
-                attributes=['dn', 'mail', 'displayName']
-            )
-            
-            if len(conn.entries) == 0:
-                return {"success": False, "error": "User not found"}
-            
-            user_dn = conn.entries[0].dn
-            
-            # Verify password with user DN
-            user_conn = Connection(self.server, user_dn, password)
-            if user_conn.bind():
-                user_conn.unbind()
-                return {
-                    "success": True,
-                    "email": str(conn.entries[0].mail),
-                    "display_name": str(conn.entries[0].displayName)
-                }
-            else:
-                return {"success": False, "error": "Invalid password"}
-                
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-```
+Bcrypt-gehashtes Passwort in `User.hashed_password`.
 
-### Auth-Endpoints mit LDAP-Fallback
+### 2. LDAP (`ldap.py`)
+
+Kein generisches `LdapService` mit Format-String-Filter, sondern gezielt gegen AD/OpenLDAP+memberof-Overlay gebaut:
 
 ```python
-# auth_routes.py - Login mit LDAP-Integration
-@auth_bp.post("/login", response_model=Token)
-async def login(user_in: UserLogin, db: SessionDep):
-    # 1. Lokale Authentifizierung versuchen
-    stmt = select(User).where(User.name == user_in.name)
-    user = db.exec(stmt).first()
-    
-    if user and user.hashed_password:
-        if verify_password(user_in.password, user.hashed_password):
-            access_token = create_access_token(sub=str(user.id))
-            refresh_token = create_refresh_token(sub=str(user.id))
-            return Token(access_token=access_token, refresh_token=refresh_token)
-    
-    # 2. LDAP Login (Fallback)
-    stmt_ldap = select(LdapSettingsModel)
-    ldap_settings = db.exec(stmt_ldap).first()
-    
-    if ldap_settings:
-        ldap_service = LdapService(ldap_settings)
-        auth_result = ldap_service.authenticate(user_in.name, user_in.password)
-        
-        if auth_result["success"]:
-            # Auto-Provisioning: Neuen Benutzer anlegen
-            if not user:
-                user = User(
-                    name=user_in.name,
-                    hashed_password="",  # Kein Passwort für LDAP-User
-                    is_active=True,
-                )
-                db.add(user)
-                db.commit()
-                db.refresh(user)
-            
-            access_token = create_access_token(sub=str(user.id))
-            refresh_token = create_refresh_token(sub=str(user.id))
-            return Token(access_token=access_token, refresh_token=refresh_token)
-    
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect name or password",
-    )
+# ldap.py — vereinfachter Ablauf von authenticate()
+def authenticate(self, username: str, password: str):
+    # RFC 4513 "unauthenticated bind": SIMPLE-Bind mit non-empty DN + leerem
+    # Passwort wird von vielen Servern als Erfolg gewertet — hier vorher geblockt.
+    if not password:
+        return {"success": False, ...}
+
+    safe_username = escape_filter_chars(username)
+    user_filter = f"({self.settings.user_dn}={safe_username})"
+    if self.settings.search_filter:
+        user_filter = f"(&{user_filter}({self.settings.search_filter}))"
+
+    # Service-Account-Bind, dann Suche
+    conn = self.connect()  # bind_user_dn/bind_user_password (optional)
+    conn.search(self.settings.base_dn, user_filter, attributes=[self.settings.user_dn, "memberOf"])
+    entry = conn.entries[0]
+    user_dn = entry.entry_dn
+    member_of = getattr(entry, "memberOf", None)
+
+    # Passwort-Verifikation: Bind als der gefundene User selbst
+    Connection(conn.server, user=user_dn, password=password, auto_bind=True)
+
+    # Rollen-Mapping: App baut die erwartete Group-DN selbst (cn={name},{base_dn}) —
+    # Admins tragen nur Klartext-Gruppennamen ein, nie eine DN
+    allowed = _parse_groups(self.settings.allowed_groups)   # Gate, leer = jeder authentifizierte User
+    admin = _parse_groups(self.settings.admin_groups)       # Rollen-Mapping, Admin hat Vorrang
+    moderator = _parse_groups(self.settings.moderator_groups)
 ```
 
-### LDAP Settings Model
+Nutzer werden beim ersten erfolgreichen Login auto-provisioniert (leerer Passwort-Hash); die Rolle wird bei **jedem** Login aus der aktuellen Gruppenmitgliedschaft neu synchronisiert. Das optionale LDAPS-CA-Zertifikat liegt **in der DB** (`LdapSettingsModel.cert_data`, Upload via `POST /ldap-settings/upload-cert/`), nie auf der Platte — `cert_filename` ist nur ein Anzeige-Label.
 
-```python
-# models/ldap_model.py
-class LdapSettingsModel(SQLModel, table=True):
-    id: Optional[int] = Field(primary_key=True)
-    server_url: str = "ldap://ldap.example.com:389"
-    use_ssl: bool = False
-    base_dn: str = "dc=example,dc=com"
-    bind_dn: str = "cn=admin,dc=example,dc=com"
-    bind_password: str  # Verschlüsselt speichern!
-    user_search_base: str = "ou=users,dc=example,dc=com"
-    # OpenLDAP Format:
-    user_filter: str = "(uid={username})"
-    # Active Directory Alternative:
-    # user_filter = "(sAMAccountName={username})"
-```
+`LdapSettingsModel` (`models/ldap_model.py`): `server_host`/`server_port`/`use_ssl`, `base_dn`, `user_dn` (Attributname, z. B. `uid` oder `sAMAccountName`), `search_filter` (optionaler Power-User-Zusatzfilter), `bind_user_dn`/`bind_user_password` (Service-Account, verschlüsselt), `cert_filename`/`cert_data`, `allowed_groups`/`admin_groups`/`moderator_groups`.
 
-### Vergleich: Local vs. LDAP
+### 3. OIDC/SSO (`oidc_bp`, `/api/v1/auth/oidc/{login,callback,status}`)
+
+Authorization-Code-Flow mit Discovery (`{provider_url}/.well-known/openid-configuration`). Der `state`-Parameter wird mit `SECRET_KEY` über `itsdangerous.URLSafeSerializer` signiert und in einem kurzlebigen Cookie gespeichert. Der Callback stellt lokale JWTs aus und leitet auf `/login?access_token=...&refresh_token=...` weiter — das Frontend (`Login.tsx`) liest die Query-Parameter und speichert sie in `localStorage`. `OidcSettingsModel.admin_groups`/`moderator_groups` mappen OIDC-Gruppen auf Rollen, gleiche Admin-hat-Vorrang-Logik wie bei LDAP. Nutzer werden beim ersten Login auto-provisioniert; der OIDC-Button in `Login.tsx` erscheint nur, wenn `/oidc/status` `{"enabled": true}` liefert.
+
+`_build_redirect_uri()` respektiert `X-Forwarded-Proto`/`X-Forwarded-Host` **nur**, wenn der unmittelbare Peer ein vertrauenswürdiger Reverse-Proxy ist (`TRUSTED_PROXY_IPS`) — sonst wären diese Header vom Client fälschbar und könnten den OIDC-Callback umleiten.
+
+### Vergleich: Local vs. LDAP vs. OIDC
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  🔐 AUTHENTICATION COMPARISON                               │
 │  ─────────────────────────────────────────────────────────  │
 │                                                               │
-│  Feature                │ Local Auth │ LDAP Integration     │
-│  ───────────────────────┼────────────┼──────────────────────  │
-│  Setup Complexity       │ ✅ Simple  │ ⚠️  Moderate          │
-│  Password Management    │ ❌ Manual  │ ✅ Centralized        │
-│  Multi-System Login     │ ❌ Per App │ ✅ Single Sign-On     │
-│  Password Policies      │ ❌ Basic   │ ✅ Enterprise         │
-│  User Provisioning      │ ❌ Manual  │ ✅ Auto-Sync          │
-│  MFA Support            │ ❌ Custom  │ ✅ Built-in           │
-│  Offline Capability     │ ✅ Yes     │ ⚠️ Cached only        │
-│  Compliance (GDPR)        │ ⚠️ Self    │ ✅ Audit-ready        │
+│  Feature                │ Local │ LDAP           │ OIDC     │
+│  ───────────────────────┼───────┼────────────────┼──────────│
+│  Setup-Aufwand           │ ✅ einfach │ ⚠️ moderat  │ ⚠️ moderat│
+│  Passwort-Verwaltung     │ ❌ manuell │ ✅ zentral  │ ✅ zentral│
+│  Single Sign-On          │ ❌ nein    │ ❌ nein     │ ✅ ja     │
+│  Gruppen→Rollen-Mapping  │ –          │ ✅ ja       │ ✅ ja     │
+│  Auto-Provisioning       │ ❌ manuell │ ✅ ja       │ ✅ ja     │
+│  Offline-fähig           │ ✅ ja      │ ✅ ja       │ ❌ nein   │
 │                                                               │
-│  🎯 Recommendation:                                           │
-│  • <10 Users: Local Auth sufficient                          │
-│  • 10-100 Users: LDAP recommended                            │
-│  • >100 Users: LDAP + SSO (SAML/OIDC) required              │
+│  Alle drei Methoden sind gleichzeitig aktivierbar — login()  │
+│  probiert Local → LDAP → OIDC in dieser Reihenfolge.         │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Kategorien & LLM-Prompt-Komposition
+
+`Categories`-Zeilen (`backend/components/models/categories.py`) erfüllen drei Rollen pro Aufnahme, einmal beim Aufnahmestart gewählt (Kategorie-`<Select>` in `Dashboard.tsx`) und nachträglich änderbar über `PUT /record/{id}`:
+
+1. **`whisper_prompt`** → als `initial_prompt` an Whisper übergeben (Vokabular-/Rechtschreib-Hinweise für die finale Transkription).
+2. **`system_prompt`** → der LLM-System-Prompt für die Zusammenfassung (`SummarizeModel.generate_response(custom_system_prompt=...)`). Fällt nur auf `SummarizeModel.get_system_prompt()` zurück (ein generischer, nicht-medizinischer „nur bereinigen und strukturieren"-Prompt), wenn `record.category_id` leer ist oder die Kategorie keinen `system_prompt` hat — in der Praxis selten, da die UI immer eine Kategorie vorbelegt.
+3. **`llm_override_enabled`** + `llm_model`/`llm_api_endpoint`/`llm_api_key`/`llm_temperature`/`llm_max_tokens` → optionaler Per-Kategorie-LLM-Backend-Override, z. B. um „Kardiologie" auf ein anderes Modell/Endpoint zu routen als den globalen Default.
+
+**Platzhalter-Halluzination wird im Code erzwungen, nicht im Prompt-Text:** `generate_response()` hängt unconditional eine Anti-Halluzinations-Regel an **jeden** Prompt an (keine erfundenen `[DATUM]`/`[WERT]`-Platzhalter für fehlende Informationen, aber bestehende EntityGuard-Token wie `[PERSON]`/`[LOCATION]` bleiben ausdrücklich erhalten) — direkt neben der bestehenden „Do not output your reasoning"-Unterdrückung. Grund: ein Admin, der über die Admin-UI eine neue Kategorie mit eigenem `system_prompt` anlegt, hat keine Möglichkeit zu wissen, dass das lokale Modell zu solchen Platzhaltern neigt — die Regel darf sich also nicht darauf verlassen, im Prompt-Text zu stehen.
+
+---
+
+## PII-Sanitizer (EntityGuard, optional)
+
+Maskiert Klarnamen im Transkript, bevor der Text ein (ggf. externes) LLM erreicht, und injiziert sie danach wieder in die gespeicherte Zusammenfassung zurück. Vollständiger Ablauf inkl. Mermaid-Diagramm: [`docs/pii.md`](pii.md).
+
+1. `background_transcription_service.py` transkribiert per Whisper → `record.content` (Klarnamen, verschlüsselt gespeichert).
+2. Ist der Sanitizer aktiviert (`sanitizing_service.py`), wird der Text an den konfigurierten Sanitizer-Endpunkt gepostet, der `sanitized_text` (Token wie `[PERSON_1]`) und idealerweise ein `mapping`-Dict zurückgibt.
+3. Fehlt `mapping`, rekonstruiert `_extract_mapping()` es per Wort-Level-Diff (`difflib.SequenceMatcher`) — best-effort, verwirft bewusst mehrdeutige benachbarte Treffer statt zu raten. Ergebnis verschlüsselt in `record.pii_mapping`.
+4. Das LLM sieht nur `sanitized_text` + eine Instruktion, die Token unverändert zu lassen → `summary_anonymized`.
+5. `reinject()` ersetzt die Token per String-Replace zurück durch Klarnamen → `record.summarize` (Klarnamen, verschlüsselt).
+
+Konfiguriert über Admin-UI → LLM-Einstellungen → PII-Sanitizer. `sanitizer_endpoint` ist eine **vollständige URL** (kein automatisch angehängter Pfad). Tokens müssen pro Vorkommen eindeutig sein (`PERSON_1`/`PERSON_2`, nicht zweimal `PERSON`), sonst kollidieren mehrere Vorkommen im Mapping.
+
+---
+
+## Audio-Download (S3-kompatibler Objektspeicher)
+
+Optionales Feature (`AudioSettingsModel`: `audio_download_enabled`, `audio_bitrate` bis `320k`, `audio_sample_rate`, `audio_format`), das eine komprimierte, verschlüsselte Kopie der finalen Aufnahme für den späteren Download aufbewahrt — getrennt vom rohen PCM/WAV.
+
+1. Nach erfolgreicher finaler Transkription wandelt `background_transcription_service.py:_persist_audio()` das Audio per ffmpeg um (mono, konfigurierbare Bitrate/Sample-Rate/Format: MP3/WAV/FLAC/OGG) — in eine `tempfile.NamedTemporaryFile`, nie einen festen Pfad.
+2. Die Bytes werden mit `field_encryption.encrypt_bytes()` verschlüsselt (gleicher `ENCRYPTION_KEY` wie Text-Felder) und über `audio_storage.py` (dünner boto3-Wrapper) unter dem Key `records/{id}.{ext}.enc` hochgeladen.
+3. `record.file` speichert diesen **S3-Object-Key** (das `.{ext}.`-Segment ist die Quelle der Wahrheit für das gespeicherte Format), keinen Dateisystempfad.
+4. `GET /record/{id}/audio` lädt das verschlüsselte Objekt, entschlüsselt und streamt zurück — der Klartext berührt serverseitig nie die Platte. `Content-Type`/Dateiendung werden aus dem Key abgeleitet, nicht hartkodiert.
+5. `delete_record` löscht das S3-Objekt statt einer lokalen Datei.
+
+Jedes S3-kompatible Backend funktioniert (generisches boto3); `docker-compose.yml`/`docker-swarm.yml` bündeln standardmäßig **Garage** (self-hosted, AGPL) statt MinIO (Lizenzeinschränkungen).
+
+**Failsafe bei fehlgeschlagener Transkription:** Die rohe WAV-Datei wird nur bei **erfolgreicher** Verarbeitung gelöscht — bei einem Fehler wird sie stattdessen unverschlüsselt in `chunks/failed/task_{id}.wav` aufbewahrt (kein automatisches Ablaufdatum), damit nichts verloren geht. Admin-only `GET /tasks/failed` listet solche Tasks, `POST /tasks/{id}/retry` stößt die Pipeline erneut auf der aufbewahrten Datei an (Frontend: `FailedTranscriptions.tsx`, unterhalb der Audio-Einstellungen im Admin-„Audio"-Tab).
+
+---
+
+## System-Health-Check
+
+`GET /api/v1/settings/services-health/` (`settings_routes.py`) treibt den Admin-„System"-Tab (`SystemSettings.tsx`, alle 10s gepollt) — ein `async def check_x()`-Closure pro Dienst (Postgres, Redis, Whisper, Parakeet, EntityGuard, S3, Verschlüsselungs-Key-Status), alle parallel über `asyncio.gather`. Jeder liefert `"online"`/`"offline"`/`"disabled"` — `"disabled"` wird zurückgegeben, **bevor** ein Netzwerk-Call versucht wird, wenn ein Feature gar nicht konfiguriert ist (z. B. `audio_storage.is_configured()` für S3), damit ein bewusst deaktiviertes Feature nicht als falsches „offline" erscheint. Das Frontend ist vollständig generisch — es rendert einfach die zurückgegebene `{name, status}`-Liste, ein neuer Check erfordert also nur Backend-Änderungen.
 
 ---
 
@@ -961,21 +898,28 @@ from backend.components.security.field_encryption import EncryptedString
 
 class Record(SQLModel, table=True):
     """Medical record with encrypted patient data."""
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     session_id: str = Field(index=True)
     user_id: int
-    title: str
-    
+
     # 🔒 VERSCHLÜSSELT: Patientenbezogene Daten
+    title: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     content: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     summarize: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
-    
-    # Unverschlüsselt (kein medizinischer Inhalt)
+    pii_mapping: Optional[str] = Field(sa_column=Column(EncryptedString, nullable=True))
+
+    # Unverschlüsselt (Metadaten, kein Inhalt)
     timestamp: str
-    file: str
+    file: str  # S3-Object-Key, kein Inhalt — das referenzierte Audio ist separat verschlüsselt
     archived: bool = Field(default=False)
 ```
+
+`encrypt()`/`decrypt()` arbeiten auf `str` (Basis für `EncryptedString`). Die binärsicheren Geschwister `encrypt_bytes()`/`decrypt_bytes()` nutzen denselben Key für rohe Bytes — verwendet von `audio_storage.py` für die persistierten Audio-Downloads (siehe Abschnitt „Audio-Download" oben).
+
+### Key-Rotation
+
+`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** `Record.content`/`summarize`/`pii_mapping`/`title` in-place mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — der `"Verschlüsselung"`-Eintrag muss `"online"` sein.
 
 ### Key-Management
 
@@ -1032,9 +976,9 @@ services:
 │     - Fallback auf Plaintext für Migration (abwärtskompatibel)│
 │     ⚠️  Achtung: Ohne ENCRYPTION_KEY werden Daten im Klartext gespeichert │
 │                                                               │
-│  ⚠️  TODO: Dokumentation (Art. 30 DSGVO)                     │
-│     - Verzeichnis von Verarbeitungstätigkeiten (VVT)        │
-│     - Datenfluss-Dokumentation                                │
+│  ✅ Dokumentation (Art. 30 DSGVO)                            │
+│     - Datenfluss-Dokumentation: docs/data-mapping.md          │
+│     - Sicherheitsmaßnahmen: docs/SECURITY.md                  │
 │                                                               │
 │  ⚠️  TODO: Audit-Logging (Art. 5 DSGVO)                      │
 │     - Wer hat wann auf welche Patientendaten zugegriffen?    │
@@ -1050,11 +994,15 @@ services:
 **Was ist verschlüsselt?**
 - `Record.content` – Transkript (patientenbezogene Gespräche)
 - `Record.summarize` – LLM-Zusammenfassung (patientenbezogene Inhalte)
+- `Record.title` – Titel der Aufnahme
+- `Record.pii_mapping` – Token→Klarname-Mapping des PII-Sanitizers
+- `LdapSettingsModel.bind_user_password`, `OidcSettingsModel.client_secret`
+- Persistiertes Audio im Objektspeicher (`encrypt_bytes()`, siehe Audio-Download)
 
 **Was ist NICHT verschlüsselt?**
-- `Record.title` – Titel der Aufnahme (administrativ)
 - `Record.timestamp` – Zeitstempel (Metadaten)
 - `User.name` – Benutzername (Referenz für Zugriffskontrolle)
+- PCM/WAV in `chunks/` – unverschlüsselt, aber kurzlebig (siehe Aufbewahrung in `docs/data-mapping.md`)
 
 **Warum Feldweise Verschlüsselung?**
 - 🔍 **Suche erhalten:** Nicht-verschlüsselte Felder bleiben durchsuchbar
@@ -1063,113 +1011,34 @@ services:
 
 ---
 
-## Architecture Evolution
+## Deployment-Reifegrad
 
-### Phase 1: MVP (Current State)
+Frühere Fassungen dieses Dokuments beschrieben Redis, LDAP und Multi-Instance-Deployment als zukünftige „Phase 2"-Ziele — das ist überholt: alle drei sind implementiert und Teil des Standard-Stacks. Aktueller Stand:
 
 ```mermaid
 graph LR
-    subgraph MVP["MVP Architecture"]
-        A[Browser] -->|HTTP/WebSocket| B[FastAPI Single Instance]
+    subgraph Compose["docker-compose.yml — lokal/Demo"]
+        A[Browser] -->|HTTP/WebSocket| B["FastAPI (replicas: 1)"]
         B --> C[(PostgreSQL)]
-        B --> D[Whisper Docker<br/>GPU — Final]
-        B --> E[Parakeet Docker<br/>CPU — Live]
-        B --> F[In-Memory Sessions<br/>PCM on Disk]
-        B --> G[Ollama LLM]
+        B --> R[(Redis)]
+        B --> D[Whisper — Final, GPU]
+        B --> E[Parakeet-Server — Live]
+        B --> S[(Garage/S3)]
+        B --> F[LDAP/OIDC]
+        B --> G["LLM<br/>OpenAI-kompatibel"]
     end
-    
-    style MVP fill:#e8f5e9
+
+    style Compose fill:#e8f5e9
 ```
 
-**Charakteristika:**
-- ✅ Single-instance deployment
-- ✅ PostgreSQL als Primär-DB (SQLite als Fallback möglich, aber nicht empfohlen)
-- ✅ Zwei-Stufen-ASR: Parakeet (Live, CPU) + Whisper (Final, GPU)
-- ✅ In-Memory Sessions mit Disk-basiertem Audio (kein RAM-Anstieg)
-- ✅ Keine externen Abhängigkeiten außer Whisper/Parakeet/Ollama
+**Bereits produktiv verfügbar (nicht mehr geplant):**
+- ✅ Redis-Session-Store mit In-Memory-Fallback (`REDIS_URL`)
+- ✅ LDAP- **und** OIDC/SSO-Integration, gleichzeitig aktivierbar, mit Gruppen→Rollen-Mapping
+- ✅ Docker-Swarm-Produktionsdeploy (`docker-swarm.yml`, `create_docker_secrets.sh`) mit echten Secrets statt Klartext-Defaults, GPU-Placement-Constraints, versionsfixierten Images
+- ✅ Verschlüsselungs-Key-Rotation ohne Downtime
+- ✅ System-Health-Check-Endpoint für alle Kernservices
 
-**Geeignet für:**
-- Einzelpraxen (< 5 Benutzer)
-- Proof-of-Concept
-- Development/Testing
-
-### Phase 2: Production (Target State)
-
-```mermaid
-graph TB
-    subgraph PROD["Production Architecture"]
-        A[Browser] --> LB[Load Balancer<br/>Traefik/Nginx]
-        
-        LB --> B1[FastAPI Instance 1]
-        LB --> B2[FastAPI Instance 2]
-        LB --> B3[FastAPI Instance N]
-        
-        B1 --> DB[(PostgreSQL<br/>Primary-Replica)]
-        B2 --> DB
-        B3 --> DB
-        
-        B1 --> C[Redis Cluster]
-        B2 --> C
-        B3 --> C
-        
-        B1 --> D1[Parakeet ASR<br/>CPU — Live]
-        B1 --> D2[Whisper ASR<br/>GPU — Final]
-        
-        B1 --> E[Ollama LLM<br/>CPU Cluster]
-        
-        B1 --> F[LDAP/Active Directory]
-    end
-    
-    style PROD fill:#fff3e0
-```
-
-**Enhancements (geplant):**
-- ⚠️ Horizontal scaling (multiple FastAPI instances) — aktuell Single-Instance
-- ⚠️ Session persistence (Redis Cluster) — aktuell In-Memory
-- ⚠️ Database replication (PostgreSQL Primary-Replica)
-- ⚠️ High availability (no single point of failure)
-- ⚠️ Enterprise authentication (LDAP/Active Directory) — Grundgerüst vorhanden, nicht produktiv erprobt
-- ⚠️ Load balancing (Traefik or Nginx)
-- ⚠️ Production-grade logging & monitoring
-
-**Geeignet für:**
-- Mittelgroße Praxen (10-50 Benutzer)
-- Kliniken und MVZs
-- Multi-Standort-Deployments
-
-### Migrations-Roadmap
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🗺️  ENTERPRISE MIGRATION ROADMAP                          │
-│  ─────────────────────────────────────────────────────────  │
-│                                                               │
-│  Phase 1: Foundation (Week 1-2)                              │
-│  ├─ Docker-Compose für Redis einrichten                    │
-│  ├─ Session-Store auf Redis migrieren (✅ implementiert)    │
-│  ├─ PostgreSQL als Primary DB konfigurieren               │
-│  └─ Health-Check Endpoints implementieren                    │
-│                                                               │
-│  Phase 2: Authentication (Week 3-4)                          │
-│  ├─ LDAP-Service implementieren                            │
-│  ├─ Fallback-Logik (Local → LDAP) testen                   │
-│  ├─ User-Sync und Auto-Provisioning                         │
-│  └─ SSL/TLS für LDAP konfigurieren                         │
-│                                                               │
-│  Phase 3: High Availability (Week 5-6)                       │
-│  ├─ Load-Balancer (Traefik) aufsetzen                      │
-│  ├─ Multi-Instance Deployment (Docker Swarm/K8s)          │
-│  ├─ PostgreSQL Replication konfigurieren                    │
-│  └─ Redis Cluster für HA-Sessions                          │
-│                                                               │
-│  Phase 4: Observability (Week 7-8)                           │
-│  ├─ Prometheus Metrics exportieren                         │
-│  ├─ Grafana Dashboards erstellen                             │
-│  ├─ Structured Logging (JSON Format)                       │
-│  ├─ Alerting Rules (Slack/Email/PagerDuty)                 │
-│  └─ Backup-Strategie testen (Disaster Recovery)            │
-└─────────────────────────────────────────────────────────────┘
-```
+**Bewusst außerhalb des aktuellen Scopes** (`app` ist unter Swarm auf `replicas: 1` gepinnt — der PCM-Chunk-Ordner ist lokal-disk-only, siehe `chunks/`): horizontale Skalierung auf mehrere App-Instanzen. Die vollständige, laufend gepflegte Roadmap dafür (Kubernetes-Migration, Sticky-WebSocket-Routing, geteilter Storage für laufende Aufnahmen, Multi-Replica-Cache-Invalidierung) steht in [`docs/TODO.md`](TODO.md) — nicht hier dupliziert, um nicht wieder auseinanderzudriften.
 
 ---
 
@@ -1182,19 +1051,23 @@ graph TB
 │                                                               │
 │  SECURITY 🔐                                                 │
 │  ├─ [✅] JWT Authentication                                 │
-│  ├─ [✅] LDAP Integration                                   │
-│  ├─ [✅] Field Encryption (Fernet)                          │
+│  ├─ [✅] LDAP- und OIDC/SSO-Integration                     │
+│  ├─ [✅] Field Encryption (Fernet) inkl. Key-Rotation       │
 │  ├─ [✅] HTTPS Enforcement (Reverse-Proxy)                   │
 │  ├─ [⚠️ ] Rate-Limiting (TODO: nginx/slowapi)              │
 │  ├─ [⚠️ ] Audit-Logging (TODO: who accessed what when)      │
 │  └─ [⚠️ ] CSP Headers (TODO: Content-Security-Policy)       │
 │                                                               │
 │  RELIABILITY 🛡️                                              │
-│  ├─ [✅] Health-Check Endpoints (/api/endpoint)             │
-│  ├─ [⚠️ ] Readiness Probes (TODO: DB/Redis connection)      │
+│  ├─ [✅] Health/Version-Endpoints (/api/endpoint,           │
+│  │       /api/version, /api/v1/settings/services-health/)  │
+│  ├─ [⚠️ ] Dedizierte Readiness-Probe /api/ready (TODO,      │
+│  │       siehe docs/TODO.md — services-health/ ist der Vorbild-Check) │
 │  ├─ [✅] Redis Session Store (REDIS_URL → Redis, else In-Memory) │
 │  ├─ [⚠️ ] Circuit Breaker (TODO: for external services)   │
-│  └─ [⚠️ ] Retry Logic (TODO: exponential backoff)          │
+│  └─ [⚠️ ] Retry Logic (TODO: exponential backoff, außer dem │
+│  │       manuellen Transkriptions-Retry für fehlgeschlagene │
+│  │       Tasks, siehe Audio-Download)                        │
 │                                                               │
 │  SCALABILITY 📈                                               │
 │  ├─ [✅] Stateless Application                              │
@@ -1218,8 +1091,10 @@ graph TB
 │  COMPLIANCE 📋                                                │
 │  ├─ [✅] AGPL-3.0 License Headers                         │
 │  ├─ [✅] Field Encryption for PHI                         │
-│  ├─ [⚠️ ] VVT Documentation (TODO: Art. 30 DSGVO)         │
-│  └─ [⚠️ ] Data Processing Agreement (TODO: DPA)           │
+│  ├─ [✅] Datenfluss-Dokumentation (Art. 30 DSGVO):        │
+│  │       docs/data-mapping.md                               │
+│  └─ [⚠️ ] Data Processing Agreement (TODO: DPA — hängt    │
+│  │       von der konkreten Betreiber-Konfiguration ab)     │
 │                                                               │
 └─────────────────────────────────────────────────────────────┘
 
@@ -1232,47 +1107,68 @@ Legend:
 
 ## API-Referenz
 
-### Authentication
+> Vollständig aus den aktuellen Router-Definitionen (`backend/views/*/`) erhoben — nicht handgepflegt. `/upload-chunk` aus früheren Doku-Fassungen ist **entfernt** (unbenutzt, leakte `.webm`-Dateien).
 
-| Methode | Pfad | Beschreibung | Auth |
-|---------|------|--------------|------|
-| POST | `/api/v1/auth/register` | Benutzer registrieren | ❌ |
-| POST | `/api/v1/auth/login` | Login (lokal + LDAP) | ❌ |
-| POST | `/api/v1/auth/refresh` | Token refreshen | ❌ |
-| GET | `/api/v1/auth/me` | Aktueller Benutzer | ✅ |
-| GET | `/api/v1/auth/users` | Benutzerliste (Admin) | ✅ (Superuser) |
-| POST | `/api/v1/auth/users` | Benutzer erstellen (Admin) | ✅ (Superuser) |
-| PUT | `/api/v1/auth/users/{id}` | Benutzer updaten (Admin) | ✅ (Superuser) |
-| DELETE | `/api/v1/auth/users/{id}` | Benutzer löschen (Admin) | ✅ (Superuser) |
-
-### Records
-
-| Methode | Pfad | Beschreibung | Auth |
-|---------|------|--------------|------|
-| POST | `/api/v1/records/create` | Neue Aufnahme erstellen | ✅ |
-| GET | `/api/v1/records/active-session/{user_id}` | Aktive Session abrufen | ✅ |
-| DELETE | `/api/v1/records/cancel-session/{user_id}` | Session abbrechen | ✅ |
-| WS | `/api/v1/records/ws/record` | WebSocket für Live-Transkript | ✅ |
-| POST | `/api/v1/records/upload-chunk` | Audio-Chunk hochladen | ✅ |
-| GET | `/api/v1/records/list-records/{user_id}` | Aufnahmen auflisten | ✅ |
-| GET | `/api/v1/records/record/{record_id}` | Einzelne Aufnahme | ✅ |
-| PUT | `/api/v1/records/record/{record_id}` | Aufnahme updaten | ✅ |
-| DELETE | `/api/v1/records/record/{record_id}` | Aufnahme löschen | ✅ |
-| PUT | `/api/v1/records/record/{id}/archive` | Archivieren | ✅ |
-| PUT | `/api/v1/records/record/{id}/unarchive` | De-Archivieren | ✅ |
-| GET | `/api/v1/records/by-session/{session_id}` | Nach Session-ID suchen | ✅ |
-| GET | `/api/v1/records/status/{task_id}` | Task-Status | ✅ |
-
-### Settings (Admin only)
+### Öffentlich (kein Router-Präfix)
 
 | Methode | Pfad | Beschreibung |
 |---------|------|--------------|
-| GET | `/api/v1/settings/whisper-settings/` | Whisper-Konfiguration |
-| PUT | `/api/v1/settings/whisper-settings/` | Whisper updaten |
-| GET | `/api/v1/settings/llm-settings/` | LLM-Konfiguration |
-| PUT | `/api/v1/settings/llm-settings/` | LLM updaten |
-| GET | `/api/v1/settings/ldap-settings/` | LDAP-Konfiguration |
-| PUT | `/api/v1/settings/ldap-settings/` | LDAP updaten |
+| GET | `/api/endpoint` | Liveness |
+| GET | `/api/version` | App-Version aus `pyproject.toml` |
+
+### Authentication (`/api/v1/auth`)
+
+| Methode | Pfad | Beschreibung | Auth |
+|---------|------|--------------|------|
+| POST | `/register` | Benutzer registrieren | ❌ |
+| POST | `/login` | Login (Local → LDAP → OIDC) | ❌ |
+| POST | `/refresh` | Token refreshen | ❌ |
+| POST | `/accept-disclaimer` | „Kein Medizinprodukt"-Hinweis bestätigen (Pflicht vor erster Nutzung) | ✅ |
+| GET | `/me` | Aktueller Benutzer | ✅ |
+| GET | `/users`, `/users/{id}` | Benutzerliste/-detail (Admin) | ✅ (Admin) |
+| POST/PUT/DELETE | `/users`, `/users/{id}` | Benutzer anlegen/ändern/löschen (Admin) | ✅ (Admin) |
+
+**OIDC** (`/api/v1/auth/oidc`): `GET /login`, `GET /callback`, `GET /status`.
+
+### Records (`/api/v1/records`)
+
+| Methode | Pfad | Beschreibung | Auth |
+|---------|------|--------------|------|
+| POST | `/create` | Neue Aufnahme anlegen (Recorder-Flow) | ✅ |
+| POST | `/upload` | Vollständige Audiodatei hochladen (Alternative zum Live-Recorder) | ✅ |
+| GET | `/active-session/{user_id}` | Aktive Session abrufen | ✅ |
+| DELETE | `/cancel-session/{user_id}` | Session abbrechen | ✅ |
+| WS | `/ws/record` | WebSocket für Live-Aufnahme + -Transkript | ✅ |
+| GET | `/list-records/{user_id}` | Aufnahmen auflisten (`?archived=`) | ✅ |
+| GET | `/by-session/{session_id}` | Nach Session-ID suchen | ✅ |
+| GET | `/record/{id}` | Einzelne Aufnahme | ✅ |
+| PUT | `/record/{id}` | Aufnahme updaten (Content/Summary/Titel/**Kategorie**) | ✅ |
+| DELETE | `/record/{id}` | Aufnahme löschen | ✅ |
+| PUT | `/record/{id}/archive`, `/record/{id}/unarchive` | Archivieren/De-Archivieren | ✅ |
+| GET | `/record/{id}/audio` | Persistiertes Audio herunterladen (falls Feature aktiv) | ✅ |
+| POST | `/record/{id}/summarize` | Zusammenfassung neu generieren | ✅ |
+| GET | `/status/{task_id}` | Task-Status (Transkription/LLM) | ✅ |
+| GET | `/tasks/failed` | Fehlgeschlagene Transkriptionen mit aufbewahrter Audiodatei | ✅ (Admin) |
+| POST | `/tasks/{id}/retry` | Transkription auf aufbewahrter Audiodatei erneut anstoßen | ✅ (Admin) |
+
+### Settings (`/api/v1/settings`, meist Admin only)
+
+| Methode | Pfad | Beschreibung |
+|---------|------|--------------|
+| GET/PUT | `/whisper-settings/` | Whisper-Konfiguration |
+| GET | `/asr-test/` | ASR-Endpunkt-Erreichbarkeit prüfen |
+| GET/PUT | `/llm-settings/` | LLM-Konfiguration |
+| GET | `/llm-test/` | Echter Chat-Completion-Probe gegen den konfigurierten LLM-Endpunkt |
+| GET/PUT | `/audio-settings/` | Audio-Download-Konfiguration (Format/Bitrate/Sample-Rate) |
+| GET/PUT | `/ldap-settings/` | LDAP-Konfiguration |
+| POST | `/ldap-settings/test` | LDAP-Bind testen |
+| POST | `/ldap-settings/upload-cert/` | LDAPS-CA-Zertifikat hochladen (landet in der DB, nicht auf Disk) |
+| GET/PUT | `/oidc-settings/` | OIDC-Konfiguration |
+| GET/POST/PUT/DELETE | `/categories/`, `/categories/{id}` | Kategorien (Whisper-/LLM-Prompts, siehe Abschnitt „Kategorien") |
+| GET/POST/PUT/DELETE | `/languages/`, `/languages/{id}` | Sprachen |
+| GET | `/backup/` | Alle Settings-Tabellen als JSON exportieren |
+| POST | `/backup/restore/` | Settings-Backup importieren |
+| GET | `/services-health/` | Systemstatus aller Kerndienste (siehe Abschnitt „System-Health-Check") |
 
 ---
 
@@ -1292,12 +1188,21 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
 
 # ⚠️ Wichtig: Nie "uv run main.py" verwenden (führt zu double init!)
 
-# Datenbank-Migrationen
+# Datenbank-Migrationen (nach jeder SQLModel-Änderung)
+alembic revision --autogenerate -m "Beschreibung"
 alembic upgrade head
 
-# Neue Migration erstellen
-alembic revision --autogenerate -m "Beschreibung"
+# Lint (ruff-Config in pyproject.toml)
+ruff check --fix .
+ruff format .
+
+# Tests
+pytest tests/                # alle Tests
+pytest tests/llm/            # ein Package
+pytest -k "test_name"        # ein einzelner Test
 ```
+
+Kein CI konfiguriert — Tests laufen nur lokal/manuell.
 
 ### Frontend
 
@@ -1310,42 +1215,46 @@ npm install
 # Development Server (Port 3000, Proxy zu :5000)
 npm run dev
 
-# Production Build (Output: backend/static/)
-npm run build
+# Lint
+npm run lint
 
-# Preview Build
-npm run preview
+# Production Build (Output: ../backend/static/, NICHT frontend/dist)
+npm run build
 ```
 
-### Docker (Production)
+### Docker
+
+`docker-compose.yml` liegt am **Repo-Root** (nicht in `docker/`) — das ist der lokale/Demo-Stack:
 
 ```bash
-# Gesamter Stack (PostgreSQL + Whisper + Parakeet + App)
-docker compose -f docker/docker-compose.yml up --build
+# Gesamter Stack (Postgres + Redis + Garage + Whisper + Parakeet + App)
+docker compose up --build
 
-# Nur spezifische Services
-docker compose -f docker/docker-compose.yml up -d postgres
-docker compose -f docker/docker-compose.yml up -d parakeet
-
-# Standalone Whisper (Port 9100 → Container 9000)
-docker compose -f docker/docker-whisper.yml up -d
-
-# Standalone Parakeet (Port 9200 → Container 5001)
-docker compose -f docker/docker-parakeet.yml up -d
-
-# Logs ansehen
-docker compose -f docker/docker-compose.yml logs -f app
-
-# Container stoppen
-docker compose -f docker/docker-compose.yml down
-
-# Mit Volumes löschen (⚠️ Datenverlust)
-docker compose -f docker/docker-compose.yml down -v
+# Logs / stoppen
+docker compose logs -f app
+docker compose down
+docker compose down -v   # ⚠️ Datenverlust (Volumes)
 ```
 
-**Hinweis:** `docker/parakeet-server/` ist aktuell ein leeres Verzeichnis. Die `docker-compose.yml` referenziert `./docker/parakeet-server` als Build-Context, aber `Dockerfile` und `main.py` liegen in `parakeet_server/` (Projekt-Root). Entweder das Verzeichnis befüllen oder den Build-Context auf `../parakeet_server` ändern.
+`docker/docker-whisper.yml` und `docker/docker-parakeet.yml` sind ältere, eigenständige Standalone-Compose-Dateien für isolierte Dienst-Entwicklung (Ports 9100/9200) — vermutlich abgelöst durch `whisper_server/docker-compose.yml`, das denselben Port (5002) wie der Hauptstack erwartet.
 
-**Hinweis:** Redis ist jetzt in der `docker-compose.yml` integriert. Ohne `REDIS_URL` wird der In-Memory-Fallback verwendet.
+**Produktion (Docker Swarm):** eigene `docker-swarm.yml` statt `docker-compose.yml` — echte Secrets statt Klartext-Defaults, versionsfixierte Images, GPU-Placement-Constraints:
+
+```bash
+docker swarm init                        # einmalig pro Manager-Node
+./create_docker_secrets.sh               # einmalig — erzeugt alle benötigten Secrets
+export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
+./docker_build_push.sh                   # baut + pusht alle 4 Images (app, whisper, parakeet, garage-init)
+docker stack deploy -c docker-swarm.yml opendox
+```
+
+**App-Version bumpen** (einzige Quelle der Wahrheit: `pyproject.toml`, synct `frontend/package.json` + Lockfile):
+
+```bash
+python scripts/bump_version.py --current       # aktuelle Version anzeigen
+python scripts/bump_version.py patch|minor|major
+python scripts/bump_version.py patch --commit  # zusätzlich git add+commit+tag
+```
 
 ---
 
@@ -1358,13 +1267,12 @@ docker compose -f docker/docker-compose.yml down -v
 
 **Grund:** `main.py` importiert `create_app()` und ruft `uvicorn.run()` nur bei `__main__` auf.
 
-### 2. Port 9000 Konflikt (Whisper)
+### 2. Port 9000 Konflikt (Whisper) — nur bei der alten Standalone-Compose
 
-Port 9000 ist oft von Jupyter belegt.
+Betrifft `docker/docker-whisper.yml` (Port 9100 → Container 9000, Port 9000 ist oft von Jupyter belegt) — der Hauptstack (`docker-compose.yml` am Repo-Root) nutzt bereits Port 5002 intern und ist davon nicht betroffen.
 
-**Lösung:**
+**Lösung (nur für die Standalone-Datei):**
 ```yaml
-# docker-compose.yml
 ports:
   - "9100:9000"  # Host:Container
 ```
@@ -1409,10 +1317,10 @@ export default defineConfig(({ mode }) => {
 
 ### 6. LLM: Fresh Instance per Task
 
-❌ **Falsch:** Singleton `OllamaModel()`  
-✅ **Richtig:** `OllamaModel()` in `background_transcription_service.py` neu erstellen
+❌ **Falsch:** `SummarizeModel` als Singleton wiederverwenden
+✅ **Richtig:** `SummarizeModel()` in `background_transcription_service.py` pro Task frisch erstellen
 
-**Grund:** Settings-Updates werden sonst nicht übernommen.
+**Grund:** DB-Settings werden sonst nicht neu eingelesen — Updates an LLM-Endpoint/Modell/Key würden erst nach einem Neustart greifen. Trotz des Namens ist `SummarizeModel` nicht auf Ollama beschränkt — jedes OpenAI-kompatible Backend funktioniert.
 
 ### 7. HTTPS für Microphone
 
@@ -1434,13 +1342,9 @@ async def add_permissions_policy(request: Request, call_next):
 
 **Wichtig:** Wenn `ENCRYPTION_KEY` nicht gefunden wird, liegt das oft daran, dass `load_dotenv()` nicht aufgerufen wurde bevor das Modul importiert wird. `env.py` führt `load_dotenv(override=True)` jetzt automatisch beim Import aus.
 
-### 9. docker/parakeet-server/ ist leer
+### 9. Parakeet-Build-Context (✅ behoben)
 
-Die `docker-compose.yml` referenziert `./docker/parakeet-server` als Build-Context für den Parakeet-Service, aber das Verzeichnis ist leer. `Dockerfile` und `main.py` liegen in `parakeet_server/` (Projekt-Root).
-
-**Lösungen:**
-1. Dateien nach `docker/parakeet-server/` kopieren
-2. Build-Context in `docker-compose.yml` auf `../parakeet_server` ändern
+Frühere Fassungen dieser Doku beschrieben ein leeres `docker/parakeet-server/`-Verzeichnis als Build-Context-Problem. Das ist gelöst: `docker-compose.yml` (Repo-Root) nutzt für alle Services Build-Context `.` mit explizitem `dockerfile:`-Pfad (`parakeet_server/Dockerfile`, `whisper_server/Dockerfile`, `Dockerfile`).
 
 ### 10. Alembic.ini URL ist irrelevant
 
@@ -1474,15 +1378,27 @@ Wenn `ENCRYPTION_KEY` nicht gesetzt ist, wird die Verschlüsselung **stillschwei
 
 `vite.config.ts` konfiguriert `outDir: path.resolve(__dirname, "../backend/static")`. Das bedeutet `npm run build` schreibt direkt in `backend/static/`, nicht in `frontend/dist/`. Der Eintrag `frontend/dist/` in `.gitignore` ist daher überflüssig; stattdessen ist `static/` (im Backend-Verzeichnis) die relevante Ignore-Regel.
 
+### 17. `/api/health` ist toter Code — nicht mit `/api/endpoint` verwechseln
+
+`backend/views/root_view/root.py` definiert `/health` und ein doppeltes `/api/endpoint`, aber dieser Router wird nie in `create_app()` per `include_router()` eingebunden. Ein Request auf `/api/health` fällt still auf den `SPAStaticFiles`-Catch-all durch und liefert die SPA-Shell mit Status 200 zurück — sieht wie ein funktionierender Health-Check aus, ist aber keiner. Die echten Liveness-/Versions-Routen sind `/api/endpoint` und `/api/version`, beide direkt in `create_app()` registriert. Neue öffentliche Root-Level-Routen sollten diesem Inline-Registrierungsmuster folgen, nicht dem ungemounteten `root_view`-Router.
+
+### 18. Apache-Reverse-Proxy + WebSocket: `mod_proxy_wstunnel` fehlt
+
+Bricht die Live-Transkription hinter Apache nach 1-2 Sätzen ab, fehlt vermutlich `mod_proxy_wstunnel` — `mod_proxy_http` lässt das WS-Upgrade zwar durch, bricht aber bei binären Audio-Frames ab. Fix: `a2enmod proxy_wstunnel` und die WS-`ProxyPass`-Regel für `/api/v1/records/ws/record` **vor** dem Catch-all `ProxyPass /` deklarieren.
+
+### 19. `docker stack config`/`deploy`-Interpolationsbug bei Bindestrichen
+
+Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${VAR:?Fehlermeldung}`-Klausel lässt den Compose-Spec-Interpolator die Substitution stillschweigend verstümmeln (liefert Datenmüll statt des Variablenwerts, selbst wenn die Variable gesetzt ist) — reproduziert, kein Theoriegebilde. In `:?`/`:-`-Default-/Fehlertexten in Swarm-Compose-Dateien Bindestriche vermeiden.
+
 ---
 
 ## Ressourcen
 
 ### Repositories
 
-- **Quellcode:** [GitHub - openDox](https://github.com/christopherabanilla/openDox)
-- **Docker Images:** Docker Hub
-- **Dokumentation:** Diese Datei (opendox.md)
+- **Quellcode:** [GitHub - daemolition/openDox](https://github.com/daemolition/openDox)
+- **Docker Images:** `registry.nutsolution.de` (per `docker_build_push.sh`) — App, Whisper, Parakeet, Garage-Init
+- **Weitere Dokumentation:** `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `docs/SECURITY.md`, `docs/TODO.md` (Kubernetes-/Skalierungs-Roadmap), `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
 
 ### Technologie-Dokumentation
 
@@ -1492,7 +1408,7 @@ Wenn `ENCRYPTION_KEY` nicht gesetzt ist, wird die Verschlüsselung **stillschwei
 - [React](https://react.dev/)
 - [shadcn/ui](https://ui.shadcn.com/)
 - [Whisper](https://github.com/openai/whisper)
-- [Ollama](https://ollama.com/)
+- [LangChain](https://python.langchain.com/) (LLM-Orchestrierung, OpenAI-kompatible Backends)
 
 ---
 
@@ -1506,7 +1422,7 @@ Besonderer Dank an die Open-Source-Community:
 - **Tiangolo** – SQLModel
 - **shadcn** – shadcn/ui
 - **OpenAI** – Whisper
-- **Ollama Team** – Lokale LLM-Inferenz
+- **Ollama/vLLM und das OpenAI-kompatible LLM-Ökosystem** – lokale wie Cloud-LLM-Inferenz
 
 ---
 
@@ -1532,6 +1448,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ---
 
-*Letzte Aktualisierung: Juni 2026*  
-*Version: 0.2.0*  
-*Änderungen: Redis Session Store implementiert, Dockerfile-Frontend-Build-Pfad behoben*
+*Letzte Aktualisierung: August 2026*
+*App-Version zum Zeitpunkt dieser Aktualisierung: siehe `pyproject.toml` (`[project].version`, einzige Quelle der Wahrheit) bzw. `GET /api/version`*
+*Änderungen in diesem Update: PII-Sanitizer, Kategorien-System, S3-Audio-Download inkl. Retry-Failsafe, OIDC/SSO, System-Health-Check, Key-Rotation ergänzt; Parakeet-Live-Pfad auf VAD-Streaming korrigiert; veraltete "Ollama"-Framing generalisiert; API-Referenz, Docker-Befehle und Bekannte-Probleme-Liste gegen den aktuellen Code korrigiert*

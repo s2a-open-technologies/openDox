@@ -10,7 +10,10 @@ interface AudioSettings {
   audio_download_enabled: boolean;
   audio_bitrate: string;
   audio_sample_rate: number;
+  audio_format: string;
 }
+
+const BITRATE_FORMATS = new Set(["mp3", "ogg"]);
 
 export function AudioConfig() {
   const { authFetch } = useAuth();
@@ -18,6 +21,7 @@ export function AudioConfig() {
     audio_download_enabled: true,
     audio_bitrate: "64k",
     audio_sample_rate: 16000,
+    audio_format: "mp3",
   });
   const [loading, setLoading] = useState(false);
 
@@ -29,6 +33,7 @@ export function AudioConfig() {
           audio_download_enabled: data.audio_download_enabled ?? true,
           audio_bitrate: data.audio_bitrate ?? "64k",
           audio_sample_rate: data.audio_sample_rate ?? 16000,
+          audio_format: data.audio_format ?? "mp3",
         });
       })
       .catch(console.error);
@@ -63,7 +68,7 @@ export function AudioConfig() {
       <CardHeader>
         <CardTitle>Audio-Download</CardTitle>
         <CardDescription>
-          MP3-Export für Aufnahmen (mono, konfigurierbare Qualität/Größe). Gilt nur für neue Aufnahmen.
+          Audio-Export für Aufnahmen (mono, konfigurierbares Format/Qualität). Gilt nur für neue Aufnahmen.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -75,20 +80,40 @@ export function AudioConfig() {
           <Label htmlFor="audio-enabled">Audio speichern</Label>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="audio-bitrate">Bitrate (Qualität/Größe)</Label>
+          <Label htmlFor="audio-format">Dateiformat</Label>
           <select
-            id="audio-bitrate"
-            value={config.audio_bitrate}
-            onChange={(e) => updateField('audio_bitrate', e.target.value)}
+            id="audio-format"
+            value={config.audio_format}
+            onChange={(e) => updateField('audio_format', e.target.value)}
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
-            <option value="32k">32 kbit/s (~0,4 MB/min)</option>
-            <option value="48k">48 kbit/s (~0,6 MB/min)</option>
-            <option value="64k">64 kbit/s (~0,8 MB/min)</option>
-            <option value="96k">96 kbit/s (~1,2 MB/min)</option>
-            <option value="128k">128 kbit/s (~1,5 MB/min)</option>
+            <option value="mp3">MP3 (verlustbehaftet, kleinste Datei)</option>
+            <option value="ogg">OGG/Opus (verlustbehaftet, modern & effizient)</option>
+            <option value="flac">FLAC (verlustfrei komprimiert)</option>
+            <option value="wav">WAV (unkomprimiert, größte Datei)</option>
           </select>
         </div>
+        {BITRATE_FORMATS.has(config.audio_format) && (
+          <div className="space-y-2">
+            <Label htmlFor="audio-bitrate">Bitrate (Qualität/Größe)</Label>
+            <select
+              id="audio-bitrate"
+              value={config.audio_bitrate}
+              onChange={(e) => updateField('audio_bitrate', e.target.value)}
+              className="w-full px-3 py-2 border rounded-md bg-background"
+            >
+              <option value="32k">32 kbit/s (~0,4 MB/min)</option>
+              <option value="48k">48 kbit/s (~0,6 MB/min)</option>
+              <option value="64k">64 kbit/s (~0,8 MB/min)</option>
+              <option value="96k">96 kbit/s (~1,2 MB/min)</option>
+              <option value="128k">128 kbit/s (~1,5 MB/min)</option>
+              <option value="160k">160 kbit/s (~1,9 MB/min)</option>
+              <option value="192k">192 kbit/s (~2,3 MB/min)</option>
+              <option value="256k">256 kbit/s (~3,0 MB/min)</option>
+              <option value="320k">320 kbit/s (~3,8 MB/min)</option>
+            </select>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="audio-sample-rate">Sample-Rate (Hz)</Label>
           <select
@@ -103,7 +128,7 @@ export function AudioConfig() {
           </select>
         </div>
         <p className="text-xs text-muted-foreground">
-          Mono erzwungen. Format: MP3. Wenn ffmpeg nicht verfügbar ist, wird kein Audio gespeichert.
+          Mono erzwungen. Wenn ffmpeg nicht verfügbar ist, wird kein Audio gespeichert.
         </p>
         <div className="pt-4 flex justify-end">
           <Button onClick={saveConfig} disabled={loading}>

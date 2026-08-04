@@ -30,3 +30,5 @@ class AudioSettingsModel(SQLModel, table=True):
     audio_bitrate: Optional[str] = Field(default="64k")
 
     audio_sample_rate: Optional[int] = Field(default=16000)
+
+    audio_format: Optional[str] = Field(default="mp3")

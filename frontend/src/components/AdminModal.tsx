@@ -35,6 +35,7 @@ import SystemSettings from './settings/SystemSettings';
 import CategorySettings from './settings/CategorySettings';
 import BackupSettings from './settings/BackupSettings';
 import { AudioConfig } from './settings/AudioConfig';
+import { FailedTranscriptions } from './settings/FailedTranscriptions';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -93,9 +94,12 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
         );
       case 'audio':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Audio-Download-Einstellungen</h3>
-            <AudioConfig />
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Audio-Download-Einstellungen</h3>
+              <AudioConfig />
+            </div>
+            <FailedTranscriptions />
           </div>
         );
       case 'users':

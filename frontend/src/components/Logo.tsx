@@ -32,8 +32,7 @@ export const Logo = ({ className }: LogoProps) => {
         >
             <text x="10" y="45" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="38" letterSpacing="-1.5">
                 <tspan fill="#1A2B6D" className="dark:fill-white">open</tspan>
-                <tspan fill="#1A2B6D" className="dark:fill-white">D</tspan>
-                <tspan fill="#00CED1">ox</tspan>
+                <tspan fill="#00CED1">Dox</tspan>
             </text>
 
             <path

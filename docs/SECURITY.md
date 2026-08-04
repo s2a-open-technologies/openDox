@@ -404,7 +404,7 @@ other untrusted workloads on the same host).
 | Encryption at rest | Fernet field-level encryption (see table above) | ✅ if `ENCRYPTION_KEY` is set |
 | Encryption in transit | Depends entirely on how endpoints (LLM, Whisper, LDAP, reverse proxy) are configured — not enforced by the app | ⚠️ (configure `https://`/`ldaps://`) |
 | Access Control | JWT + optional LDAP/OIDC + role-based (`admin`/`moderator`/`user`) | ✅ |
-| Data minimization | Raw PCM/WAV audio is always deleted after transcription, no retention option | ✅ |
+| Data minimization | Raw PCM/WAV audio is deleted immediately after a *successful* transcription; on failure it's kept unencrypted in `chunks/failed/` (no automatic expiry) so an admin can retry — see "Retry for failed transcriptions" in `AGENTS.md`'s Audio File Cleanup section | ⚠️ |
 | Availability | PostgreSQL backups | ⚠️ (operator's responsibility, not automated by this repo) |
 
 ## Organizational Measures

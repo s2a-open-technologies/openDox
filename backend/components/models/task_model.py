@@ -27,5 +27,6 @@ class Task(SQLModel, table=True):
     status: str = Field(default="pending")  # pending, running, done, error
     result: Optional[str] = None
     error: Optional[str] = None
+    retry_audio_path: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

@@ -73,3 +73,27 @@ def test_delete_ignores_missing_key_errors(patched_client):
     )
 
     audio_storage.delete("records/missing.mp3.enc")  # must not raise
+
+
+def test_is_configured_true_when_client_set(patched_client):
+    assert audio_storage.is_configured() is True
+
+
+def test_is_configured_false_when_unconfigured(monkeypatch):
+    monkeypatch.setattr(audio_storage, "_client", None)
+    assert audio_storage.is_configured() is False
+
+
+def test_head_bucket_calls_head_bucket(patched_client):
+    audio_storage.head_bucket()
+
+    patched_client.head_bucket.assert_called_once_with(Bucket="test-bucket")
+
+
+def test_head_bucket_raises_on_failure(patched_client):
+    patched_client.head_bucket.side_effect = ClientError(
+        {"Error": {"Code": "404", "Message": "not found"}}, "HeadBucket"
+    )
+
+    with pytest.raises(ClientError):
+        audio_storage.head_bucket()

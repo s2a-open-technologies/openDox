@@ -95,14 +95,24 @@ See `docs/pii.md` for the full flow. Summary:
 
 Configured via Admin UI → LLM settings → PII-Sanitizer. `sanitizer_endpoint` is a **full URL** (no path auto-appended), so it must include the complete sanitize route (e.g. `http://entityguard:9500/api/v1/sanitize`). Tokens must be unique per occurrence (e.g. `PERSON_1`/`PERSON_2`) — both the `mapping` dict and the diff fallback key on the literal token string, so a repeated token across two different entities silently collides.
 
+### Categories & LLM Prompt Composition
+
+`Categories` rows (`backend/components/models/categories.py`) serve three distinct roles per recording, chosen once at recording start (`Dashboard.tsx`'s category `<Select>`) and changeable afterward via `PUT /record/{id}` (`RecordUpdate.category_id`, applied in `record.py:update_record` — validates the id exists, 404 otherwise):
+
+1. `whisper_prompt` → passed as Whisper's `initial_prompt` (vocabulary/spelling hints for the final transcription, `background_transcription_service.py`).
+2. `system_prompt` → the LLM system prompt for summarization (`SummarizeModel.generate_response(custom_system_prompt=...)`). Falls back to `SummarizeModel.get_system_prompt()` (a generic, non-medical "clean up and structure" prompt) only when `record.category_id` is unset or the category has no `system_prompt` — rare in practice since the UI always preselects a category.
+3. `llm_override_enabled` + `llm_model`/`llm_api_endpoint`/`llm_api_key`/`llm_temperature`/`llm_max_tokens` → optional per-category LLM backend override, so e.g. a "Kardiologie" category can route to a different model/endpoint than the global default.
+
+**Placeholder-hallucination hardening is enforced in code, not in prompt text**: `generate_response()` unconditionally appends an anti-hallucination instruction (don't invent `[DATUM]`/`[WERT]`-style bracket placeholders for missing info, but preserve existing EntityGuard `[PERSON]`/`[LOCATION]` tokens — worded to not contradict `sanitizing_service._PRESERVE_TOKENS_INSTRUCTION`) to *every* prompt regardless of source, right next to the existing "Do not output your reasoning" suppression. This is deliberate: an admin creating a new category via `CategorySettings.tsx` writes free-form `system_prompt` text and has no way of knowing the local model tends to hallucinate placeholders — the rule can't rely on being written into that text.
+
 ### Audio Download (S3-compatible Object Storage)
 
-Optional feature (`AudioSettingsModel`: `audio_download_enabled`, `audio_bitrate`, `audio_sample_rate`) that keeps a compressed, encrypted copy of the final recording around for clinicians to download later — separate from the raw PCM/WAV, which is always deleted after transcription (see Audio File Cleanup below).
+Optional feature (`AudioSettingsModel`: `audio_download_enabled`, `audio_bitrate` up to `320k`, `audio_sample_rate`, `audio_format`) that keeps a compressed, encrypted copy of the final recording around for clinicians to download later — separate from the raw PCM/WAV (see Audio File Cleanup below for when that raw copy is actually deleted, which is no longer "always").
 
-1. After Whisper's final transcription succeeds, `background_transcription_service.py:_persist_audio_as_mp3()` runs ffmpeg (mono, configurable bitrate/sample rate) on the WAV into a `tempfile.NamedTemporaryFile` — never a fixed on-disk path.
-2. The MP3 bytes are encrypted with `field_encryption.encrypt_bytes()` (same `ENCRYPTION_KEY`/Fernet as text fields, just operating on raw bytes) and uploaded via `backend/components/services/audio_storage.py` (thin boto3 wrapper) to an S3-compatible bucket under key `records/{record.id}.mp3.enc`. The temp file is deleted immediately after upload.
-3. `record.file` stores that **S3 object key**, not a filesystem path.
-4. `GET /record/{id}/audio` (`record.py:download_audio`) downloads the encrypted object, decrypts it, and streams it back via a plain `Response` — the plaintext MP3 never touches local disk on the serving side either.
+1. After Whisper's final transcription succeeds, `background_transcription_service.py:_persist_audio()` runs ffmpeg (mono, configurable bitrate/sample rate) on the WAV into a `tempfile.NamedTemporaryFile` — never a fixed on-disk path. The codec/extension is chosen from `audio_format` (`mp3`→libmp3lame, `ogg`→libopus, `flac`→flac at a fixed compression level, `wav`→pcm_s16le with no bitrate); unknown/empty values fall back to mp3.
+2. The encoded bytes are encrypted with `field_encryption.encrypt_bytes()` (same `ENCRYPTION_KEY`/Fernet as text fields, just operating on raw bytes) and uploaded via `backend/components/services/audio_storage.py` (thin boto3 wrapper) to an S3-compatible bucket under key `records/{record.id}.{ext}.enc`. The temp file is deleted immediately after upload.
+3. `record.file` stores that **S3 object key** (its `.{ext}.` segment is the source of truth for the stored format — settings can change between recordings), not a filesystem path.
+4. `GET /record/{id}/audio` (`record.py:download_audio`) downloads the encrypted object, decrypts it, and streams it back via a plain `Response` — the plaintext audio never touches local disk on the serving side either. `Content-Type`/filename extension are derived from `record.file`'s key, not hardcoded.
 5. `delete_record` deletes the S3 object (`audio_storage.delete()`) instead of a local file.
 
 Configured entirely via env vars (not DB/admin-UI, since it's a deployment concern): `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` — all support the `_FILE` convention. Any S3-compatible backend works (the app is generic boto3); `docker-compose.yml`/`docker-swarm.yml` bundle **Garage** (`dxflrs/garage`, self-hosted, AGPL, `garage/` dir) rather than MinIO, which has licensing restrictions. See the "Object Storage (Garage)" entry under Docker Layout for the init flow.
@@ -129,6 +139,10 @@ OIDC depends on `itsdangerous` (added to `pyproject.toml`) and reuses `httpx` + 
 
 `GET /api/v1/settings/backup/` exports all settings tables (Whisper, LLM, LDAP, OIDC, Categories, Languages, Terminology) as a JSON file with `Content-Disposition: attachment`. `POST /api/v1/settings/backup/restore/` accepts a `multipart/form-data` upload and upserts singletons / replaces list tables wholesale. User table is intentionally excluded (passwords). After restore, `invalidate_cache()` + `reset_asr_backends()` are called.
 
+### System Health Check
+
+`GET /api/v1/settings/services-health/` (`settings_routes.py`) backs the admin "System" tab (`SystemSettings.tsx`, polled every 10s) — one `async def check_x()` closure per service (Postgres, Redis, Whisper, Parakeet, EntityGuard, S3, encryption-key state), run concurrently via `asyncio.gather`. Each returns `"online"`/`"offline"`/`"disabled"` — `"disabled"` short-circuits before any network call when a service isn't configured (e.g. `audio_storage.is_configured()` for S3, `isinstance(session_store, RedisSessionStore)` for Redis), so an intentionally-off feature doesn't show as a false "offline". The frontend is fully generic — it just renders whatever `{name, status}` list comes back, so adding a new check only requires backend changes.
+
 ### ROOT_PATH (Sub-path Deployment)
 
 Set `ROOT_PATH=/opendox` in `.env`. Backend injects `window.__ROOT_PATH__` into `static/index.html` at startup — **no frontend rebuild needed**. `api.ts` reads `window.__ROOT_PATH__` (runtime, injected) with `import.meta.env.VITE_ROOT_PATH` as a Vite dev-only fallback. WebSocket in `Recorder.tsx` imports `BASE_PATH` from `api.ts`.
@@ -153,13 +167,15 @@ Docker Compose includes a `redis:7-alpine` service with health check. App depend
 
 ### Audio File Cleanup
 
-Audio files (PCM + intermediate WAV) live in `chunks/` and are cleaned up via three mechanisms — all automatic, no manual intervention needed. This is about the *raw* recording scratch space; the optional persisted MP3 for download lives in S3-compatible storage instead, see Audio Download above.
+Audio files (PCM + intermediate WAV) live in `chunks/` and are cleaned up via three mechanisms — all automatic, no manual intervention needed. This is about the *raw* recording scratch space; the optional persisted audio for download lives in S3-compatible storage instead, see Audio Download above.
 
-1. **Finalize** (`record.py:finalize()`): `finally` block deletes both `session_*.pcm` and `session_*.wav` regardless of whether transcription succeeded. `background_transcription_task` also deletes the WAV on success (redundant, harmless).
+1. **Finalize** (`record.py:finalize()`): `finally` block only deletes `session_*.pcm` — it's fully redundant once the WAV exists. The WAV's fate is decided inside `background_transcription_task` itself (`background_transcription_service.py`), not here: deleted on success, **moved to `chunks/failed/task_{id}.wav` on failure** instead of being deleted, so a crashed/failed transcription no longer loses the recording. Same pattern for the `/upload` endpoint's `run_pipeline()` — no `finally`-block cleanup of `upload_path` needed since `background_transcription_task` owns it too.
 2. **Stale-session loop** (`run.py:lifespan`): background task runs every 10 min, calls `session_store.cleanup_stale_sessions(30)` — removes sessions inactive for >30 min (browser closed without "Stop") and their PCM files.
-3. **Startup cleanup** (`run.py:lifespan`): on app start, all `chunks/session_*.pcm` and `chunks/session_*.wav` files are removed — crash recovery for files left from a previous run.
+3. **Startup cleanup** (`run.py:lifespan`): on app start, all `chunks/session_*.pcm` and `chunks/session_*.wav` files are removed — crash recovery for files left from a previous run. This only matches the top level of `chunks/` (non-recursive), so it does **not** touch `chunks/failed/` — retained failure audio survives app restarts.
 
 The lifespan handler (`contextlib.asynccontextmanager`) cancels the cleanup loop on shutdown for a graceful exit. `/upload-chunk` endpoint was removed (unused, leaked `.webm` files).
+
+**Retry for failed transcriptions**: `Task.retry_audio_path` points at the retained file when set. Admin-only `GET /api/v1/records/tasks/failed` lists tasks with `status == "error"` and a retained file (joined with `Record` for title/timestamp); `POST /api/v1/records/tasks/{id}/retry` resets the task to `"pending"` and re-runs `background_transcription_task` on the retained audio in the background. Backed by `frontend/src/components/settings/FailedTranscriptions.tsx`, shown below the Audio-Download settings in AdminModal's "Audio" tab.
 
 ### Field Encryption
 
@@ -223,7 +239,7 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 - **API prefix**: All modules must import `BASE_PATH` from `api.ts`, not define their own
 - **Mobile viewport height**: use `dvh` (dynamic viewport height), not `vh`, for anything meant to fill the screen/a dialog (`Recorder.tsx`, `AdminModal.tsx`, `Dashboard.tsx`'s root). Mobile browsers resize `100vh` when the address bar shows/hides, causing clipping or forced page-scroll that `dvh` avoids
 - **Flex children that must scroll internally** (e.g. `Sidebar.tsx`'s recordings `ScrollArea`) need `min-h-0` — a `flex-1` child otherwise refuses to shrink below its content's natural height and overflows the parent instead of scrolling
-- **AdminModal nav**: "Dienste" tab has Whisper/ASR + LLM sub-tabs. "Audio" tab (`AudioConfig.tsx`) holds the audio-download settings. "Authentifizierung" tab has LDAP + OIDC/SSO sub-tabs. Whisper config tab grid columns depend on `live_backend` value (`grid-cols-3` vs `grid-cols-4`) — the "Qualität" tab only exists when `live_backend === 'api'`.
+- **AdminModal nav**: "Dienste" tab has Whisper/ASR + LLM sub-tabs. "Audio" tab holds `AudioConfig.tsx` (audio-download settings, incl. format/bitrate) followed by `FailedTranscriptions.tsx` (retry list for failed transcriptions, see Audio File Cleanup). "Authentifizierung" tab has LDAP + OIDC/SSO sub-tabs. Whisper config tab grid columns depend on `live_backend` value (`grid-cols-3` vs `grid-cols-4`) — the "Qualität" tab only exists when `live_backend === 'api'`.
 
 ## Python Style (enforced by ruff)
 

@@ -44,6 +44,20 @@ else:
     )
 
 
+def is_configured() -> bool:
+    """Return whether S3 storage is set up (client was built from env vars)."""
+    return _client is not None
+
+
+def head_bucket() -> None:
+    """Probe the configured bucket. Raises if unreachable/misconfigured.
+
+    Used by the admin "System" health check — a lightweight connectivity
+    test that doesn't read/write any object.
+    """
+    _client.head_bucket(Bucket=S3_BUCKET)
+
+
 def upload_bytes(key: str, data: bytes) -> None:
     """Upload bytes to the configured S3 bucket under ``key``."""
     if _client is None:

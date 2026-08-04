@@ -43,6 +43,7 @@ from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.terminology import Terminology
 from backend.components.models.user_model import User
+from backend.components.services import audio_storage
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
     get_final_backend,
@@ -344,6 +345,15 @@ async def get_services_health(db: SessionDep):
         except (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout):
             return {"name": "PII", "status": "offline"}
 
+    async def check_s3():
+        if not audio_storage.is_configured():
+            return {"name": "Objekt-Speicher (S3)", "status": "disabled"}
+        try:
+            await asyncio.to_thread(audio_storage.head_bucket)
+            return {"name": "Objekt-Speicher (S3)", "status": "online"}
+        except Exception:
+            return {"name": "Objekt-Speicher (S3)", "status": "offline"}
+
     async def check_encryption():
         from backend.components.models.encryption_key_state import EncryptionKeyState
         from backend.components.security import field_encryption, key_rotation
@@ -362,6 +372,7 @@ async def get_services_health(db: SessionDep):
         check_whisper(),
         check_parakeet(),
         check_entityguard(),
+        check_s3(),
         check_encryption(),
     )
     return {"services": [{"name": "Backend", "status": "online"}, *services]}
@@ -768,6 +779,12 @@ async def get_audio_settings(db: SessionDep):
     return settings
 
 
+_ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "flac", "ogg"}
+_ALLOWED_AUDIO_BITRATES = {
+    "32k", "48k", "64k", "96k", "128k", "160k", "192k", "256k", "320k",
+}
+
+
 @settings_bp.put("/audio-settings/", response_model=AudioSettingsModel)
 async def update_audio_settings(
     settings_in: AudioSettingsModel,
@@ -775,6 +792,25 @@ async def update_audio_settings(
     _: User = Depends(_require_admin),
 ):
     """Upsert audio download settings from the admin UI."""
+    if (
+        settings_in.audio_format is not None
+        and settings_in.audio_format not in _ALLOWED_AUDIO_FORMATS
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=f"audio_format muss einer von {sorted(_ALLOWED_AUDIO_FORMATS)} sein",
+        )
+    if (
+        settings_in.audio_bitrate is not None
+        and settings_in.audio_bitrate not in _ALLOWED_AUDIO_BITRATES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"audio_bitrate muss einer von {sorted(_ALLOWED_AUDIO_BITRATES)} sein"
+            ),
+        )
+
     settings = db.exec(select(AudioSettingsModel)).first()
     if not settings:
         settings = AudioSettingsModel(**settings_in.dict(exclude={"id"}))

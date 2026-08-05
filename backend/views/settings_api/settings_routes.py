@@ -30,6 +30,7 @@ from backend.components.models.audio_settings_model import AudioSettingsModel
 from backend.components.models.categories import (
     Categories,
     CategoriesCreate,
+    CategoriesListRead,
     CategoriesRead,
 )
 from backend.components.models.languages import (
@@ -65,16 +66,6 @@ def _require_admin(current_user: User = Depends(get_current_user)) -> User:
         raise HTTPException(
             status_code=403,
             detail="Admin role required",
-        )
-    return current_user
-
-
-def _require_moderator(current_user: User = Depends(get_current_user)) -> User:
-    """Guard: admins and moderators may manage categories."""
-    if current_user.role not in ("admin", "moderator"):
-        raise HTTPException(
-            status_code=403,
-            detail="Moderator or admin role required",
         )
     return current_user
 
@@ -466,29 +457,73 @@ async def upload_ldap_cert(
 
 
 # Categories Endpoints
+#
+# Categories with user_id=None are global, admin/moderator-managed
+# categories visible to everyone. Categories with a user_id are personal
+# categories, owned by that single user and invisible to everyone else
+# (admins can see/edit any category for support purposes). Personal
+# categories may never carry a custom LLM backend override - that stays a
+# moderator/admin-only capability, enforced server-side below regardless
+# of what a client sends.
+_LLM_OVERRIDE_DEFAULTS = {
+    "llm_override_enabled": False,
+    "llm_model": None,
+    "llm_api_endpoint": None,
+    "llm_api_key": None,
+    "llm_temperature": None,
+    "llm_max_tokens": None,
+}
+
+
 @settings_bp.post("/categories/", response_model=CategoriesRead)
 async def create_category(
     category: CategoriesCreate,
     db: SessionDep,
-    _: User = Depends(_require_moderator),
+    current_user: User = Depends(get_current_user),
 ):
-    db_category = Categories.model_validate(category)
+    data = category.model_dump()
+    if current_user.role in ("admin", "moderator"):
+        data["user_id"] = None
+    else:
+        data["user_id"] = current_user.id
+        data.update(_LLM_OVERRIDE_DEFAULTS)
+    db_category = Categories(**data)
     db.add(db_category)
     db.commit()
     db.refresh(db_category)
     return db_category
 
 
-@settings_bp.get("/categories/", response_model=list[CategoriesRead])
-async def read_categories(db: SessionDep, offset: int = 0, limit: int = 100):
-    categories = db.exec(select(Categories).offset(offset).limit(limit)).all()
+@settings_bp.get("/categories/", response_model=list[CategoriesListRead])
+async def read_categories(
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+    offset: int = 0,
+    limit: int = 100,
+):
+    query = select(Categories)
+    if current_user.role != "admin":
+        query = query.where(
+            (Categories.user_id.is_(None)) | (Categories.user_id == current_user.id)
+        )
+    categories = db.exec(query.offset(offset).limit(limit)).all()
     return categories
 
 
-@settings_bp.get("/categories/{category_id}", response_model=CategoriesRead)
-async def read_category(category_id: int, db: SessionDep):
+@settings_bp.get("/categories/{category_id}", response_model=CategoriesListRead)
+async def read_category(
+    category_id: int,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
     category = db.get(Categories, category_id)
     if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    if (
+        current_user.role != "admin"
+        and category.user_id is not None
+        and category.user_id != current_user.id
+    ):
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
@@ -498,12 +533,34 @@ async def update_category(
     category_id: int,
     category: CategoriesCreate,
     db: SessionDep,
-    _: User = Depends(_require_moderator),
+    current_user: User = Depends(get_current_user),
 ):
     db_category = db.get(Categories, category_id)
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
+
+    is_owner = (
+        db_category.user_id is not None and db_category.user_id == current_user.id
+    )
+    if db_category.user_id is None:
+        if current_user.role not in ("admin", "moderator"):
+            raise HTTPException(
+                status_code=403, detail="Moderator or admin role required"
+            )
+    elif not is_owner and current_user.role != "admin":
+        raise HTTPException(
+            status_code=403, detail="Not authorized to edit this category"
+        )
+
     category_data = category.model_dump(exclude_unset=True)
+    is_privileged_editor = current_user.role in ("admin", "moderator")
+    if not is_privileged_editor or db_category.user_id is not None:
+        category_data.update(_LLM_OVERRIDE_DEFAULTS)
+    if not category_data.get("llm_api_key"):
+        # GET responses never include the raw key, so an edit form that
+        # didn't touch it would otherwise wipe the stored key on every save.
+        category_data.pop("llm_api_key", None)
+
     db_category.sqlmodel_update(category_data)
     db.add(db_category)
     db.commit()
@@ -515,11 +572,23 @@ async def update_category(
 async def delete_category(
     category_id: int,
     db: SessionDep,
-    _: User = Depends(_require_moderator),
+    current_user: User = Depends(get_current_user),
 ):
     category = db.get(Categories, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
+
+    is_owner = category.user_id is not None and category.user_id == current_user.id
+    if category.user_id is None:
+        if current_user.role not in ("admin", "moderator"):
+            raise HTTPException(
+                status_code=403, detail="Moderator or admin role required"
+            )
+    elif not is_owner and current_user.role != "admin":
+        raise HTTPException(
+            status_code=403, detail="Not authorized to delete this category"
+        )
+
     db.delete(category)
     db.commit()
     return {"ok": True}

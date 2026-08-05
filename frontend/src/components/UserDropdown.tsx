@@ -27,15 +27,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, LogOut, Settings, Sun, Moon } from "lucide-react";
+import { User, LogOut, Settings, Sun, Moon, BookOpenCheck } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import AdminModal from "./AdminModal";
+import MyCategoriesModal from "./MyCategoriesModal";
 
 const UserDropdown = () => {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const [showAdmin, setShowAdmin] = useState(false);
+    const [showCategories, setShowCategories] = useState(false);
 
     return (
         <>
@@ -66,12 +68,19 @@ const UserDropdown = () => {
                         {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
                         <span>{theme === 'dark' ? 'Helles Design' : 'Dunkles Design'}</span>
                     </DropdownMenuItem>
-                    {user?.role !== 'user' && (
+                    {user?.role !== 'user' ? (
                         <DropdownMenuItem onClick={() => {
                             setTimeout(() => setShowAdmin(true), 100);
                         }}>
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Administration</span>
+                        </DropdownMenuItem>
+                    ) : (
+                        <DropdownMenuItem onClick={() => {
+                            setTimeout(() => setShowCategories(true), 100);
+                        }}>
+                            <BookOpenCheck className="mr-2 h-4 w-4" />
+                            <span>Meine Kategorien</span>
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={logout}>
@@ -82,6 +91,7 @@ const UserDropdown = () => {
             </DropdownMenu>
 
             <AdminModal isOpen={showAdmin} onClose={() => setShowAdmin(false)} />
+            <MyCategoriesModal isOpen={showCategories} onClose={() => setShowCategories(false)} />
         </>
     );
 };

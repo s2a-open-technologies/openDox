@@ -39,6 +39,7 @@ interface CategorySettingsData {
     llm_api_key: string | null;
     llm_temperature: number | null;
     llm_max_tokens: number | null;
+    user_id?: number | null;
 }
 
 const emptyForm = (): CategorySettingsData => ({
@@ -55,11 +56,15 @@ const emptyForm = (): CategorySettingsData => ({
 });
 
 const CategorySettings = () => {
-    const { authFetch } = useAuth();
+    const { user, authFetch } = useAuth();
+    const isPrivileged = user?.role === 'admin' || user?.role === 'moderator';
     const [categories, setCategories] = useState<CategorySettingsData[]>([]);
     const [settings, setSettings] = useState<CategorySettingsData>(emptyForm());
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+
+    const canManage = (category: CategorySettingsData) =>
+        category.user_id != null ? category.user_id === user?.id || user?.role === 'admin' : isPrivileged;
 
     const fetchCategories = async () => {
         try {
@@ -169,7 +174,12 @@ const CategorySettings = () => {
                                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                             >
                                 <div className="space-y-1">
-                                    <div className="font-medium">{category.name}</div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="font-medium">{category.name}</div>
+                                        <span className="text-[10px] uppercase tracking-wide rounded-full border px-2 py-0.5 text-muted-foreground">
+                                            {category.user_id == null ? 'Global' : 'Eigene Kategorie'}
+                                        </span>
+                                    </div>
                                     <div className="text-sm text-muted-foreground">{category.description}</div>
                                     {category.llm_override_enabled && category.llm_model && (
                                         <div className="text-xs text-blue-500">
@@ -177,23 +187,25 @@ const CategorySettings = () => {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleEdit(category)}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive"
-                                        onClick={() => category.id && handleDelete(category.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                                {canManage(category) && (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleEdit(category)}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-destructive hover:text-destructive"
+                                            onClick={() => category.id && handleDelete(category.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                         {categories.length === 0 && (
@@ -256,6 +268,7 @@ const CategorySettings = () => {
                             </p>
                         </div>
 
+                        {isPrivileged && (
                         <div className="border rounded-lg p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -337,6 +350,7 @@ const CategorySettings = () => {
                                 </div>
                             )}
                         </div>
+                        )}
 
                         <div className="flex gap-2">
                             <Button type="submit" disabled={loading}>

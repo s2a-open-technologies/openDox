@@ -116,13 +116,20 @@ const Dashboard = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/v1/settings/categories/');
+      const res = await authFetch('/api/v1/settings/categories/');
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
-        // Pre-select the first category so the user never lands on an empty
-        // dropdown when starting a new recording.
-        setCategoryId(prev => prev ?? (data.length > 0 ? data[0].id.toString() : null));
+        // Pre-select "Allgemein" so the user never lands on an empty dropdown
+        // when starting a new recording. Falls back to the first category if
+        // "Allgemein" doesn't exist (e.g. renamed/deleted) rather than leaving
+        // no category selected - a recording always needs one.
+        setCategoryId(prev => {
+          if (prev) return prev;
+          const allgemein = data.find((c: Category) => c.name === "Allgemein");
+          if (allgemein) return allgemein.id.toString();
+          return data.length > 0 ? data[0].id.toString() : null;
+        });
       }
     } catch (err) {
       console.error('Failed to fetch categories:', err);

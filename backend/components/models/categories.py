@@ -32,6 +32,7 @@ class Categories(SQLModel, table=True):
     llm_api_key: Optional[str] = Field(default=None)
     llm_temperature: Optional[float] = Field(default=None)
     llm_max_tokens: Optional[int] = Field(default=None)
+    user_id: Optional[int] = Field(default=None)
 
 
 class CategoriesCreate(SQLModel):
@@ -59,3 +60,27 @@ class CategoriesRead(SQLModel):
     llm_api_key: Optional[str]
     llm_temperature: Optional[float]
     llm_max_tokens: Optional[int]
+    user_id: Optional[int] = None
+
+
+class CategoriesListRead(SQLModel):
+    """Slim shape for list/single-item reads — omits llm_api_key.
+
+    Used by GET /categories/ and GET /categories/{id}, which any
+    authenticated user can call; the raw LLM API key must never be
+    exposed there. The full CategoriesRead (with llm_api_key) is only
+    returned from the create/update endpoints, to the caller who just
+    submitted that key.
+    """
+
+    id: int
+    name: str
+    description: str
+    system_prompt: str
+    whisper_prompt: Optional[str] = None
+    llm_override_enabled: bool
+    llm_model: Optional[str]
+    llm_api_endpoint: Optional[str]
+    llm_temperature: Optional[float]
+    llm_max_tokens: Optional[int]
+    user_id: Optional[int] = None

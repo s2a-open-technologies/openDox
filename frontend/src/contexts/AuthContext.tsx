@@ -25,7 +25,7 @@ type User = {
   name: string;
   is_active: boolean;
   authenticated: boolean;
-  role: 'admin' | 'moderator' | 'user';
+  role: 'admin' | 'moderator' | 'demo_viewer' | 'user';
   disclaimer_accepted_at?: string | null;
 };
 

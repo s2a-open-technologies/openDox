@@ -127,6 +127,16 @@ def _persist_audio(file_path: str, record: Record) -> str | None:
             os.remove(tmp_path)
 
 
+def _should_overwrite_content(new_text: str, existing_content: str | None) -> bool:
+    """Decide whether a fresh transcription result should replace ``record.content``.
+
+    An empty Whisper result (corrupt/near-empty audio, a bad retry) must not
+    silently clobber a transcript that's already there — but a genuinely
+    empty first run still needs to store the empty result.
+    """
+    return bool(new_text.strip()) or not bool((existing_content or "").strip())
+
+
 def _retain_audio_for_retry(db, task_id: int, file_path: str) -> None:
     """Move a failed task's source audio out of the ephemeral scratch dir.
 
@@ -185,7 +195,7 @@ def background_transcription_task(
     record = db.exec(smt).one_or_none()
 
     # Get category config if set
-    category_prompt = None          # → LLM system prompt
+    category_prompt = None  # → LLM system prompt
     category_whisper_prompt = None  # → Whisper initial_prompt (vocabulary hints)
     category_llm_override = None
     if record and record.category_id:
@@ -217,11 +227,19 @@ def background_transcription_task(
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
 
         if record:
-            record.content = text
-            db.add(record)
-            db.commit()
-            db.refresh(record)
-            logger.info(f"[TASK {task_id}] Transcription completed ({len(text)} chars)")
+            if _should_overwrite_content(text, record.content):
+                record.content = text
+                db.add(record)
+                db.commit()
+                db.refresh(record)
+                logger.info(
+                    f"[TASK {task_id}] Transcription completed ({len(text)} chars)"
+                )
+            else:
+                logger.warning(
+                    f"[TASK {task_id}] Empty transcription result, "
+                    "keeping existing content"
+                )
 
         update_task_status(db, task_id, "processing_llm")
 
@@ -230,7 +248,11 @@ def background_transcription_task(
         text_for_llm = text
         entity_mapping: dict[str, str] = {}
 
-        if llm_settings and llm_settings.sanitizer_enabled and llm_settings.sanitizer_endpoint:
+        if (
+            llm_settings
+            and llm_settings.sanitizer_enabled
+            and llm_settings.sanitizer_endpoint
+        ):
             logger.info(f"[TASK {task_id}] Running EntityGuard sanitizer")
             text_for_llm, entity_mapping = sanitize(
                 text=text,
@@ -291,7 +313,9 @@ def background_transcription_task(
                 os.remove(file_path)
                 logger.info(f"[TASK {task_id}] Audio file deleted: {file_path}")
             except OSError as e:
-                logger.warning(f"[TASK {task_id}] Could not delete audio file {file_path}: {e}")
+                logger.warning(
+                    f"[TASK {task_id}] Could not delete audio file {file_path}: {e}"
+                )
 
         return True
 

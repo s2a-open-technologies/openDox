@@ -45,11 +45,16 @@ interface AdminModalProps {
 const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const [activeTab, setActiveTab] = useState(isAdmin ? 'services' : 'categories');
+  const isDemoViewer = user?.role === 'demo_viewer';
+  // ``demo_viewer`` sieht alle Admin-Tabs wie ein Admin, darf aber nichts
+  // schreiben (nur lesen). Einzig Kategorien bleiben bearbeitbar.
+  const canViewAdmin = isAdmin || isDemoViewer;
+  const readOnly = isDemoViewer;
+  const [activeTab, setActiveTab] = useState(canViewAdmin ? 'services' : 'categories');
 
-  // Moderatoren sehen nur Kategorien + System-Status; Admins sehen alles.
+  // Moderatoren sehen nur Kategorien + System-Status; Admins/Demo-Viewer sehen alles.
   const navItems = [
-    ...(isAdmin ? [
+    ...(canViewAdmin ? [
       { id: 'services', label: 'Dienste', icon: Server },
       { id: 'audio', label: 'Audio', icon: Download },
       { id: 'users', label: 'Benutzer', icon: Users },
@@ -64,7 +69,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
     switch (activeTab) {
       case 'services':
         return (
-          <div className="space-y-6">
+          <fieldset className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <Server className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-medium">API-Dienste konfigurieren</h3>
@@ -83,35 +88,35 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
               </TabsList>
 
               <TabsContent value="whisper">
-                <WhisperConfig />
+                <WhisperConfig readOnly={readOnly} />
               </TabsContent>
 
               <TabsContent value="llm">
-                <LlmConfig />
+                <LlmConfig readOnly={readOnly} />
               </TabsContent>
             </Tabs>
-          </div>
+          </fieldset>
         );
       case 'audio':
         return (
-          <div className="space-y-6">
+          <fieldset className="space-y-6">
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Audio-Download-Einstellungen</h3>
-              <AudioConfig />
+              <AudioConfig readOnly={readOnly} />
             </div>
-            <FailedTranscriptions />
-          </div>
+            <FailedTranscriptions readOnly={readOnly} />
+          </fieldset>
         );
       case 'users':
         return (
-          <div className="space-y-4">
+          <fieldset className="space-y-4">
             <h3 className="text-lg font-medium">Benutzerverwaltung</h3>
-            <UserSettings />
-          </div>
+            <UserSettings readOnly={readOnly} />
+          </fieldset>
         );
       case 'auth':
         return (
-          <div className="space-y-6">
+          <fieldset className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <GlobeLock className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-medium">Authentifizierung</h3>
@@ -122,13 +127,13 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
                 <TabsTrigger value="oidc">OIDC / SSO</TabsTrigger>
               </TabsList>
               <TabsContent value="ldap">
-                <LdapSettings />
+                <LdapSettings readOnly={readOnly} />
               </TabsContent>
               <TabsContent value="oidc">
-                <OidcSettings />
+                <OidcSettings readOnly={readOnly} />
               </TabsContent>
             </Tabs>
-          </div>
+          </fieldset>
         );
       case 'system':
         return (
@@ -139,10 +144,10 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
         );
       case 'backup':
         return (
-          <div className="space-y-4">
+          <fieldset className="space-y-4">
             <h3 className="text-lg font-medium">Datensicherung</h3>
-            <BackupSettings />
-          </div>
+            <BackupSettings readOnly={readOnly} />
+          </fieldset>
         );
       case 'categories':
         return (
@@ -186,6 +191,12 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             </nav>
           </div>
           <div className="flex-1 p-4 md:p-6 overflow-auto min-h-0">
+            {readOnly && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                Nur-Lese-Modus (Demo): Alle Einstellungen sind schreibgeschützt.
+                Einzig Kategorien bleiben bearbeitbar.
+              </div>
+            )}
             {renderContent()}
           </div>
         </div>

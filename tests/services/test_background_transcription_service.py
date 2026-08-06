@@ -65,6 +65,20 @@ def test_retain_audio_for_retry_moves_file_to_failed_dir(tmp_path):
     assert not src.exists()
 
 
+def test_should_overwrite_content_with_nonempty_result():
+    assert svc._should_overwrite_content("Neuer Text", "Alter Text") is True
+
+
+def test_should_overwrite_content_empty_result_keeps_existing():
+    assert svc._should_overwrite_content("", "Alter Text") is False
+    assert svc._should_overwrite_content("   ", "Alter Text") is False
+
+
+def test_should_overwrite_content_empty_result_with_no_prior_content():
+    assert svc._should_overwrite_content("", "") is True
+    assert svc._should_overwrite_content("", None) is True
+
+
 def test_retain_audio_for_retry_does_not_nest_failed_dirs(tmp_path):
     failed_dir = tmp_path / "failed"
     failed_dir.mkdir()

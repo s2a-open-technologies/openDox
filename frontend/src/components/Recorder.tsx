@@ -170,7 +170,11 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     ws.onclose = () => {
       console.log("WebSocket geschlossen");
       if (!wsFinishedRef.current) {
-        // Unexpected disconnect (e.g. Apache proxy dropped the connection)
+        // Unexpected disconnect (e.g. Apache proxy dropped the connection).
+        // The recording may still finish server-side (finalize() doesn't
+        // depend on this socket) — fall back to fetching the record by
+        // session id so the frontend picks up its task_id and starts
+        // polling for the transcript instead of getting stuck empty.
         setIsRecording(false);
         setIsProcessing(false);
         if (processingTimeoutRef.current) {
@@ -178,6 +182,9 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
           processingTimeoutRef.current = null;
         }
         toast.error("Verbindung unterbrochen – bitte Aufnahme neu starten");
+        if (onFinalTranscription && sessionIdRef.current) {
+          onFinalTranscription(sessionIdRef.current, undefined);
+        }
       }
       wsFinishedRef.current = false;
     };

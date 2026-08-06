@@ -209,7 +209,12 @@ class ParakeetStreamSession:
             headers["Authorization"] = f"Bearer {self.api_key}"
         try:
             self._ws = await websockets.connect(
-                self.stream_url, additional_headers=headers, max_size=None
+                self.stream_url,
+                additional_headers=headers,
+                max_size=None,
+                ping_interval=20,
+                ping_timeout=60,
+                close_timeout=10,
             )
         except Exception as e:
             await self._safe_error(e)

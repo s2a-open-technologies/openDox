@@ -31,7 +31,7 @@ interface FailedTask {
   updated_at: string;
 }
 
-export function FailedTranscriptions() {
+export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean }) {
   const { authFetch } = useAuth();
   const [tasks, setTasks] = useState<FailedTask[]>([]);
   const [retryingId, setRetryingId] = useState<number | null>(null);
@@ -99,7 +99,7 @@ export function FailedTranscriptions() {
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
-                disabled={retryingId === task.task_id}
+                disabled={retryingId === task.task_id || readOnly}
                 onClick={() => retry(task.task_id)}
               >
                 <RotateCcw className="h-4 w-4" />

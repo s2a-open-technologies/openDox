@@ -482,7 +482,7 @@ async def create_category(
     current_user: User = Depends(get_current_user),
 ):
     data = category.model_dump()
-    if current_user.role in ("admin", "moderator"):
+    if current_user.role in ("admin", "moderator", "demo_viewer"):
         data["user_id"] = None
     else:
         data["user_id"] = current_user.id
@@ -543,7 +543,7 @@ async def update_category(
         db_category.user_id is not None and db_category.user_id == current_user.id
     )
     if db_category.user_id is None:
-        if current_user.role not in ("admin", "moderator"):
+        if current_user.role not in ("admin", "moderator", "demo_viewer"):
             raise HTTPException(
                 status_code=403, detail="Moderator or admin role required"
             )
@@ -553,7 +553,7 @@ async def update_category(
         )
 
     category_data = category.model_dump(exclude_unset=True)
-    is_privileged_editor = current_user.role in ("admin", "moderator")
+    is_privileged_editor = current_user.role in ("admin", "moderator", "demo_viewer")
     if not is_privileged_editor or db_category.user_id is not None:
         category_data.update(_LLM_OVERRIDE_DEFAULTS)
     if not category_data.get("llm_api_key"):
@@ -580,7 +580,7 @@ async def delete_category(
 
     is_owner = category.user_id is not None and category.user_id == current_user.id
     if category.user_id is None:
-        if current_user.role not in ("admin", "moderator"):
+        if current_user.role not in ("admin", "moderator", "demo_viewer"):
             raise HTTPException(
                 status_code=403, detail="Moderator or admin role required"
             )

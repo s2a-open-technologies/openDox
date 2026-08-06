@@ -67,7 +67,7 @@ interface WhisperSettings {
 
 type TestResult = { ok: boolean; message: string } | null;
 
-const WhisperConfig = () => {
+const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [liveTest, setLiveTest] = useState<{ status: 'idle' | 'testing' | 'done'; result: TestResult }>({
         status: 'idle',
@@ -195,7 +195,7 @@ const WhisperConfig = () => {
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label>Sprache</Label>
-                                <Select value={config.language} onValueChange={(v) => updateField('language', v)}>
+                                <Select value={config.language} disabled={readOnly} onValueChange={(v) => updateField('language', v)}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Wählen..." />
                                     </SelectTrigger>
@@ -222,7 +222,7 @@ const WhisperConfig = () => {
                         <CardContent className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <Label htmlFor="live-enabled">Live-Transkription aktiv</Label>
-                                <Select value={config.live_backend} onValueChange={(v) => updateField('live_backend', v)}>
+                                <Select value={config.live_backend} disabled={readOnly} onValueChange={(v) => updateField('live_backend', v)}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Wählen..." />
                                     </SelectTrigger>
@@ -248,6 +248,7 @@ const WhisperConfig = () => {
                                         <Label>API Endpoint</Label>
                                         <Input
                                             placeholder={config.live_backend === 'parakeet' ? 'http://parakeet:5001/v1' : 'http://localhost:9000'}
+                                            disabled={readOnly}
                                             value={config.live_api_endpoint}
                                             onChange={(e) => updateField('live_api_endpoint', e.target.value)}
                                         />
@@ -257,6 +258,7 @@ const WhisperConfig = () => {
                                         <Input
                                             type="password"
                                             placeholder="Bearer Token"
+                                            disabled={readOnly}
                                             value={config.live_api_key}
                                             onChange={(e) => updateField('live_api_key', e.target.value)}
                                         />
@@ -265,6 +267,7 @@ const WhisperConfig = () => {
                                         <Label>Modell</Label>
                                         <Input
                                             placeholder="nemo-parakeet-tdt-0.6b-v3"
+                                            disabled={readOnly}
                                             value={config.live_api_model}
                                             onChange={(e) => updateField('live_api_model', e.target.value)}
                                         />
@@ -275,6 +278,7 @@ const WhisperConfig = () => {
                                                 <Label>Chunk-Länge (Sek.)</Label>
                                                 <Input
                                                     type="number" min={1} max={10}
+                                                    disabled={readOnly}
                                                     value={config.chunk_length_s}
                                                     onChange={(e) => updateField('chunk_length_s', parseInt(e.target.value) || 3)}
                                                 />
@@ -283,6 +287,7 @@ const WhisperConfig = () => {
                                                 <Label>Überlappung (Sek.)</Label>
                                                 <Input
                                                     type="number" min={0} max={2} step={0.5}
+                                                    disabled={readOnly}
                                                     value={config.overlap_s}
                                                     onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
                                                 />
@@ -295,7 +300,7 @@ const WhisperConfig = () => {
                                 <Button
                                     variant="outline"
                                     onClick={() => testAsr('live')}
-                                    disabled={config.live_backend === 'disabled' || liveTest.status === 'testing'}
+                                    disabled={config.live_backend === 'disabled' || liveTest.status === 'testing' || readOnly}
                                     className="gap-2"
                                 >
                                     {liveTest.status === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -329,6 +334,7 @@ const WhisperConfig = () => {
                                 <Label>API Endpoint</Label>
                                 <Input 
                                     placeholder="http://localhost:9000" 
+                                    disabled={readOnly}
                                     value={config.final_api_endpoint} 
                                     onChange={(e) => updateField('final_api_endpoint', e.target.value)} 
                                 />
@@ -338,6 +344,7 @@ const WhisperConfig = () => {
                                 <Input 
                                     type="password" 
                                     placeholder="Bearer Token" 
+                                    disabled={readOnly}
                                     value={config.final_api_key} 
                                     onChange={(e) => updateField('final_api_key', e.target.value)} 
                                 />
@@ -346,6 +353,7 @@ const WhisperConfig = () => {
                                 <Label>Modell</Label>
                                 <Input 
                                     placeholder="large-v3-turbo" 
+                                    disabled={readOnly}
                                     value={config.final_api_model} 
                                     onChange={(e) => updateField('final_api_model', e.target.value)} 
                                 />
@@ -354,7 +362,7 @@ const WhisperConfig = () => {
                                 <Button
                                     variant="outline"
                                     onClick={() => testAsr('final')}
-                                    disabled={finalTest.status === 'testing'}
+                                    disabled={finalTest.status === 'testing' || readOnly}
                                     className="gap-2"
                                 >
                                     {finalTest.status === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -392,6 +400,7 @@ const WhisperConfig = () => {
                                 <Switch
                                     id="vad-filter"
                                     checked={config.vad_filter}
+                                    disabled={readOnly}
                                     onCheckedChange={(checked) => updateField('vad_filter', checked)}
                                 />
                             </div>
@@ -400,6 +409,7 @@ const WhisperConfig = () => {
                                 <Switch
                                     id="cond-prev"
                                     checked={config.condition_on_previous_text}
+                                    disabled={readOnly}
                                     onCheckedChange={(checked) => updateField('condition_on_previous_text', checked)}
                                 />
                             </div>
@@ -407,6 +417,7 @@ const WhisperConfig = () => {
                                 <Label>VAD min. Stille (ms)</Label>
                                 <Input
                                     type="number" min={0} max={5000} step={50}
+                                    disabled={readOnly}
                                     value={config.vad_min_silence_ms}
                                     onChange={(e) => updateField('vad_min_silence_ms', parseInt(e.target.value) || 0)}
                                 />
@@ -415,6 +426,7 @@ const WhisperConfig = () => {
                                 <Label>Temperatur (0 = deterministisch)</Label>
                                 <Input
                                     type="number" min={0} max={1} step={0.1}
+                                    disabled={readOnly}
                                     value={config.temperature}
                                     onChange={(e) => updateField('temperature', parseFloat(e.target.value) || 0)}
                                 />
@@ -423,6 +435,7 @@ const WhisperConfig = () => {
                                 <Label>No-Speech-Schwelle</Label>
                                 <Input
                                     type="number" min={0} max={1} step={0.05}
+                                    disabled={readOnly}
                                     value={config.no_speech_threshold}
                                     onChange={(e) => updateField('no_speech_threshold', parseFloat(e.target.value) || 0)}
                                 />
@@ -431,6 +444,7 @@ const WhisperConfig = () => {
                                 <Label>Compression-Ratio-Schwelle</Label>
                                 <Input
                                     type="number" min={0} max={10} step={0.1}
+                                    disabled={readOnly}
                                     value={config.compression_ratio_threshold}
                                     onChange={(e) => updateField('compression_ratio_threshold', parseFloat(e.target.value) || 0)}
                                 />
@@ -439,6 +453,7 @@ const WhisperConfig = () => {
                                 <Label>Log-Prob-Schwelle</Label>
                                 <Input
                                     type="number" min={-10} max={0} step={0.1}
+                                    disabled={readOnly}
                                     value={config.log_prob_threshold}
                                     onChange={(e) => updateField('log_prob_threshold', parseFloat(e.target.value) || 0)}
                                 />
@@ -448,6 +463,7 @@ const WhisperConfig = () => {
                                 <Input
                                     type="number" min={0} max={60} step={0.5}
                                     placeholder="aus"
+                                    disabled={readOnly}
                                     value={config.hallucination_silence_threshold ?? ''}
                                     onChange={(e) => updateField('hallucination_silence_threshold', e.target.value === '' ? null : parseFloat(e.target.value))}
                                 />
@@ -457,6 +473,7 @@ const WhisperConfig = () => {
                                     <Label>Beam-Size Live</Label>
                                     <Input
                                         type="number" min={1} max={10}
+                                        disabled={readOnly}
                                         value={config.live_beam_size}
                                         onChange={(e) => updateField('live_beam_size', parseInt(e.target.value) || 1)}
                                     />
@@ -465,6 +482,7 @@ const WhisperConfig = () => {
                                     <Label>Beam-Size Final</Label>
                                     <Input
                                         type="number" min={1} max={10}
+                                        disabled={readOnly}
                                         value={config.final_beam_size}
                                         onChange={(e) => updateField('final_beam_size', parseInt(e.target.value) || 5)}
                                     />
@@ -475,7 +493,7 @@ const WhisperConfig = () => {
                 </TabsContent>
             </Tabs>
 
-            <Button onClick={saveConfig} className="w-full">Einstellungen speichern</Button>
+            <Button onClick={saveConfig} disabled={readOnly} className="w-full">Einstellungen speichern</Button>
         </div>
     );
 };

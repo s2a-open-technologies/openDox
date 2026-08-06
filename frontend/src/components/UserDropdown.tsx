@@ -59,7 +59,7 @@ const UserDropdown = () => {
                         <div className="flex flex-col space-y-1">
                             <p className="text-sm font-medium leading-none">{user?.name}</p>
                             <p className="text-xs leading-none text-muted-foreground">
-                                {user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : 'Benutzer'}
+                                {user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : user?.role === 'demo_viewer' ? 'Demo-Viewer (nur lesen)' : 'Benutzer'}
                             </p>
                         </div>
                     </DropdownMenuLabel>

@@ -57,7 +57,7 @@ const emptyForm = (): CategorySettingsData => ({
 
 const CategorySettings = () => {
     const { user, authFetch } = useAuth();
-    const isPrivileged = user?.role === 'admin' || user?.role === 'moderator';
+    const isPrivileged = user?.role === 'admin' || user?.role === 'moderator' || user?.role === 'demo_viewer';
     const [categories, setCategories] = useState<CategorySettingsData[]>([]);
     const [settings, setSettings] = useState<CategorySettingsData>(emptyForm());
     const [loading, setLoading] = useState(false);

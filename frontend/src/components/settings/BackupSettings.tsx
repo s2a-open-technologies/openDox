@@ -23,7 +23,7 @@ import { Download, Upload, Loader2, FileJson } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-const BackupSettings = () => {
+const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [exporting, setExporting] = useState(false);
@@ -102,7 +102,7 @@ const BackupSettings = () => {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Button onClick={handleExport} disabled={exporting} className="gap-2">
+                    <Button onClick={handleExport} disabled={exporting || readOnly} className="gap-2">
                         {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                         Backup herunterladen
                     </Button>
@@ -121,6 +121,7 @@ const BackupSettings = () => {
                         ref={fileInputRef}
                         type="file"
                         accept="application/json,.json"
+                        disabled={readOnly}
                         onChange={handleFileSelect}
                         className="hidden"
                     />
@@ -137,6 +138,7 @@ const BackupSettings = () => {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
+                                disabled={readOnly}
                                 onClick={() => {
                                     setSelectedFile(null);
                                     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -150,6 +152,7 @@ const BackupSettings = () => {
                             type="button"
                             variant="outline"
                             className="w-full gap-2"
+                            disabled={readOnly}
                             onClick={() => fileInputRef.current?.click()}
                         >
                             <Upload className="w-4 h-4" />
@@ -158,7 +161,7 @@ const BackupSettings = () => {
                     )}
                     <Button
                         onClick={handleImport}
-                        disabled={importing || !selectedFile}
+                        disabled={importing || !selectedFile || readOnly}
                         className="gap-2"
                     >
                         {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}

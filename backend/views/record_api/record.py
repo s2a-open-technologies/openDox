@@ -287,7 +287,13 @@ async def upload_audio(
     db.add(task)
     db.commit()
     db.refresh(task)
-    record.task_id = task.id
+    # Capture the plain id now, while `task` is still attached to this
+    # request-scoped session — see the matching comment in the websocket
+    # finalize() flow above for why touching `task.id` later (inside
+    # run_pipeline(), a detached asyncio.create_task()) raises
+    # "Instance <Task> is not bound to a Session".
+    task_id = task.id
+    record.task_id = task_id
     db.add(record)
     db.commit()
 
@@ -319,7 +325,7 @@ async def upload_audio(
         try:
             await asyncio.to_thread(
                 background_transcription_task,
-                task.id,
+                task_id,
                 session_id,
                 None,
                 file_path=upload_path,
@@ -330,7 +336,7 @@ async def upload_audio(
     asyncio.create_task(run_pipeline())
 
     return {
-        "task_id": task.id,
+        "task_id": task_id,
         "session_id": session_id,
         "record_id": record.id,
     }
@@ -736,14 +742,23 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         print(f"[WS-ERROR] {e}")
         client_connected = False
 
-    # Tear down the streaming ASR session if one is open. On a clean stop we
-    # wait for the server's final transcript; on a disconnect we just close.
+    # Tear down the streaming ASR session if one is open. On a clean stop,
+    # the Parakeet server's final transcript only feeds the live-typing UI
+    # callbacks (moot once Stop is pressed) and finalize()/background
+    # transcription below is fully independent of it — so don't make the
+    # frontend's "finished" response wait on it. Run it as a detached task
+    # instead, same pattern as finalize() further down. On a plain
+    # disconnect we just close.
     if stream_session is not None:
         if stopped:
-            try:
-                await stream_session.stop(timeout=30.0)
-            except Exception as e:
-                print(f"[STREAM-STOP-ERROR] {e}")
+
+            async def _stop_stream_session():
+                try:
+                    await stream_session.stop(timeout=30.0)
+                except Exception as e:
+                    print(f"[STREAM-STOP-ERROR] {e}")
+
+            asyncio.create_task(_stop_stream_session())
         else:
             await stream_session.close()
 
@@ -796,20 +811,28 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         db.add(task)
         db.commit()
         db.refresh(task)
+        # Capture the plain id now, while `task` is still attached to this
+        # request-scoped session. `finalize()` below runs as a detached
+        # background asyncio task via create_task() (not awaited), so by the
+        # time it runs, this websocket handler may already have returned and
+        # SessionDep's `with Session(engine)` block already closed `db` —
+        # touching the (by-then expired-by-commit) `task.id` attribute at
+        # that point raises "Instance <Task> is not bound to a Session".
+        task_id = task.id
 
         # Link task to record
         record = db.exec(
             select(Record).where(Record.session_id == session_id)
         ).one_or_none()
         if record:
-            record.task_id = task.id
+            record.task_id = task_id
             db.add(record)
             db.commit()
 
         if client_connected:
             try:
                 await websocket.send_json(
-                    {"status": "finished", "task_id": task.id, "session_id": session_id}
+                    {"status": "finished", "task_id": task_id, "session_id": session_id}
                 )
                 print("[WS] Background Whisper processing launched (Response sent)")
             except Exception as e:
@@ -840,7 +863,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 await asyncio.to_thread(_pcm_file_to_wav_file, pcm_path, wav_path)
                 await asyncio.to_thread(
                     background_transcription_task,
-                    task.id,
+                    task_id,
                     session_id,
                     None,
                     file_path=wav_path,

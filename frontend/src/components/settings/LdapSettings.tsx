@@ -42,7 +42,7 @@ interface LdapSettingsData {
     moderator_groups: string;
 }
 
-const LdapSettings = () => {
+const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [settings, setSettings] = useState<LdapSettingsData>({
         server_host: '',
@@ -170,6 +170,7 @@ const LdapSettings = () => {
                             <Label>Server Host</Label>
                             <Input
                                 value={settings.server_host}
+                                disabled={readOnly}
                                 onChange={e => setSettings({ ...settings, server_host: e.target.value })}
                                 placeholder="ldaps.example.com"
                             />
@@ -179,6 +180,7 @@ const LdapSettings = () => {
                             <Input
                                 type="number"
                                 value={settings.server_port}
+                                disabled={readOnly}
                                 onChange={e => setSettings({ ...settings, server_port: parseInt(e.target.value) || 389 })}
                             />
                         </div>
@@ -188,6 +190,7 @@ const LdapSettings = () => {
                         <Switch
                             id="use-ssl"
                             checked={settings.use_ssl}
+                            disabled={readOnly}
                             onCheckedChange={handleSSLChange}
                         />
                         <Label htmlFor="use-ssl">SSL (LDAPS) verwenden</Label>
@@ -200,6 +203,7 @@ const LdapSettings = () => {
                                 <input
                                     type="file"
                                     accept=".pem,.crt,.cer"
+                                    disabled={readOnly}
                                     onChange={(e) => setCertFile(e.target.files?.[0] || null)}
                                     className="flex-1 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                                 />
@@ -208,7 +212,7 @@ const LdapSettings = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={handleCertUpload}
-                                    disabled={!certFile || certUploading}
+                                    disabled={!certFile || certUploading || readOnly}
                                 >
                                     {certUploading ? 'Lädt...' : <><Upload className="w-4 h-4 mr-1" /> Upload</>}
                                 </Button>
@@ -227,6 +231,7 @@ const LdapSettings = () => {
                         <Label>Base DN</Label>
                         <Input
                             value={settings.base_dn}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, base_dn: e.target.value })}
                             placeholder="dc=example,dc=com"
                         />
@@ -236,6 +241,7 @@ const LdapSettings = () => {
                         <Label>User DN Pattern (uid or sAMAccountName)</Label>
                         <Input
                             value={settings.user_dn}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, user_dn: e.target.value })}
                             placeholder="uid"
                         />
@@ -245,6 +251,7 @@ const LdapSettings = () => {
                         <Label>Suchfilter (optional)</Label>
                         <Input
                             value={settings.search_filter}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, search_filter: e.target.value })}
                             placeholder="(memberOf=cn=opendox,ou=groups,dc=example,dc=com)"
                         />
@@ -257,6 +264,7 @@ const LdapSettings = () => {
                         <Label>Erlaubte Gruppen (Komma-getrennt)</Label>
                         <Input
                             value={settings.allowed_groups}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, allowed_groups: e.target.value })}
                             placeholder="opendox-user"
                         />
@@ -269,6 +277,7 @@ const LdapSettings = () => {
                         <Label>Admin-Gruppen (Komma-getrennt)</Label>
                         <Input
                             value={settings.admin_groups}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, admin_groups: e.target.value })}
                             placeholder="opendox-admin"
                         />
@@ -278,6 +287,7 @@ const LdapSettings = () => {
                         <Label>Moderator-Gruppen (Komma-getrennt)</Label>
                         <Input
                             value={settings.moderator_groups}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, moderator_groups: e.target.value })}
                             placeholder="opendox-moderatoren"
                         />
@@ -290,6 +300,7 @@ const LdapSettings = () => {
                         <Label>Bind User DN</Label>
                         <Input
                             value={settings.bind_user_dn}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, bind_user_dn: e.target.value })}
                             placeholder="cn=admin,dc=example,dc=com"
                         />
@@ -300,13 +311,14 @@ const LdapSettings = () => {
                         <Input
                             type="password"
                             value={settings.bind_user_password}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, bind_user_password: e.target.value })}
                         />
                     </div>
 
                     <div className="flex space-x-2 pt-4">
-                        <Button type="submit" disabled={loading}>Speichern</Button>
-                        <Button type="button" variant="outline" onClick={handleTest} disabled={loading}>Verbindung testen</Button>
+                        <Button type="submit" disabled={loading || readOnly}>Speichern</Button>
+                        <Button type="button" variant="outline" onClick={handleTest} disabled={loading || readOnly}>Verbindung testen</Button>
                     </div>
                 </form>
             </CardContent>

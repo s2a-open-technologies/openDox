@@ -22,7 +22,9 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 # Valid role values. ``admin`` supersedes the legacy ``is_superuser=True``.
-ROLES = ("admin", "moderator", "user")
+# ``demo_viewer``: sieht alle Admin-Bereiche, aber nur lesend (Demo-Zwecke);
+# einzig Kategorien bleiben für diese Rolle bearbeitbar.
+ROLES = ("admin", "moderator", "demo_viewer", "user")
 
 
 class User(SQLModel, table=True):

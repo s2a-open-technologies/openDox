@@ -197,7 +197,7 @@ def _require_role(*allowed_roles: str):
 @auth_bp.get("/users", response_model=list[UserRead])
 async def list_users(
     db: SessionDep,
-    current_user: User = Depends(_require_role("admin")),
+    current_user: User = Depends(_require_role("admin", "demo_viewer")),
     offset: int = 0,
     limit: int = 100,
 ):
@@ -230,7 +230,7 @@ async def create_user(
 async def get_user(
     user_id: int,
     db: SessionDep,
-    current_user: User = Depends(_require_role("admin")),
+    current_user: User = Depends(_require_role("admin", "demo_viewer")),
 ):
     user = db.get(User, user_id)
     if not user:

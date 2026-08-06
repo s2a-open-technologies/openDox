@@ -41,7 +41,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
-type Role = 'admin' | 'moderator' | 'user';
+type Role = 'admin' | 'moderator' | 'demo_viewer' | 'user';
 
 interface UserData {
     id: number;
@@ -53,10 +53,11 @@ interface UserData {
 const roleLabels: Record<Role, string> = {
     admin: 'Administrator',
     moderator: 'Moderator',
+    demo_viewer: 'Demo-Viewer (nur lesen)',
     user: 'Benutzer',
 };
 
-const UserSettings = () => {
+const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(false);
@@ -169,7 +170,7 @@ const UserSettings = () => {
                         <CardTitle>Benutzerliste</CardTitle>
                         <CardDescription>Verwalten Sie lokale Benutzerkonten</CardDescription>
                     </div>
-                    <Button onClick={openCreate} className="flex items-center gap-2">
+                    <Button onClick={openCreate} disabled={readOnly} className="flex items-center gap-2">
                         <Plus className="w-4 h-4" />
                         Benutzer anlegen
                     </Button>
@@ -201,6 +202,7 @@ const UserSettings = () => {
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        disabled={readOnly}
                                         onClick={() => openEdit(user)}
                                     >
                                         <Pencil className="h-4 w-4" />
@@ -209,6 +211,7 @@ const UserSettings = () => {
                                         variant="ghost"
                                         size="icon"
                                         className="text-destructive hover:text-destructive"
+                                        disabled={readOnly}
                                         onClick={() => handleDelete(user.id)}
                                     >
                                         <Trash2 className="h-4 w-4" />
@@ -276,6 +279,7 @@ const UserSettings = () => {
                                 <SelectContent>
                                     <SelectItem value="admin">Administrator</SelectItem>
                                     <SelectItem value="moderator">Moderator</SelectItem>
+                                    <SelectItem value="demo_viewer">Demo-Viewer (nur lesen)</SelectItem>
                                     <SelectItem value="user">Benutzer</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -284,7 +288,7 @@ const UserSettings = () => {
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>
-                        <Button onClick={handleSubmit} disabled={loading}>
+                        <Button onClick={handleSubmit} disabled={loading || readOnly}>
                             {loading ? 'Speichern...' : (editingUser ? 'Aktualisieren' : 'Anlegen')}
                         </Button>
                     </DialogFooter>

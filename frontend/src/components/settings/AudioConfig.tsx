@@ -15,7 +15,7 @@ interface AudioSettings {
 
 const BITRATE_FORMATS = new Set(["mp3", "ogg"]);
 
-export function AudioConfig() {
+export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
   const { authFetch } = useAuth();
   const [config, setConfig] = useState<AudioSettings>({
     audio_download_enabled: true,
@@ -75,6 +75,7 @@ export function AudioConfig() {
         <div className="flex items-center gap-3">
           <Switch
             checked={config.audio_download_enabled}
+            disabled={readOnly}
             onCheckedChange={(checked) => updateField('audio_download_enabled', checked)}
           />
           <Label htmlFor="audio-enabled">Audio speichern</Label>
@@ -84,6 +85,7 @@ export function AudioConfig() {
           <select
             id="audio-format"
             value={config.audio_format}
+            disabled={readOnly}
             onChange={(e) => updateField('audio_format', e.target.value)}
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
@@ -99,6 +101,7 @@ export function AudioConfig() {
             <select
               id="audio-bitrate"
               value={config.audio_bitrate}
+              disabled={readOnly}
               onChange={(e) => updateField('audio_bitrate', e.target.value)}
               className="w-full px-3 py-2 border rounded-md bg-background"
             >
@@ -119,6 +122,7 @@ export function AudioConfig() {
           <select
             id="audio-sample-rate"
             value={config.audio_sample_rate.toString()}
+            disabled={readOnly}
             onChange={(e) => updateField('audio_sample_rate', parseInt(e.target.value))}
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
@@ -131,7 +135,7 @@ export function AudioConfig() {
           Mono erzwungen. Wenn ffmpeg nicht verfügbar ist, wird kein Audio gespeichert.
         </p>
         <div className="pt-4 flex justify-end">
-          <Button onClick={saveConfig} disabled={loading}>
+          <Button onClick={saveConfig} disabled={loading || readOnly}>
             {loading ? 'Speichern...' : 'Speichern'}
           </Button>
         </div>

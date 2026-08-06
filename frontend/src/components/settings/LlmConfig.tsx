@@ -38,7 +38,7 @@ interface LlmSettings {
     sanitizer_api_key: string;
 }
 
-const LlmConfig = () => {
+const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [testStatus, setTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
     const [testing, setTesting] = useState(false);
@@ -128,6 +128,7 @@ const LlmConfig = () => {
                         <Label>API Endpoint</Label>
                         <Input 
                             placeholder="http://localhost:11434/v1" 
+                            disabled={readOnly}
                             value={config.llm_api_endpoint} 
                             onChange={(e) => updateField('llm_api_endpoint', e.target.value)} 
                         />
@@ -141,6 +142,7 @@ const LlmConfig = () => {
                         <Input 
                             type="password" 
                             placeholder="sk-..." 
+                            disabled={readOnly}
                             value={config.llm_api_key} 
                             onChange={(e) => updateField('llm_api_key', e.target.value)} 
                         />
@@ -150,6 +152,7 @@ const LlmConfig = () => {
                         <Label>Modell</Label>
                         <Input 
                             placeholder="medgemma-4b-it:Q4_K_M" 
+                            disabled={readOnly}
                             value={config.llm_model} 
                             onChange={(e) => updateField('llm_model', e.target.value)} 
                         />
@@ -159,6 +162,7 @@ const LlmConfig = () => {
                         <Label>Korrektions-Modell (optional)</Label>
                         <Input
                             placeholder="leer = gleich wie Zusammenfassungs-Modell"
+                            disabled={readOnly}
                             value={config.correction_model}
                             onChange={(e) => updateField('correction_model', e.target.value)}
                         />
@@ -176,6 +180,7 @@ const LlmConfig = () => {
                                 max={1} 
                                 step={0.1}
                                 value={config.llm_temperature} 
+                                disabled={readOnly}
                                 onChange={(e) => updateField('llm_temperature', parseFloat(e.target.value))} 
                             />
                         </div>
@@ -187,6 +192,7 @@ const LlmConfig = () => {
                                 max={8192}
                                 step={128}
                                 value={config.llm_max_tokens} 
+                                disabled={readOnly}
                                 onChange={(e) => updateField('llm_max_tokens', parseInt(e.target.value))} 
                             />
                         </div>
@@ -206,6 +212,7 @@ const LlmConfig = () => {
                         <Switch
                             id="sanitizer-enabled"
                             checked={config.sanitizer_enabled}
+                            disabled={readOnly}
                             onCheckedChange={(v) => updateField('sanitizer_enabled', v)}
                         />
                         <Label htmlFor="sanitizer-enabled">Sanitizer aktivieren</Label>
@@ -217,6 +224,7 @@ const LlmConfig = () => {
                                 <Label>Sanitizer Endpoint (vollständige URL)</Label>
                                 <Input
                                     placeholder="http://entityguard:9500/api/v1/sanitize"
+                                    disabled={readOnly}
                                     value={config.sanitizer_endpoint}
                                     onChange={(e) => updateField('sanitizer_endpoint', e.target.value)}
                                 />
@@ -226,6 +234,7 @@ const LlmConfig = () => {
                                 <Input
                                     type="password"
                                     placeholder="Bearer Token"
+                                    disabled={readOnly}
                                     value={config.sanitizer_api_key}
                                     onChange={(e) => updateField('sanitizer_api_key', e.target.value)}
                                 />
@@ -236,8 +245,8 @@ const LlmConfig = () => {
             </Card>
 
             <div className="flex gap-2">
-                <Button onClick={saveConfig} className="flex-1">Einstellungen speichern</Button>
-                <Button onClick={testConnection} variant="outline" disabled={testing} className="gap-2">
+                <Button onClick={saveConfig} disabled={readOnly} className="flex-1">Einstellungen speichern</Button>
+                <Button onClick={testConnection} variant="outline" disabled={testing || readOnly} className="gap-2">
                     {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     Verbindung testen
                 </Button>

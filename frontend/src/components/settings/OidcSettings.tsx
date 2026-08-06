@@ -38,7 +38,7 @@ interface OidcSettingsData {
     username_claim: string;
 }
 
-const OidcSettings = () => {
+const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [settings, setSettings] = useState<OidcSettingsData>({
         enabled: false,
@@ -109,6 +109,7 @@ const OidcSettings = () => {
                         <Switch
                             id="oidc-enabled"
                             checked={settings.enabled}
+                            disabled={readOnly}
                             onCheckedChange={(v) => setSettings({ ...settings, enabled: v })}
                         />
                         <Label htmlFor="oidc-enabled">OIDC aktivieren</Label>
@@ -118,6 +119,7 @@ const OidcSettings = () => {
                         <Label>Provider URL (Issuer)</Label>
                         <Input
                             value={settings.provider_url}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, provider_url: e.target.value })}
                             placeholder="https://keycloak.example.com/realms/myrealm"
                         />
@@ -131,6 +133,7 @@ const OidcSettings = () => {
                             <Label>Client ID</Label>
                             <Input
                                 value={settings.client_id}
+                                disabled={readOnly}
                                 onChange={e => setSettings({ ...settings, client_id: e.target.value })}
                                 placeholder="opendox"
                             />
@@ -139,6 +142,7 @@ const OidcSettings = () => {
                             <Label>Client Secret</Label>
                             <Input
                                 type="password"
+                                disabled={readOnly}
                                 value={settings.client_secret}
                                 onChange={e => setSettings({ ...settings, client_secret: e.target.value })}
                                 placeholder="••••••••"
@@ -150,6 +154,7 @@ const OidcSettings = () => {
                         <Label>Scopes</Label>
                         <Input
                             value={settings.scopes}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, scopes: e.target.value })}
                             placeholder="openid email profile"
                         />
@@ -159,6 +164,7 @@ const OidcSettings = () => {
                         <Label>Username-Claim</Label>
                         <Input
                             value={settings.username_claim}
+                            disabled={readOnly}
                             onChange={e => setSettings({ ...settings, username_claim: e.target.value })}
                             placeholder="preferred_username"
                         />
@@ -169,6 +175,7 @@ const OidcSettings = () => {
                             <Label>Gruppen-Claim</Label>
                             <Input
                                 value={settings.group_claim}
+                                disabled={readOnly}
                                 onChange={e => setSettings({ ...settings, group_claim: e.target.value })}
                                 placeholder="groups"
                             />
@@ -177,6 +184,7 @@ const OidcSettings = () => {
                             <Label>Admin-Gruppen (Komma-getrennt)</Label>
                             <Input
                                 value={settings.admin_groups}
+                                disabled={readOnly}
                                 onChange={e => setSettings({ ...settings, admin_groups: e.target.value })}
                                 placeholder="opendox-admin"
                             />
@@ -188,6 +196,7 @@ const OidcSettings = () => {
                             <Label>Moderator-Gruppen (Komma-getrennt)</Label>
                             <Input
                                 value={settings.moderator_groups}
+                                disabled={readOnly}
                                 onChange={e => setSettings({ ...settings, moderator_groups: e.target.value })}
                                 placeholder="opendox-moderator"
                             />
@@ -198,7 +207,7 @@ const OidcSettings = () => {
                     </div>
 
                     <div className="pt-2">
-                        <Button type="submit" disabled={loading}>Speichern</Button>
+                        <Button type="submit" disabled={loading || readOnly}>Speichern</Button>
                     </div>
                 </form>
             </CardContent>

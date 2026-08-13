@@ -19,44 +19,39 @@ eingetragen werden (siehe unten).
 
 ```mermaid
 flowchart TB
-    Browser["Browser<br/>(Arzt/Praxispersonal)"]
-
-    subgraph Infra["Betreiber-Infrastruktur — per Default vollständig self-hosted"]
-        App["openDox App<br/>(FastAPI + SPA)"]
-        DB[("PostgreSQL<br/>User, Records, Settings")]
-        Redis[("Redis<br/>Session-Metadaten, kein Audio")]
-        Parakeet["Parakeet-Server<br/>Live-ASR (VAD + ONNX)"]
-        WhisperSrv["Whisper-Server<br/>finale ASR (faster-whisper)"]
-        Chunks["chunks/ (lokales Disk)<br/>PCM/WAV, temporär"]
-        S3[("Objektspeicher (Garage/S3)<br/>verschlüsseltes Audio, optional")]
-    end
-
-    subgraph Configurable["Vom Betreiber eingetragen — kann intern ODER extern/Drittland sein"]
-        LLM["LLM-Endpunkt<br/>OpenAI-kompatibel"]
-        Sanitizer["PII-Sanitizer<br/>EntityGuard, optional"]
-    end
-
-    subgraph IdP["Externe Identitätsanbieter — nur falls konfiguriert"]
-        LDAPSrv["LDAP/AD-Server<br/>(eigene Institution)"]
-        OIDCSrv["OIDC-Provider<br/>z.B. Keycloak"]
-    end
-
-    Browser -- "1 Audio, WebSocket (PCM)" --> App
+ subgraph Infra["Betreiber-Infrastruktur — per Default vollständig self-hosted"]
+        App["openDox App<br>(FastAPI + SPA)"]
+        DB[("PostgreSQL<br>User, Records, Settings")]
+        Redis[("Redis<br>Session-Metadaten, kein Audio")]
+        Parakeet["Parakeet-Server<br>Live-ASR (VAD + ONNX)"]
+        WhisperSrv["Whisper-Server<br>finale ASR (faster-whisper)"]
+        Chunks["chunks/ (lokales Disk)<br>PCM/WAV, temporär"]
+        S3[("Objektspeicher (Garage/S3)<br>verschlüsseltes Audio, optional")]
+  end
+ subgraph Configurable["Vom Betreiber eingetragen — kann intern ODER extern/Drittland sein"]
+        LLM["LLM-Endpunkt<br>OpenAI-kompatibel"]
+        Sanitizer["PII-Sanitizer<br>EntityGuard, optional"]
+  end
+ subgraph IdP["Externe Identitätsanbieter — nur falls konfiguriert"]
+        LDAPSrv["LDAP/AD-Server<br>(eigene Institution)"]
+        OIDCSrv["OIDC-Provider<br>z.B. Keycloak"]
+  end
+    Browser["Browser<br>(Arzt/Praxispersonal)"] -- 1 Audio, WebSocket (PCM) --> App
     App -- "2 Live-Frames" --> Parakeet
     Parakeet -- "Live-Text" --> App
-    App -- "3 volle Audiodatei" --> WhisperSrv
-    WhisperSrv -- "Transkript (Klarnamen)" --> App
-    App -- "4a Text, Klarnamen" --> Sanitizer
-    Sanitizer -- "sanitisierter Text + Mapping" --> App
-    App -- "4b Text sanitisiert/Klarnamen + Prompt" --> LLM
-    LLM -- "Zusammenfassung" --> App
-    App -- "content/summarize/pii_mapping, verschlüsselt" --> DB
+    App -- 3 volle Audiodatei --> WhisperSrv
+    WhisperSrv -- Transkript (Klarnamen) --> App
+    App -- 4a Text, Klarnamen --> Sanitizer
+    Sanitizer -- sanitisierter Text + Mapping --> App
+    App -- 4b Text sanitisiert/Klarnamen + Prompt --> LLM
+    LLM -- Zusammenfassung --> App
+    App -- content/summarize/pii_mapping, verschlüsselt --> DB
     App -- "Session-Metadaten" --> Redis
-    App -- "PCM/WAV, wird nach Verarbeitung gelöscht" --> Chunks
-    App -- "5 Audio, verschlüsselt, optional" --> S3
+    App -- PCM/WAV, wird nach Verarbeitung gelöscht --> Chunks
+    App -- 5 Audio, verschlüsselt, optional --> S3
     App -- "Login-Anfrage" --> LDAPSrv
     App -- "Auth-Code-Flow" --> OIDCSrv
-    Browser -- "HTTPS, JWT" --> App
+    Browser -- HTTPS, JWT --> App
 ```
 
 Die Nummerierung folgt dem zeitlichen Ablauf einer Aufnahme (siehe

@@ -32,6 +32,9 @@ class Categories(SQLModel, table=True):
     llm_api_key: Optional[str] = Field(default=None)
     llm_temperature: Optional[float] = Field(default=None)
     llm_max_tokens: Optional[int] = Field(default=None)
+    llm_top_p: Optional[float] = Field(default=None)
+    llm_frequency_penalty: Optional[float] = Field(default=None)
+    llm_enable_thinking: Optional[bool] = Field(default=None)
     user_id: Optional[int] = Field(default=None)
 
 
@@ -46,6 +49,9 @@ class CategoriesCreate(SQLModel):
     llm_api_key: Optional[str] = None
     llm_temperature: Optional[float] = None
     llm_max_tokens: Optional[int] = None
+    llm_top_p: Optional[float] = None
+    llm_frequency_penalty: Optional[float] = None
+    llm_enable_thinking: Optional[bool] = None
 
 
 class CategoriesRead(SQLModel):
@@ -60,6 +66,9 @@ class CategoriesRead(SQLModel):
     llm_api_key: Optional[str]
     llm_temperature: Optional[float]
     llm_max_tokens: Optional[int]
+    llm_top_p: Optional[float] = None
+    llm_frequency_penalty: Optional[float] = None
+    llm_enable_thinking: Optional[bool] = None
     user_id: Optional[int] = None
 
 
@@ -83,4 +92,7 @@ class CategoriesListRead(SQLModel):
     llm_api_endpoint: Optional[str]
     llm_temperature: Optional[float]
     llm_max_tokens: Optional[int]
+    llm_top_p: Optional[float] = None
+    llm_frequency_penalty: Optional[float] = None
+    llm_enable_thinking: Optional[bool] = None
     user_id: Optional[int] = None

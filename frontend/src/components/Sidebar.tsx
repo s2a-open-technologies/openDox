@@ -43,6 +43,7 @@ interface SidebarProps {
   showArchived?: boolean;
   onToggleArchived?: (show: boolean) => void;
   onUploadClick?: () => void;
+  showUploadButton?: boolean;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }
@@ -58,6 +59,7 @@ const Sidebar = ({
   showArchived = false,
   onToggleArchived,
   onUploadClick,
+  showUploadButton = true,
   mobileOpen = false,
   onMobileOpenChange,
 }: SidebarProps) => {
@@ -92,14 +94,16 @@ const Sidebar = ({
         >
           <Archive className="w-4 h-4" />
         </Button>
-        <Button
-          variant="ghost"
-          className="flex-1"
-          onClick={() => onUploadClick?.()}
-          title="Audio hochladen"
-        >
-          <Upload className="w-4 h-4" />
-        </Button>
+        {showUploadButton && (
+          <Button
+            variant="ghost"
+            className="flex-1"
+            onClick={() => onUploadClick?.()}
+            title="Audio hochladen"
+          >
+            <Upload className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1 min-h-0 py-3 px-2">

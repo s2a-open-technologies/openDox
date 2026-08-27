@@ -91,6 +91,9 @@ class SummarizeModel:
         api_key=None,
         temperature=None,
         max_tokens=None,
+        top_p=None,
+        frequency_penalty=None,
+        enable_thinking=None,
         timeout=None,
     ):
         """Initializes the SummarizeModel with DB settings or overrides."""
@@ -128,16 +131,45 @@ class SummarizeModel:
             if max_tokens is not None
             else (db_settings.llm_max_tokens if db_settings else 2048)
         )
+        self.top_p = (
+            top_p
+            if top_p is not None
+            else (db_settings.llm_top_p if db_settings else 0.9)
+        )
+        self.frequency_penalty = (
+            frequency_penalty
+            if frequency_penalty is not None
+            else (db_settings.llm_frequency_penalty if db_settings else 0.3)
+        )
+        self.enable_thinking = (
+            enable_thinking
+            if enable_thinking is not None
+            else (db_settings.llm_enable_thinking if db_settings else False)
+        )
 
-        self.client = ChatOpenAI(
+        self.client = self._build_client()
+
+    def _build_client(self) -> ChatOpenAI:
+        """Build the OpenAI-compatible chat client from the current settings.
+
+        Thinking suppression is sent via both known backend conventions at
+        once — Ollama's top-level "think" field and vLLM/Qwen3's nested
+        "chat_template_kwargs.enable_thinking" — since a self-hosted
+        OpenAI-compatible server ignores fields it doesn't recognize.
+        """
+        return ChatOpenAI(
             model=self.model,
             base_url=self.base_url,
             api_key=self.api_key,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            top_p=0.9,
-            frequency_penalty=0.3,
+            top_p=self.top_p,
+            frequency_penalty=self.frequency_penalty,
             timeout=self.timeout,
+            model_kwargs={
+                "think": self.enable_thinking,
+                "chat_template_kwargs": {"enable_thinking": self.enable_thinking},
+            },
         )
 
     def reload(self):
@@ -152,18 +184,12 @@ class SummarizeModel:
                 self.api_key = db_settings.llm_api_key
                 self.temperature = db_settings.llm_temperature
                 self.max_tokens = db_settings.llm_max_tokens
+                self.top_p = db_settings.llm_top_p
+                self.frequency_penalty = db_settings.llm_frequency_penalty
+                self.enable_thinking = db_settings.llm_enable_thinking
+                self.timeout = LLM_REQUEST_TIMEOUT_SECONDS
 
-                self.client = ChatOpenAI(
-                    model=self.model,
-                    base_url=self.base_url,
-                    api_key=self.api_key,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    top_p=0.9,
-                    frequency_penalty=0.3,
-                    timeout=LLM_REQUEST_TIMEOUT_SECONDS,
-                    model_kwargs={"think": False},
-                )
+                self.client = self._build_client()
         except Exception:
             pass
 

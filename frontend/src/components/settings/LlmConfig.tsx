@@ -32,6 +32,9 @@ interface LlmSettings {
     llm_model: string;
     llm_temperature: number;
     llm_max_tokens: number;
+    llm_top_p: number;
+    llm_frequency_penalty: number;
+    llm_enable_thinking: boolean;
     correction_model: string;
     sanitizer_enabled: boolean;
     sanitizer_endpoint: string;
@@ -49,6 +52,9 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         llm_model: 'medgemma-4b-it:Q4_K_M',
         llm_temperature: 0.2,
         llm_max_tokens: 2048,
+        llm_top_p: 0.9,
+        llm_frequency_penalty: 0.3,
+        llm_enable_thinking: false,
         correction_model: '',
         sanitizer_enabled: false,
         sanitizer_endpoint: '',
@@ -65,6 +71,9 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                     llm_model: data.llm_model || 'medgemma-4b-it:Q4_K_M',
                     llm_temperature: data.llm_temperature ?? 0.2,
                     llm_max_tokens: data.llm_max_tokens ?? 2048,
+                    llm_top_p: data.llm_top_p ?? 0.9,
+                    llm_frequency_penalty: data.llm_frequency_penalty ?? 0.3,
+                    llm_enable_thinking: data.llm_enable_thinking ?? false,
                     correction_model: data.correction_model || '',
                     sanitizer_enabled: data.sanitizer_enabled ?? false,
                     sanitizer_endpoint: data.sanitizer_endpoint || '',
@@ -186,16 +195,56 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                         </div>
                         <div className="space-y-2">
                             <Label>Max Tokens</Label>
-                            <Input 
-                                type="number" 
-                                min={128} 
+                            <Input
+                                type="number"
+                                min={128}
                                 max={8192}
                                 step={128}
-                                value={config.llm_max_tokens} 
+                                value={config.llm_max_tokens}
                                 disabled={readOnly}
-                                onChange={(e) => updateField('llm_max_tokens', parseInt(e.target.value))} 
+                                onChange={(e) => updateField('llm_max_tokens', parseInt(e.target.value))}
                             />
                         </div>
+                        <div className="space-y-2">
+                            <Label>Top P (0.0 - 1.0)</Label>
+                            <Input
+                                type="number"
+                                min={0}
+                                max={1}
+                                step={0.1}
+                                value={config.llm_top_p}
+                                disabled={readOnly}
+                                onChange={(e) => updateField('llm_top_p', parseFloat(e.target.value))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Frequency Penalty (-2.0 - 2.0)</Label>
+                            <Input
+                                type="number"
+                                min={-2}
+                                max={2}
+                                step={0.1}
+                                value={config.llm_frequency_penalty}
+                                disabled={readOnly}
+                                onChange={(e) => updateField('llm_frequency_penalty', parseFloat(e.target.value))}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 border-t pt-4">
+                        <div className="flex items-center gap-3">
+                            <Switch
+                                id="llm-enable-thinking"
+                                checked={config.llm_enable_thinking}
+                                disabled={readOnly}
+                                onCheckedChange={(v) => updateField('llm_enable_thinking', v)}
+                            />
+                            <Label htmlFor="llm-enable-thinking">Thinking aktivieren</Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Standardmäßig deaktiviert: Reasoning-Modelle (z.B. MedGemma, Qwen3, DeepSeek-R1)
+                            können bei Zusammenfassungen sonst extrem lange brauchen oder hängen bleiben.
+                        </p>
                     </div>
                 </CardContent>
             </Card>

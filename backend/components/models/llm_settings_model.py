@@ -29,6 +29,15 @@ class LlmSettingsModel(SQLModel, table=True):
     llm_model: Optional[str] = Field(default="medgemma-4b-it:Q4_K_M")
     llm_temperature: float = Field(default=0.2)
     llm_max_tokens: int = Field(default=2048)
+    llm_top_p: float = Field(default=0.9)
+    llm_frequency_penalty: float = Field(default=0.3)
+
+    # Reasoning/"thinking" models (MedGemma, Qwen3, DeepSeek-R1-style) can
+    # hang or take far too long during summarization. Disabled by default;
+    # sent to the backend via both the Ollama ("think") and vLLM/Qwen3
+    # ("chat_template_kwargs.enable_thinking") conventions at once, see
+    # SummarizeModel._build_client().
+    llm_enable_thinking: bool = Field(default=False)
 
     # Optional dedicated model for near-live chunk correction.
     # Leave empty to use llm_model (same model for both correction and summary).

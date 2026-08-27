@@ -273,6 +273,9 @@ def background_transcription_task(
                 api_key=category_llm_override.llm_api_key,
                 temperature=category_llm_override.llm_temperature,
                 max_tokens=category_llm_override.llm_max_tokens,
+                top_p=category_llm_override.llm_top_p,
+                frequency_penalty=category_llm_override.llm_frequency_penalty,
+                enable_thinking=category_llm_override.llm_enable_thinking,
             )
         else:
             model = SummarizeModel()

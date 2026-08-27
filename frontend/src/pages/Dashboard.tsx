@@ -432,6 +432,7 @@ const Dashboard = () => {
         showArchived={showArchived}
         onToggleArchived={setShowArchived}
         onUploadClick={() => setUploadDialogOpen(true)}
+        showUploadButton={!activeSessionId && !selectedRecording}
         mobileOpen={mobileSidebarOpen}
         onMobileOpenChange={setMobileSidebarOpen}
       />
@@ -612,91 +613,6 @@ const Dashboard = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
-              if (!uploading) setUploadDialogOpen(open);
-            }}>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Audio hochladen</DialogTitle>
-                  <DialogDescription>
-                    Laden Sie eine fertige Audiodatei hoch. Sie durchläuft automatisch die Transkriptions- und Zusammenfassungspipeline.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <label htmlFor="upload-title" className="text-sm font-medium">Titel (optional)</label>
-                    <Input
-                      id="upload-title"
-                      value={uploadTitle}
-                      onChange={(e) => setUploadTitle(e.target.value)}
-                      placeholder="z.B. Anamnese Patient Müller"
-                      disabled={uploading}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">Kategorie</label>
-                    <Select
-                      value={uploadCategoryId || ""}
-                      onValueChange={(val) => setUploadCategoryId(val)}
-                      disabled={uploading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Kategorie auswählen..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {categories.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Legen Sie zuerst eine Kategorie unter Einstellungen an.
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <label htmlFor="upload-file" className="text-sm font-medium">Audiodatei</label>
-                    <Input
-                      id="upload-file"
-                      type="file"
-                      accept="audio/*"
-                      onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                      disabled={uploading}
-                    />
-                    {uploadFile && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        Ausgewählt: {uploadFile.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Wichtiger Hinweis</AlertTitle>
-                    <AlertDescription className="text-sm leading-relaxed">
-                      Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
-                      Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
-                      Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="secondary" disabled={uploading}>Abbrechen</Button>
-                  </DialogClose>
-                  <Button
-                    onClick={handleUploadSubmit}
-                    disabled={!uploadCategoryId || !uploadFile || uploading}
-                  >
-                    {uploading ? "Wird hochgeladen..." : "Hochladen"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         ) : (
           <TranscriptView
@@ -714,6 +630,91 @@ const Dashboard = () => {
           />
         )}
         </div>
+
+        <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
+          if (!uploading) setUploadDialogOpen(open);
+        }}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Audio hochladen</DialogTitle>
+              <DialogDescription>
+                Laden Sie eine fertige Audiodatei hoch. Sie durchläuft automatisch die Transkriptions- und Zusammenfassungspipeline.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label htmlFor="upload-title" className="text-sm font-medium">Titel (optional)</label>
+                <Input
+                  id="upload-title"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  placeholder="z.B. Anamnese Patient Müller"
+                  disabled={uploading}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Kategorie</label>
+                <Select
+                  value={uploadCategoryId || ""}
+                  onValueChange={(val) => setUploadCategoryId(val)}
+                  disabled={uploading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Kategorie auswählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {categories.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Legen Sie zuerst eine Kategorie unter Einstellungen an.
+                  </p>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="upload-file" className="text-sm font-medium">Audiodatei</label>
+                <Input
+                  id="upload-file"
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  disabled={uploading}
+                />
+                {uploadFile && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    Ausgewählt: {uploadFile.name}
+                  </p>
+                )}
+              </div>
+
+              <Alert variant="destructive" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Wichtiger Hinweis</AlertTitle>
+                <AlertDescription className="text-sm leading-relaxed">
+                  Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
+                  Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
+                  Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+                </AlertDescription>
+              </Alert>
+            </div>
+
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary" disabled={uploading}>Abbrechen</Button>
+              </DialogClose>
+              <Button
+                onClick={handleUploadSubmit}
+                disabled={!uploadCategoryId || !uploadFile || uploading}
+              >
+                {uploading ? "Wird hochgeladen..." : "Hochladen"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

@@ -39,6 +39,9 @@ interface CategorySettingsData {
     llm_api_key: string | null;
     llm_temperature: number | null;
     llm_max_tokens: number | null;
+    llm_top_p: number | null;
+    llm_frequency_penalty: number | null;
+    llm_enable_thinking: boolean | null;
     user_id?: number | null;
 }
 
@@ -53,6 +56,9 @@ const emptyForm = (): CategorySettingsData => ({
     llm_api_key: null,
     llm_temperature: null,
     llm_max_tokens: null,
+    llm_top_p: null,
+    llm_frequency_penalty: null,
+    llm_enable_thinking: null,
 });
 
 const CategorySettings = () => {
@@ -102,6 +108,9 @@ const CategorySettings = () => {
                     llm_api_key: null,
                     llm_temperature: null,
                     llm_max_tokens: null,
+                    llm_top_p: null,
+                    llm_frequency_penalty: null,
+                    llm_enable_thinking: null,
                 };
 
             const res = await authFetch(url, {
@@ -345,6 +354,52 @@ const CategorySettings = () => {
                                                 })}
                                                 placeholder="Standard aus globalen Einstellungen"
                                             />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Top P</Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={1}
+                                                step={0.1}
+                                                value={settings.llm_top_p ?? ''}
+                                                onChange={e => setSettings({
+                                                    ...settings,
+                                                    llm_top_p: e.target.value ? parseFloat(e.target.value) : null,
+                                                })}
+                                                placeholder="Standard aus globalen Einstellungen"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Frequency Penalty</Label>
+                                            <Input
+                                                type="number"
+                                                min={-2}
+                                                max={2}
+                                                step={0.1}
+                                                value={settings.llm_frequency_penalty ?? ''}
+                                                onChange={e => setSettings({
+                                                    ...settings,
+                                                    llm_frequency_penalty: e.target.value ? parseFloat(e.target.value) : null,
+                                                })}
+                                                placeholder="Standard aus globalen Einstellungen"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4 pt-2 border-t">
+                                        <div className="flex items-center gap-3">
+                                            <Switch
+                                                id={`cat-enable-thinking-${settings.id ?? 'new'}`}
+                                                checked={settings.llm_enable_thinking ?? false}
+                                                onCheckedChange={(checked) =>
+                                                    setSettings({ ...settings, llm_enable_thinking: checked })
+                                                }
+                                            />
+                                            <Label htmlFor={`cat-enable-thinking-${settings.id ?? 'new'}`}>
+                                                Thinking aktivieren
+                                            </Label>
                                         </div>
                                     </div>
                                 </div>

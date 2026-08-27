@@ -162,6 +162,9 @@ async def update_llm_settings(
     settings.llm_model = settings_in.llm_model
     settings.llm_temperature = settings_in.llm_temperature
     settings.llm_max_tokens = settings_in.llm_max_tokens
+    settings.llm_top_p = settings_in.llm_top_p
+    settings.llm_frequency_penalty = settings_in.llm_frequency_penalty
+    settings.llm_enable_thinking = settings_in.llm_enable_thinking
     settings.correction_model = settings_in.correction_model or None
 
     settings.sanitizer_enabled = settings_in.sanitizer_enabled
@@ -206,6 +209,9 @@ async def test_llm_connection(
             api_key=settings.llm_api_key,
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
+            top_p=settings.llm_top_p,
+            frequency_penalty=settings.llm_frequency_penalty,
+            enable_thinking=settings.llm_enable_thinking,
             timeout=LLM_TEST_TIMEOUT_SECONDS,
         )
         return model.generate_response(
@@ -472,6 +478,9 @@ _LLM_OVERRIDE_DEFAULTS = {
     "llm_api_key": None,
     "llm_temperature": None,
     "llm_max_tokens": None,
+    "llm_top_p": None,
+    "llm_frequency_penalty": None,
+    "llm_enable_thinking": None,
 }
 
 

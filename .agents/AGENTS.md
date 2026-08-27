@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md — openDox
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Agent guide for the openDox repository. (Repo-root `AGENTS.md` and `CLAUDE.md` are symlinks to this `.agents/AGENTS.md` file — editing either edits both.)
 
 # openDox: Agent Guide
 
@@ -29,6 +29,7 @@ ruff format .
 cd frontend && npm run lint
 
 # Full stack Docker (compose file is at repo root, not docker/)
+# App publishes on host port 20000 (APP_PORT), container 5000 → http://localhost:20000
 docker compose up --build
 
 # Bump the app version (syncs pyproject.toml + frontend/package.json + lockfile)
@@ -49,12 +50,22 @@ export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
 docker stack deploy -c docker-swarm.yml opendox
 ```
 
-No CI workflows configured. Tests live in `tests/`; run via pytest:
+No CI workflows configured.
+
+**Backend tests** — pytest, config in `pyproject.toml` (`[tool.pytest.ini_options]`: `pythonpath=["."]`, `testpaths=["tests"]`):
 
 ```bash
 pytest tests/            # all tests
 pytest tests/llm/        # single package
 pytest -k "test_name"    # single test
+```
+
+Shared fixtures live in `tests/conftest.py` — **reuse them, don't hand-build an app**: `client` (TestClient), `app` (minimal FastAPI wiring only the 4 routers with `get_session` dependency-overridden), `session_factory` (in-memory SQLite, `StaticPool`), plus `create_user`/`auth_headers`. An **autouse fixture resets the `SettingsService` singleton** each test so cached settings can't leak between tests — don't assume a warm cache.
+
+**Frontend tests** — vitest, config `frontend/vitest.config.ts` (jsdom, setup `src/test/setup.ts`, `globals: true`); tests colocated in `src/**/__tests__/*.test.tsx`:
+
+```bash
+cd frontend && npm run test   # = vitest run
 ```
 
 No automated integration tests for Docker/full-stack scenarios.
@@ -64,8 +75,8 @@ No automated integration tests for Docker/full-stack scenarios.
 - **Backend**: `main.py` → `backend/run.py:create_app()` — auto-runs Alembic on startup, mounts SPA static files
 - **Routers**: `run.py` includes `record_bp`, `auth_bp`, `oidc_bp`, `settings_bp` — all under `router_prefix` (ROOT_PATH or empty). `oidc_bp` is imported in `auth_api/__init__.py` and registered separately in `run.py`.
 - **Frontend**: `frontend/src/main.tsx` — path alias `@/` → `src/`, build output → `../backend/static` (NOT `frontend/dist`)
-- **Parakeet server**: `parakeet_server/main.py` — standalone FastAPI, port 5001. Two endpoints: OpenAI-compatible `POST /v1/audio/transcriptions` (one-shot) and `WS /v1/audio/stream` (VAD-segmented streaming, see `parakeet_server/streaming.py`). Silero VAD + Parakeet ONNX (onnx-asr) loaded at startup; VAD model is downloaded at Docker build time into `/app/models/silero-vad` (flat dir, onnxruntime rejects HF's symlinked cache). The Dockerfile defaults to the NVIDIA GPU base (CUDA 12.4.1 + cuDNN) and auto-selects `CUDAExecutionProvider` with CPU fallback; build with `PARAKEET_DEVICE=cpu` for a CPU-only image.
-- **Whisper server**: `whisper_server/app.py` — standalone, OpenAI-compatible, port 5002 in container. Like Parakeet, the Dockerfile has a `DEVICE` build-arg (`ARG DEVICE=gpu`, `base-cpu`/`base-gpu` stages) defaulting to the CUDA+cuDNN base; build with `--build-arg DEVICE=cpu` for a CPU-only image. Only the base image changes between devices — `faster-whisper`/`ctranslate2` ship a single wheel that detects CUDA at runtime, so `requirements.txt` doesn't need a cpu/gpu split (unlike Parakeet's `onnxruntime` vs `onnxruntime-gpu`).
+- **Parakeet server**: `parakeet_server/main.py` — standalone FastAPI, port 5001. Two endpoints: OpenAI-compatible `POST /v1/audio/transcriptions` (one-shot) and `WS /v1/audio/stream` (VAD-segmented streaming, see `parakeet_server/streaming.py`). Silero VAD + Parakeet ONNX (onnx-asr) loaded at startup; VAD model is downloaded at Docker build time into `/app/models/silero-vad` (flat dir, onnxruntime rejects HF's symlinked cache). The Dockerfile defaults to the NVIDIA GPU base (CUDA 12.4.1 + cuDNN) and auto-selects `CUDAExecutionProvider` with CPU fallback; build with `PARAKEET_DEVICE=cpu` for a CPU-only image. Concurrent ASR `recognize()` calls across all sessions (partial re-decode every 0.4s + segment commits) are bounded process-wide by a `threading.BoundedSemaphore`, default `2`, override via `PARAKEET_MAX_CONCURRENT_DECODES` — this is a software cap independent of GPU headroom, so on a large GPU (e.g. H200) with many concurrent speakers it's usually the first thing to raise and load-test, not the hardware.
+- **Whisper server**: `whisper_server/app.py` — standalone, OpenAI-compatible, port 5002 in container. Like Parakeet, the Dockerfile has a `DEVICE` build-arg (`ARG DEVICE=gpu`, `base-cpu`/`base-gpu` stages) defaulting to the CUDA+cuDNN base; build with `--build-arg DEVICE=cpu` for a CPU-only image. Only the base image changes between devices — `faster-whisper`/`ctranslate2` ship a single wheel that detects CUDA at runtime, so `requirements.txt` doesn't need a cpu/gpu split (unlike Parakeet's `onnxruntime` vs `onnxruntime-gpu`). Concurrent `transcribe()` calls against the single shared `whisper_model` instance are bounded by an `asyncio.Semaphore`, default `4`, override via `WHISPER_MAX_CONCURRENT_TRANSCRIPTIONS` — matters especially when Whisper and Parakeet share one GPU, since a burst of many recordings finishing at once (e.g. a multi-user load test) would otherwise hit the GPU with zero coordination.
 - **Env loading**: `backend/components/modules/env.py` — `env_or_file()` + `load_dotenv(override=True)` at import time. Every `{VAR}_FILE` suffix reads from file (Docker secrets)
 - **Model registration**: `backend/components/models/__init__.py` imports every SQLModel table — Alembic autogenerate only sees models imported there. Add new models to both the file and `__all__`.
 
@@ -190,10 +201,6 @@ The lifespan handler (`contextlib.asynccontextmanager`) cancels the cleanup loop
 - `docker/docker-whisper.yml` — older standalone Whisper compose (port 9100 → container 9000, 9000 conflicts with Jupyter); port doesn't match the main stack, likely superseded by `whisper_server/docker-compose.yml`
 - `docker/docker-parakeet.yml` — standalone Parakeet (port 9200 → container 5001)
 
-### Dockerfile Frontend Build
-
-`vite.config.ts` outputs to `../backend/static` (resolves to `/app/backend/static` in Docker). The Dockerfile `COPY` line correctly copies from `/app/backend/static`.
-
 ## Environment
 
 Copy `.env.example` → `.env`:
@@ -243,6 +250,4 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 
 ## Python Style (enforced by ruff)
 
-Config in `pyproject.toml` — rules: `E, F, I, D` (PEP8 + isort + pydocstyle), Google docstrings, line length 88. Standard 3-group imports with blank lines (`# Standard library` / `# Third-party` / `# Custom`), `snake_case` for functions/variables, `PascalCase` for classes, type hints + Google docstrings.
-
-The `known-first-party` in `pyproject.toml` still says `["dein_projektname"]` (template placeholder) — `ruff` ignores the missing local module during formatting, but if it ever blocks sorting, change it to `["backend"]`.
+Config in `pyproject.toml` — rules: `E, F, I, D` (PEP8 + isort + pydocstyle), Google docstrings, line length 88. Standard 3-group imports with blank lines (`# Standard library` / `# Third-party` / `# Custom`), `snake_case` for functions/variables, `PascalCase` for classes, type hints + Google docstrings. The `known-first-party` placeholder gotcha is noted under Gotchas above.

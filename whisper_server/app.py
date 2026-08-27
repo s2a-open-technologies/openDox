@@ -38,6 +38,18 @@ DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
 COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
 API_KEY = os.getenv("WHISPER_API_KEY")  # optional Bearer auth
 
+# Bounds concurrent transcribe() calls against the single shared whisper_model
+# instance. Without this, every finished recording fires its own transcription
+# thread with no coordination — fine at low volume, but under a burst of many
+# concurrent finishes (e.g. a multi-user test session) this GPU is often
+# shared with parakeet_server too, so uncoordinated concurrent Whisper calls
+# can thrash/OOM instead of just queueing. Mirrors parakeet_server/streaming.py's
+# MAX_CONCURRENT_DECODES pattern. Override via WHISPER_MAX_CONCURRENT_TRANSCRIPTIONS.
+MAX_CONCURRENT_TRANSCRIPTIONS = int(
+    os.getenv("WHISPER_MAX_CONCURRENT_TRANSCRIPTIONS", "4")
+)
+_transcription_semaphore = asyncio.Semaphore(MAX_CONCURRENT_TRANSCRIPTIONS)
+
 app = FastAPI(title="openDox Whisper Server")
 
 logger.info(
@@ -141,21 +153,22 @@ async def transcribe(
 
     try:
         lang = None if (not language or language.lower() == "auto") else language
-        text, info = await asyncio.to_thread(
-            _run_transcription,
-            tmp_path,
-            lang,
-            prompt,
-            beam_size,
-            temperature,
-            vad_filter,
-            vad_min_silence_ms,
-            condition_on_previous_text,
-            no_speech_threshold,
-            compression_ratio_threshold,
-            log_prob_threshold,
-            hallucination_silence_threshold,
-        )
+        async with _transcription_semaphore:
+            text, info = await asyncio.to_thread(
+                _run_transcription,
+                tmp_path,
+                lang,
+                prompt,
+                beam_size,
+                temperature,
+                vad_filter,
+                vad_min_silence_ms,
+                condition_on_previous_text,
+                no_speech_threshold,
+                compression_ratio_threshold,
+                log_prob_threshold,
+                hallucination_silence_threshold,
+            )
         logger.info(
             "Transcribed %d bytes | lang=%s vad=%s cond_prev=%s -> %d chars",
             len(audio_bytes),

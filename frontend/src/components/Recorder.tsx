@@ -175,6 +175,16 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
         // depend on this socket) — fall back to fetching the record by
         // session id so the frontend picks up its task_id and starts
         // polling for the transcript instead of getting stuck empty.
+        //
+        // Also tear down the local capture pipeline (mirrors stopRecording()) —
+        // otherwise the mic stream / AudioWorklet / AudioContext keep running
+        // in the background with nothing consuming their output, burning CPU
+        // until the tab is closed.
+        try { workletRef.current?.disconnect(); } catch (_) {}
+        try { streamRef.current?.getTracks().forEach((track) => track.stop()); } catch (_) {}
+        try { audioContextRef.current?.close(); } catch (_) {}
+        setAnalyser(null);
+
         setIsRecording(false);
         setIsProcessing(false);
         if (processingTimeoutRef.current) {

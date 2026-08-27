@@ -150,6 +150,7 @@ services:
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
       WHISPER_API_KEY_FILE: /run/secrets/whisper_api_key
+      WHISPER_MAX_CONCURRENT_TRANSCRIPTIONS: ${WHISPER_MAX_CONCURRENT_TRANSCRIPTIONS:-4}
     secrets:
       - source: opendox_whisper_api_key
         target: whisper_api_key
@@ -177,6 +178,8 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════════
   parakeet:
     image: registry.nutsolution.de/opendox-parakeet:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    environment:
+      PARAKEET_MAX_CONCURRENT_DECODES: ${PARAKEET_MAX_CONCURRENT_DECODES:-2}
     deploy:
       replicas: 1
       restart_policy:

@@ -239,12 +239,15 @@ services:
         target: s3_access_key_id
       - source: opendox_s3_secret_access_key
         target: s3_secret_access_key
+    volumes:
+      - app-chunks:/app/chunks
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
-      # Must stay at 1: /app/chunks (live-recording PCM scratch space) is
-      # local-disk-only and keyed by session_id, with no cross-instance
-      # sharing. See docs/TODO.md Tier 4.
+      # Must stay at 1: /app/chunks (live-recording PCM scratch space, plus
+      # chunks/failed/ retained-for-retry audio) is local-disk-only and keyed
+      # by session_id/task_id, with no cross-instance sharing. See
+      # docs/TODO.md Tier 4.
       replicas: 1
       restart_policy:
         condition: any
@@ -254,6 +257,7 @@ volumes:
   redis-data:
   whisper-data:
   garage-data:
+  app-chunks:
 
 secrets:
   opendox_sql_pass:

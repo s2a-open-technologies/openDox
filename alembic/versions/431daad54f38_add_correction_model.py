@@ -11,6 +11,7 @@ summarisation LLM. NULL = fall back to llm_model.
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "431daad54f38"

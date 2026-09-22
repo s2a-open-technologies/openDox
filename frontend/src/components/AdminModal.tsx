@@ -1,6 +1,8 @@
 /*
   openDox - Medical transcription platform
   Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-License-Identifier: AGPL-3.0-or-later
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU Affero General Public License as published by
@@ -69,7 +71,11 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
     switch (activeTab) {
       case 'services':
         return (
-          <fieldset className="space-y-6">
+          // ``key`` zwingt React zu Remounten beim Tab-Wechsel: services und
+          // auth teilen dieselbe fieldset-Struktur, sonst reconciled React den
+          // Radix-Tabs-Status (uncontrolled) vom vorherigen Tab weiter —
+          // defaultValue greift dann nicht mehr und kein Sub-Tab ist aktiv.
+          <fieldset key="services" className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <Server className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-medium">API-Dienste konfigurieren</h3>
@@ -116,7 +122,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
         );
       case 'auth':
         return (
-          <fieldset className="space-y-6">
+          <fieldset key="auth" className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <GlobeLock className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-medium">Authentifizierung</h3>

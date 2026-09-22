@@ -1,0 +1,83 @@
+version = 1
+
+# openDox - Medical transcription platform
+# Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Bulk (REUSE.software "aggregate") licensing declarations for paths that
+# deliberately don't carry a per-file header: thin test modules, generated
+# Alembic migrations, lockfiles, and assorted project config/docs where a
+# 16-line legal comment would be pure noise. Actual source code (.py, .ts,
+# .tsx, .css, Dockerfiles) carries real per-file SPDX tags instead — see
+# scripts/add_spdx_headers.py. Run `reuse lint` after adding new paths that
+# don't fit either bucket.
+
+[[annotations]]
+path = ["tests/**", "alembic/versions/**", "alembic/README", "alembic/script.py.mako"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Christopher Abanilla <christopher.abanilla@gmx.de>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = ["uv.lock", "frontend/package-lock.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Christopher Abanilla <christopher.abanilla@gmx.de>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = [
+  "README.md",
+  "docs/**",
+  ".agents/AGENTS.md",
+  "AUTHORS",
+  "DISCLAIMER.md",
+  "THIRD_PARTY_NOTICES.md",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Christopher Abanilla <christopher.abanilla@gmx.de>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = [
+  "pyproject.toml",
+  "alembic.ini",
+  ".gitignore",
+  ".dockerignore",
+  ".env.example",
+  ".python-version",
+  "entrypoint.sh",
+  "create_docker_secrets.sh",
+  "requirements",
+  "docker-compose.yml",
+  "docker-swarm.yml",
+  "docker-swarm.rotation.yml",
+  "docker/**",
+  "whisper_server/docker-compose.yml",
+  "whisper_server/requirements.txt",
+  "parakeet_server/requirements.cpu.txt",
+  "parakeet_server/requirements.gpu.txt",
+  "garage/garage.toml",
+  "garage/init/init.sh",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Christopher Abanilla <christopher.abanilla@gmx.de>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = [
+  "frontend/.gitignore",
+  "frontend/README.md",
+  "frontend/components.json",
+  "frontend/eslint.config.js",
+  "frontend/index.html",
+  "frontend/package.json",
+  "frontend/postcss.config.js",
+  "frontend/tsconfig.app.json",
+  "frontend/tsconfig.json",
+  "frontend/tsconfig.node.json",
+  "frontend/public/**",
+  "backend/static/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Christopher Abanilla <christopher.abanilla@gmx.de>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

@@ -1,5 +1,7 @@
 """openDox - Medical transcription platform
 Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -18,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # routers/auth.py
 from datetime import datetime
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlmodel import select
 
 from backend.components.models.ldap_model import LdapSettingsModel
@@ -39,6 +41,7 @@ from backend.components.security.hashing import (
     verify_password,
 )
 from backend.components.services.ldap import LdapService
+from backend.components.services.rate_limiter import login_limiter
 from backend.components.sql.sql_engine import SessionDep
 from backend.views.auth_api import auth_bp
 from backend.views.auth_api.dependencies import get_current_user
@@ -72,7 +75,8 @@ async def register(user_in: UserCreate, db: SessionDep):
 
 
 @auth_bp.post("/login", response_model=Token)
-async def login(user_in: UserLogin, db: SessionDep):
+async def login(request: Request, user_in: UserLogin, db: SessionDep):
+    login_limiter.check(request)
 
     # Check if user exists and password is correct
     stmt = select(User).where(User.name == user_in.name)

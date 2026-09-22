@@ -1,5 +1,7 @@
 """openDox - Medical transcription platform
 Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -44,7 +46,9 @@ from backend.components.models.user_model import User
 from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
 from backend.components.modules.text_dedup import merge_overlapping_text
+from backend.components.security.field_encryption import decrypt_bytes
 from backend.components.security.hashing import decode_token
+from backend.components.services import audio_storage
 from backend.components.services.asr_backends.parakeet_stream import (
     ParakeetStreamBackend,
 )
@@ -1052,6 +1056,7 @@ async def list_failed_tasks(
             "title": record.title,
             "error": task.error,
             "updated_at": task.updated_at.isoformat(),
+            "archived": task.retry_audio_in_s3,
         }
         for task, record in rows
     ]
@@ -1076,10 +1081,29 @@ async def retry_failed_task(
             status_code=409,
             detail="Task hat keine zum Wiederholen vorgemerkte Audiodatei",
         )
-    if not os.path.exists(task.retry_audio_path):
-        raise HTTPException(
-            status_code=410, detail="Aufbewahrte Audiodatei nicht mehr vorhanden"
-        )
+
+    archived_key: str | None = None
+    if task.retry_audio_in_s3:
+        # Retained audio was archived to S3 (see failed_audio_archival_service.py)
+        # after FAILED_AUDIO_RETENTION_DAYS — fetch it back to local disk so it
+        # can run through the normal file_path-based transcription pipeline.
+        encrypted = audio_storage.download_bytes(task.retry_audio_path)
+        if encrypted is None:
+            raise HTTPException(
+                status_code=410, detail="Archivierte Audiodatei nicht mehr vorhanden"
+            )
+        ext = os.path.basename(task.retry_audio_path).split(".")[-2]
+        os.makedirs("chunks/failed", exist_ok=True)
+        retry_path = os.path.join("chunks", "failed", f"task_{task_id}.{ext}")
+        with open(retry_path, "wb") as f:
+            f.write(decrypt_bytes(encrypted))
+        archived_key = task.retry_audio_path
+    else:
+        if not os.path.exists(task.retry_audio_path):
+            raise HTTPException(
+                status_code=410, detail="Aufbewahrte Audiodatei nicht mehr vorhanden"
+            )
+        retry_path = task.retry_audio_path
 
     record = db.exec(select(Record).where(Record.task_id == task_id)).one_or_none()
     if not record:
@@ -1087,12 +1111,18 @@ async def retry_failed_task(
             status_code=404, detail="Zugehörige Aufnahme nicht gefunden"
         )
 
-    retry_path = task.retry_audio_path
     task.status = "pending"
     task.error = None
     task.retry_audio_path = None
+    task.retry_audio_in_s3 = False
     db.add(task)
     db.commit()
+
+    # Only drop the S3 copy once the retry is durably queued (task.status
+    # committed) — if the DB commit itself had failed, the archived copy
+    # must stay in place rather than be lost.
+    if archived_key:
+        audio_storage.delete(archived_key)
 
     asyncio.create_task(
         asyncio.to_thread(

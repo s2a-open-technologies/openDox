@@ -12,6 +12,7 @@ the global LLM settings are used regardless of the other fields.
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "b2f9a1c3d8e5"

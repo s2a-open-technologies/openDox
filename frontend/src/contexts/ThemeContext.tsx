@@ -1,6 +1,8 @@
 /*
   openDox - Medical transcription platform
   Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-License-Identifier: AGPL-3.0-or-later
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU Affero General Public License as published by
@@ -55,7 +57,7 @@ export function ThemeProvider({
         root.classList.remove("light", "dark")
 
         if (theme === "system") {
-            const systemTheme = window.matchMedia("(prefers-color-scheme: light)")
+            const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
                 .matches
                 ? "dark"
                 : "light"

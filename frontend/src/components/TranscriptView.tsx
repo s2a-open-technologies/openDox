@@ -1,6 +1,8 @@
 /*
   openDox - Medical transcription platform
   Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-License-Identifier: AGPL-3.0-or-later
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU Affero General Public License as published by
@@ -361,8 +363,9 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
                   disabled={!confirmed}
                   onClick={() => handleCopy(editedSummary)}
                   title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : ""}
+                  aria-label="Zusammenfassung kopieren"
                 >
-                  <Copy className="w-4 h-4 mr-2" />
+                  <Copy className="w-4 h-4" />
                 </Button>
                 <Button
                   variant="ghost"

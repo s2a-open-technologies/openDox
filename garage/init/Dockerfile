@@ -1,3 +1,8 @@
+#  openDox - Garage object storage init helper
+#  Copyright (C) 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+#  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+#  SPDX-License-Identifier: AGPL-3.0-or-later
+#
 # Small helper image that runs a one-shot idempotent Garage setup
 # (cluster layout, bucket, S3 access key) against the `garage` service.
 # The upstream dxflrs/garage image ships only the static `garage` binary

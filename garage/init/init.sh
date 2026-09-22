@@ -18,10 +18,19 @@ set -e
 GARAGE_HOST="${GARAGE_HOST:-garage}"
 ADMIN_URL="http://${GARAGE_HOST}:3903"
 
-echo "[garage-init] Waiting for Garage admin API..."
+echo "[garage-init] Waiting for Garage admin API at ${ADMIN_URL}..."
+ATTEMPTS=0
+MAX_ATTEMPTS="${GARAGE_INIT_MAX_WAIT:-60}"
 until curl -sf "${ADMIN_URL}/health" >/dev/null 2>&1; do
+  ATTEMPTS=$((ATTEMPTS + 1))
+  if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
+    echo "[garage-init] ERROR: Garage admin API not reachable after ${MAX_ATTEMPTS}s, giving up (will be retried by the container's restart policy)." >&2
+    exit 1
+  fi
+  [ $((ATTEMPTS % 5)) -eq 0 ] && echo "[garage-init] still waiting... (${ATTEMPTS}s)"
   sleep 1
 done
+echo "[garage-init] Garage admin API is up (after ${ATTEMPTS}s)."
 
 NODE_ID=$(curl -s -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" "${ADMIN_URL}/v1/status" | jq -r '.node')
 echo "[garage-init] Node ID: $NODE_ID"

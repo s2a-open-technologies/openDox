@@ -63,11 +63,15 @@ services:
 
   # One-shot idempotent setup: cluster layout, bucket, S3 access key.
   # Re-run on every `up`; exits 0 immediately if already configured.
+  # `restart: on-failure` covers a transient race on the very first `up`
+  # (garage's admin API/DNS not yet reachable the instant this container
+  # starts) — init.sh now times out instead of waiting forever, and Compose
+  # retries automatically instead of requiring a manual `down` + `up`.
   garage-init:
     build:
       context: ./garage/init
     container_name: opendox-garage-init
-    restart: "no"
+    restart: on-failure:5
     environment:
       GARAGE_HOST: garage
       GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-ChangeThisGarageAdminToken}
@@ -179,6 +183,8 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-GK000000000000000000000001}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-18c9004ef3b791ca07e7730f3ba4bdad038161d0f0c771255385c391ed18ed2a}
       S3_REGION: ${S3_REGION:-garage}
+    volumes:
+      - app-chunks:/app/chunks
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -200,3 +206,5 @@ volumes:
     name: opendox-whisper-data
   garage-data:
     name: opendox-garage-data
+  app-chunks:
+    name: opendox-app-chunks

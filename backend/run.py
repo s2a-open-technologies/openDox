@@ -1,5 +1,7 @@
 """openDox - Medical transcription platform
 Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -138,6 +140,31 @@ async def _stale_session_cleanup_loop(logger) -> None:
             logger.warning("Stale-session cleanup failed: %s", exc)
 
 
+async def _failed_audio_archival_loop(logger) -> None:
+    """Periodically archive chunks/failed/ audio to S3 once it's past retention.
+
+    A task's retained audio is meant to survive until an admin retries it (see
+    Audio File Cleanup in AGENTS.md), but leaving it on local disk forever
+    would grow chunks/failed/ unbounded for tasks nobody ever retries. Every 6
+    hours, move anything older than FAILED_AUDIO_RETENTION_DAYS to S3 instead —
+    retry still works afterwards (record.py's retry endpoint fetches it back).
+    A no-op (logs once) if S3 storage isn't configured.
+    """
+    from backend.components.services.failed_audio_archival_service import (
+        archive_stale_failed_audio,
+    )
+
+    retention_days = int(env_or_file("FAILED_AUDIO_RETENTION_DAYS", "3"))
+    while True:
+        await asyncio.sleep(6 * 3600)
+        try:
+            count = await asyncio.to_thread(archive_stale_failed_audio, retention_days)
+            if count:
+                logger.info("Archived %d stale failed-task audio file(s) to S3", count)
+        except Exception as exc:
+            logger.warning("Failed-audio archival failed: %s", exc)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan: startup cleanup + background tasks, graceful shutdown.
@@ -150,13 +177,19 @@ async def lifespan(app: FastAPI):
     _cleanup_orphaned_chunk_files(logger)
     cleanup_task = asyncio.create_task(_stale_session_cleanup_loop(logger))
     logger.info("Stale-session cleanup loop started (interval=600s, max_age=30min)")
+    archival_task = asyncio.create_task(_failed_audio_archival_loop(logger))
+    logger.info("Failed-audio archival loop started (interval=6h)")
     try:
         yield
     finally:
         cleanup_task.cancel()
+        archival_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await archival_task
         logger.info("Stale-session cleanup loop stopped")
+        logger.info("Failed-audio archival loop stopped")
 
 
 def create_app():

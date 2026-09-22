@@ -7,6 +7,8 @@ temperature, no_speech_threshold, …) as multipart form fields so the main
 application can tune transcription per request via its settings.
 
 Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by

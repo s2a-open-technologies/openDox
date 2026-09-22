@@ -1,5 +1,7 @@
 """openDox - Medical transcription platform
 Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -38,6 +40,12 @@ def get_current_user(
     try:
         payload = decode_token(token)
     except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

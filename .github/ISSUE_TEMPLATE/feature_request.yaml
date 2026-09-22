@@ -1,0 +1,34 @@
+name: Feature Request
+description: Suggest an idea or enhancement for openDox
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Who is affected and what is painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should happen instead / in addition?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Backend (API / transcription pipeline)
+        - Frontend (UI)
+        - ASR servers (Parakeet / Whisper)
+        - Authentication (local / LDAP / OIDC)
+        - Deployment (Docker / Swarm / reverse proxy)
+        - Documentation
+        - Other

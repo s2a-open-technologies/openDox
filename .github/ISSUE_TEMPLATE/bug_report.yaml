@@ -1,0 +1,53 @@
+name: Bug Report
+description: Report something that is not working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        **Note:** openDox is not a certified medical device
+        ("Kein Medizinprodukt"). Do not include real patient data in
+        screenshots, logs, or descriptions.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the unexpected behavior.
+      placeholder: "..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Concrete steps to trigger the bug.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Deployment mode and versions.
+      placeholder: |
+        - Deployment: Docker Compose / Docker Swarm / local dev
+        - openDox version (/api/version):
+        - Browser:
+        - Live backend (Parakeet/Whisper/API):
+        - Relevant settings (LDAP/OIDC/LLM/Sanitizer configured?):
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Backend or frontend console output. Redact any sensitive data!
+      render: shell

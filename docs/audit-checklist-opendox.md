@@ -5,8 +5,11 @@
 > Status: ✅ implementiert/vorhanden · ⚠️ teilweise/mit Einschränkung ·
 > ❌ nicht implementiert/nicht vorhanden. Stand: Recherche vom 2026-09-18,
 > aktualisiert am 2026-09-22 (Rate-Limiting `/login` implementiert,
-> Frontend-Testabdeckung ausgebaut); vor Wiederverwendung gegen den dann
-> aktuellen Code gegenprüfen — Status kann sich ändern.
+> Frontend-Testabdeckung ausgebaut, Governance-Lücken geschlossen: CI/CD,
+> Dependabot, CHANGELOG, CODE_OF_CONDUCT, Templates, Root-Symlinks,
+> Git-Tag `v0.1.0`, Commit-Identitäten vereinheitlicht); vor
+> Wiederverwendung gegen den dann aktuellen Code gegenprüfen — Status kann
+> sich ändern.
 
 ## Security
 
@@ -71,19 +74,19 @@
 
 | Prüfpunkt | Status | Fundstelle/Beleg | Kommentar |
 |---|---|---|---|
-| CI/CD-Pipeline | ❌ | Kein `.github/`-Verzeichnis im gesamten Repo | Kein automatisierter Test-/Lint-/Security-Lauf bei PRs |
-| Dependency-Scanning automatisiert (Dependabot o. ä.) | ❌ | Kein Dependabot-Config, kein CI | `safety check`/`npm audit` nur als manuelle Empfehlung in `docs/CONTRIBUTING.md`/`docs/SECURITY.md` dokumentiert |
-| `CONTRIBUTING.md` | ⚠️ | Existiert nur unter `docs/CONTRIBUTING.md`, nicht an der Root (GitHub erkennt Root-Ebene automatisch) | |
-| `CODE_OF_CONDUCT.md` | ❌ | Nicht vorhanden | |
-| `SECURITY.md` an Standard-Ort | ⚠️ | Liegt unter `docs/SECURITY.md` statt Root — GitHub's automatische Security-Tab-Erkennung greift nur bei Root- oder `.github/`-Pfad | Inhaltlich sehr umfangreich, nur der Pfad ist unüblich |
-| `CHANGELOG.md` | ❌ | Nicht vorhanden | Änderungen nur über `git log` nachvollziehbar |
-| Issue-/PR-Templates | ❌ | Kein `.github/ISSUE_TEMPLATE`/`PULL_REQUEST_TEMPLATE.md` | |
+| CI/CD-Pipeline | ✅ | `.github/workflows/ci.yml` — GitHub Actions: Backend-Job (uv sync, ruff check + format, pytest) und Frontend-Job (npm ci, vitest, ESLint) bei jedem Push/PR auf `master` | Erster CI-Lauf erfolgt beim nächsten Push |
+| Dependency-Scanning automatisiert (Dependabot o. ä.) | ✅ | `.github/dependabot.yml` — wöchentliche PRs für pip (Root, `parakeet_server/`, `whisper_server/`), npm (`frontend/`), Docker-Base-Images und GitHub Actions selbst; gruppierte Updates, PR-Limits pro Ökosystem | Ergänzt die manuellen `safety check`/`npm audit`-Empfehlungen aus `docs/CONTRIBUTING.md` |
+| `CONTRIBUTING.md` | ✅ | Root-`CONTRIBUTING.md` ist Symlink auf `docs/CONTRIBUTING.md` | GitHub erkennt Root-Ebene automatisch; keine Duplikatpflege nötig |
+| CODE_OF_CONDUCT.md | ✅ | Root-`CODE_OF_CONDUCT.md`, adaptiert vom Contributor Covenant 2.1 | Enforce­ment-Kontakt = Maintainer-Adresse |
+| `SECURITY.md` an Standard-Ort | ✅ | Root-`SECURITY.md` ist Symlink auf `docs/SECURITY.md` | GitHub's Security-Tab-Erkennung greift jetzt |
+| CHANGELOG.md | ✅ | Root-`CHANGELOG.md`, Keep-a-Changelog-Format; `[Unreleased]` + retroaktives `[0.1.0]` mit Release-Links | Pflege-Empfehlung: Eintrag pro Feature/Fix im zugehörigen PR |
+| Issue-/PR-Templates | ✅ | `.github/ISSUE_TEMPLATE/bug_report.yaml`, `feature_request.yaml` (Formulare, inkl. "Kein Medizinprodukt"/Patientendaten-Warnhinweis), `.github/PULL_REQUEST_TEMPLATE.md` (Checkliste: Tests, Alembic-Migration, Lizenz-Header, Disclaimer-Integrität) | |
 | Versionierungs-Tooling vorhanden | ✅ | `scripts/bump_version.py`, synct `pyproject.toml` + `frontend/package.json` + Lockfile | |
-| Versionierung tatsächlich genutzt (Git-Tags) | ❌ | `git tag` → 0 Ergebnisse trotz `--commit`-Flag im Tooling | Releases nicht an Commits festgemacht |
-| Testabdeckung Backend | ✅ | 19 Testdateien unter `tests/` (174 Tests, alle grün), u. a. Security/Auth/Services inkl. Rate-Limiter | pytest, `tests/conftest.py` mit geteilten Fixtures |
-| Testabdeckung Frontend | ✅ | 31 `.test.tsx`/`.test.ts`-Dateien unter `frontend/src/**/__tests__/` (209 Tests grün, 1 skipped) | Colocated-Konvention (Vitest); Skip ist jsdom-Bug in Radix-Dialog-Fokus-Trap, Funktionalität manuell verifiziert |
-| Commit-/Maintainer-Aktivität | ✅ (aktiv) | 112 Commits, aktuelle Feature-Cadence (LLM-Sampling-Parameter, Concurrency-Limits, CORS/Security) | Projekt ist nicht verwaist |
-| Bus-Faktor | ❌ (=1) | Alle 112 Commits stammen von einer Person unter vier Git-Identitäten (`crizz`, `Daemolition` ×2, `christopher.abanilla`) | Kein zweiter Maintainer, kein dokumentierter Nachfolgeprozess |
+| Versionierung tatsächlich genutzt (Git-Tags) | ✅ | `v0.1.0` auf `master` (retroaktiver Tag, annotiert), via `git push origin --tags` veröffentlicht | Entspricht `pyproject.toml`-Version 0.1.0; künftig via `bump_version.py --commit` |
+| Testabdeckung Backend | ✅ | 19 Testdateien unter `tests/` (174 Tests, alle grün), u. a. Security/Auth/Services inkl. Rate-Limiter | pytest, `tests/conftest.py` mit geteilten Fixtures; jetzt auch CI-erzwungen |
+| Testabdeckung Frontend | ✅ | 31 `.test.tsx`/`.test.ts`-Dateien unter `frontend/src/**/__tests__/` (209 Tests grün, 1 skipped) | Colocated-Konvention (Vitest); Skip ist jsdom-Bug in Radix-Dialog-Fokus-Trap, Funktionalität manuell verifiziert; jetzt auch CI-erzwungen |
+| Commit-/Maintainer-Aktivität | ✅ (aktiv) | 113 Commits, aktuelle Feature-Cadence (Rate-Limiting, Governance-Aufbau, Licensing) | Projekt ist nicht verwaist |
+| Bus-Faktor | ❌ (=1) | Alle 113 Commits stammen von einer Person; Git-Identitäten per `git filter-repo` auf `Christopher Abanilla <christopher.abanilla@gmx.de>` vereinheitlicht | Kein zweiter Maintainer, kein dokumentierter Nachfolgeprozess |
 | Docker-Reproduzierbarkeit | ⚠️ | Dockerfiles für alle 4 Services vorhanden; Base-Images gemischt gepinnt (`dxflrs/garage:v1.0.1` exakt vs. `node:22-slim`/`python:3.12-slim` mit floatendem Minor/Patch) | Keine Digest-Pins (`@sha256:...`) — Builds nicht bit-identisch reproduzierbar |
 | Health-Check-Endpoint für Betrieb | ✅ | `GET /api/v1/settings/services-health/`, prüft Postgres/Redis/Whisper/Parakeet/EntityGuard/S3/Encryption-Key-Status | |
 
@@ -97,8 +100,8 @@ markierten Lücken, vollständige Lizenz-Header.
 
 **Lücken, die die Gegenthese im Vortrag liefern** ("auch ein
 security-fokussiertes Projekt hat blinde Flecken"): kein Audit-Log,
-keine CI/CD-gestützte Dependency-Prüfung, Bus-Faktor 1,
-ungenutzte Versionierung, fehlende Access-/Portability-Rechte nach DSGVO.
+Bus-Faktor 1, keine Digest-Pins bei Docker-Base-Images,
+fehlende Access-/Portability-Rechte nach DSGVO.
 
 Beide Listen zusammen sind der eigentliche Beweis für die These des
 Vortrags: **Auditierbarkeit zeigt sich nicht daran, keine Lücken zu haben,

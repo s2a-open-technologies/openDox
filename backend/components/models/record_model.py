@@ -27,6 +27,8 @@ from backend.components.security.field_encryption import EncryptedString
 
 
 class Record(SQLModel, table=True):
+    """Record model for transcriptions."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
     session_id: str = Field(index=True)
     user_id: int
@@ -34,17 +36,19 @@ class Record(SQLModel, table=True):
     title: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     content: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
     timestamp: str = Field()
-    summarize: str = Field(sa_column=Column(EncryptedString, nullable=False, default=""))
+    summarize: str = Field(
+        sa_column=Column(EncryptedString, nullable=False, default="")
+    )
     file: str = Field()
     archived: bool = Field(default=False)
     task_id: Optional[int] = Field(default=None, foreign_key="task.id")
-    
+
     pii_mapping: Optional[str] = Field(
-        default=None,
-        sa_column=Column(EncryptedString, nullable=True)
+        default=None, sa_column=Column(EncryptedString, nullable=True)
     )
 
     def to_dict(self):
+        """Return the record's fields as a plain dictionary."""
         return {
             "id": self.id,
             "session_id": self.session_id,
@@ -61,16 +65,22 @@ class Record(SQLModel, table=True):
 
 
 class RecordBase(SQLModel):
+    """Base schema for record payloads."""
+
     title: str
 
 
 class RecordCreate(SQLModel):
+    """Schema for creating a record."""
+
     user_id: int
     title: str
     category_id: Optional[int] = None
 
 
 class RecordUpdate(SQLModel):
+    """Schema for updating a record."""
+
     title: Optional[str] = None
     content: Optional[str] = None
     summarize: Optional[str] = None
@@ -78,6 +88,8 @@ class RecordUpdate(SQLModel):
 
 
 class RecordRead(RecordBase):
+    """Schema for reading a record."""
+
     id: int
     session_id: str
     user_id: int
@@ -92,10 +104,14 @@ class RecordRead(RecordBase):
 
 
 class RecordChunk(BaseModel):
+    """Schema identifying a live recording session chunk."""
+
     session_id: str
     user_id: int
 
 
 class FinalizeRecord(BaseModel):
+    """Schema for finalizing a live recording session."""
+
     session_id: str
     user_id: int

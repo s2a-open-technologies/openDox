@@ -77,6 +77,7 @@ def _require_admin(current_user: User = Depends(get_current_user)) -> User:
 
 @settings_bp.get("/whisper-settings/", response_model=WhisperSettingsModel)
 async def get_whisper_settings(db: SessionDep):
+    """Return the Whisper settings, creating defaults if missing."""
     settings = db.exec(select(WhisperSettingsModel)).first()
     if not settings:
         settings = WhisperSettingsModel()
@@ -92,6 +93,7 @@ async def update_whisper_settings(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
+    """Update the Whisper settings and reset cached ASR backends."""
     settings = db.exec(select(WhisperSettingsModel)).first()
     if not settings:
         settings = WhisperSettingsModel()
@@ -140,6 +142,7 @@ async def update_whisper_settings(
 
 @settings_bp.get("/llm-settings/", response_model=LlmSettingsModel)
 async def get_llm_settings(db: SessionDep):
+    """Return the LLM settings, creating defaults if missing."""
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings:
         settings = LlmSettingsModel()
@@ -155,6 +158,7 @@ async def update_llm_settings(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
+    """Update the LLM settings and invalidate the settings cache."""
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings:
         settings = LlmSettingsModel()
@@ -380,6 +384,7 @@ async def get_services_health(db: SessionDep):
 # LDAP Endpoints
 @settings_bp.get("/ldap-settings/", response_model=LdapSettingsModel)
 async def get_ldap_settings(db: SessionDep):
+    """Return the LDAP settings or an empty default object if missing."""
     settings = db.exec(select(LdapSettingsModel)).first()
     if not settings:
         return LdapSettingsModel(
@@ -394,6 +399,7 @@ async def update_ldap_settings(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
+    """Create or update the LDAP settings (admin only)."""
     settings = db.exec(select(LdapSettingsModel)).first()
     if not settings:
         settings = LdapSettingsModel(**settings_in.dict(exclude={"id"}))
@@ -414,6 +420,7 @@ async def test_ldap_connection(
     settings_in: LdapSettingsModel,
     _: User = Depends(_require_admin),
 ):
+    """Test connectivity to the configured LDAP server (admin only)."""
     service = LdapService(settings_in)
     try:
         conn = service.connect()
@@ -492,6 +499,7 @@ async def create_category(
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
+    """Create a global or personal category for the current user."""
     data = category.model_dump()
     if current_user.role in ("admin", "moderator", "demo_viewer"):
         data["user_id"] = None
@@ -512,6 +520,7 @@ async def read_categories(
     offset: int = 0,
     limit: int = 100,
 ):
+    """List categories visible to the current user with pagination."""
     query = select(Categories)
     if current_user.role != "admin":
         query = query.where(
@@ -527,6 +536,7 @@ async def read_category(
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
+    """Return a single category if the current user may see it."""
     category = db.get(Categories, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -546,6 +556,7 @@ async def update_category(
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
+    """Update a category with ownership and LLM-override checks."""
     db_category = db.get(Categories, category_id)
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -585,6 +596,7 @@ async def delete_category(
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
+    """Delete a category with ownership checks."""
     category = db.get(Categories, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -612,6 +624,7 @@ async def create_language(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
+    """Create a new language (admin only)."""
     db_language = Languages.model_validate(language)
     db.add(db_language)
     db.commit()
@@ -621,12 +634,14 @@ async def create_language(
 
 @settings_bp.get("/languages/", response_model=list[LanguagesRead])
 async def read_languages(db: SessionDep, offset: int = 0, limit: int = 100):
+    """List languages with pagination."""
     languages = db.exec(select(Languages).offset(offset).limit(limit)).all()
     return languages
 
 
 @settings_bp.get("/languages/{language_id}", response_model=LanguagesRead)
 async def read_language(language_id: int, db: SessionDep):
+    """Return a single language by ID."""
     language = db.get(Languages, language_id)
     if not language:
         raise HTTPException(status_code=404, detail="Language not found")
@@ -640,6 +655,7 @@ async def update_language(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
+    """Update a language by ID (admin only)."""
     db_language = db.get(Languages, language_id)
     if not db_language:
         raise HTTPException(status_code=404, detail="Language not found")
@@ -657,6 +673,7 @@ async def delete_language(
     db: SessionDep,
     _: User = Depends(_require_admin),
 ):
+    """Delete a language by ID (admin only)."""
     language = db.get(Languages, language_id)
     if not language:
         raise HTTPException(status_code=404, detail="Language not found")
@@ -861,7 +878,15 @@ async def get_audio_settings(db: SessionDep):
 
 _ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "flac", "ogg"}
 _ALLOWED_AUDIO_BITRATES = {
-    "32k", "48k", "64k", "96k", "128k", "160k", "192k", "256k", "320k",
+    "32k",
+    "48k",
+    "64k",
+    "96k",
+    "128k",
+    "160k",
+    "192k",
+    "256k",
+    "320k",
 }
 
 

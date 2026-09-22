@@ -23,6 +23,8 @@ from sqlmodel import Field, SQLModel
 
 
 class TerminologyBase(SQLModel):
+    """Base schema for medical terminology entries."""
+
     code: str = Field(index=True, unique=True)  # z.B. "S82.9"
     type: str = Field(index=True)  # "ICD", "OPS" oder "USER"
     official_text: str  # Der Text aus dem Katalog
@@ -34,12 +36,18 @@ class TerminologyBase(SQLModel):
 
 
 class Terminology(TerminologyBase, table=True):
+    """Medical terminology table model."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class TerminologyRead(TerminologyBase):
+    """Schema for reading a terminology entry."""
+
     id: int
 
 
 class TerminologyCreate(TerminologyBase):
+    """Schema for creating a terminology entry."""
+
     pass

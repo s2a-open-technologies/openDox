@@ -69,8 +69,11 @@ if __name__ == "__main__":
         ("", "hello world", "hello world"),
         ("hello world", "", "hello world"),
         ("Der Patient hat", "hat Kopfschmerzen", "Der Patient hat Kopfschmerzen"),
-        ("Der Patient hat Kopfschmerzen", "Kopfschmerzen seit gestern",
-         "Der Patient hat Kopfschmerzen seit gestern"),
+        (
+            "Der Patient hat Kopfschmerzen",
+            "Kopfschmerzen seit gestern",
+            "Der Patient hat Kopfschmerzen seit gestern",
+        ),
         ("Der Patient", "Fieber und Husten", "Der Patient Fieber und Husten"),
         ("Der Patient HAT", "hat Kopfschmerzen", "Der Patient HAT Kopfschmerzen"),
         ("a b c", "a b c", "a b c"),
@@ -81,8 +84,10 @@ if __name__ == "__main__":
         status = "OK" if result == expected else "FAIL"
         if status == "FAIL":
             failures += 1
-        print(f"[{status}] merge_overlapping_text({existing!r}, {new_text!r}) "
-              f"= {result!r} (expected {expected!r})")
+        print(
+            f"[{status}] merge_overlapping_text({existing!r}, {new_text!r}) "
+            f"= {result!r} (expected {expected!r})"
+        )
     if failures:
         raise SystemExit(f"{failures} of {len(cases)} cases failed")
     print(f"All {len(cases)} cases passed")

@@ -247,7 +247,8 @@ async def oidc_callback(request: Request, db: SessionDep):
     else:
         root_path = (env_or_file("ROOT_PATH", "") or "").rstrip("/")
         redirect_url = (
-            f"{root_path}/login?access_token={local_access}&refresh_token={local_refresh}"
+            f"{root_path}/login?access_token={local_access}"
+            f"&refresh_token={local_refresh}"
         )
     response = RedirectResponse(url=redirect_url, status_code=302)
     response.delete_cookie(_STATE_COOKIE)

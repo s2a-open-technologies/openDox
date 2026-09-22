@@ -23,6 +23,8 @@ from sqlmodel import Field, SQLModel
 
 
 class LlmSettingsModel(SQLModel, table=True):
+    """LLM summarization and sanitizer settings singleton model."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # LLM / Ollama / OpenAI-compatible API Settings
@@ -44,7 +46,7 @@ class LlmSettingsModel(SQLModel, table=True):
     # Optional dedicated model for near-live chunk correction.
     # Leave empty to use llm_model (same model for both correction and summary).
     correction_model: Optional[str] = Field(default=None)
-    
+
     # Sanitizer settings
     sanitizer_enabled: Optional[bool] = Field(default=False)
     sanitizer_endpoint: Optional[str] = Field(default=None)

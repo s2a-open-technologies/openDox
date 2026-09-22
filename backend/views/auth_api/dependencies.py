@@ -35,7 +35,7 @@ def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
     db: SessionDep,
 ) -> User:
-
+    """Resolve the authenticated user from a bearer access token."""
     token = credentials.credentials
     try:
         payload = decode_token(token)

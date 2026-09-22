@@ -40,6 +40,8 @@ interface OidcSettingsData {
     username_claim: string;
 }
 
+type OidcSettingsResponse = Partial<OidcSettingsData>;
+
 const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [settings, setSettings] = useState<OidcSettingsData>({
@@ -58,7 +60,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     useEffect(() => {
         authFetch('/api/v1/settings/oidc-settings/')
             .then(res => res.json())
-            .then((data: any) => {
+            .then((data: OidcSettingsResponse) => {
                 if (data && data.provider_url !== undefined) {
                     setSettings({
                         enabled: data.enabled ?? false,

@@ -23,6 +23,8 @@ from sqlmodel import Field, SQLModel
 
 
 class Categories(SQLModel, table=True):
+    """Category table model for per-recording prompt and LLM settings."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     description: str
@@ -41,6 +43,8 @@ class Categories(SQLModel, table=True):
 
 
 class CategoriesCreate(SQLModel):
+    """Schema for creating a category."""
+
     name: str
     description: str
     system_prompt: str
@@ -57,6 +61,8 @@ class CategoriesCreate(SQLModel):
 
 
 class CategoriesRead(SQLModel):
+    """Schema for reading a category."""
+
     id: int
     name: str
     description: str

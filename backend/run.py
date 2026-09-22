@@ -45,6 +45,7 @@ class SPAStaticFiles(StaticFiles):
     """
 
     async def get_response(self, path, scope):
+        """Serve the file, falling back to index.html on 404."""
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
@@ -193,6 +194,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app():
+    """Create and configure the FastAPI application."""
     initialize_logging()
     logger = get_logger()
 

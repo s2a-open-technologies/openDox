@@ -24,7 +24,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "categories",
-        sa.Column("llm_override_enabled", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column(
+            "llm_override_enabled", sa.Boolean(), nullable=False, server_default="false"
+        ),
     )
     op.add_column(
         "categories",

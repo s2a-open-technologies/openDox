@@ -5,6 +5,7 @@ Revises: 86e25cdcd621
 Create Date: 2026-07-06 22:46:11.751970
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'a599665d9034'
-down_revision: Union[str, Sequence[str], None] = '86e25cdcd621'
+revision: str = "a599665d9034"
+down_revision: Union[str, Sequence[str], None] = "86e25cdcd621"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -33,7 +34,7 @@ OLD_PLACEHOLDER_RULE = (
 
 NEW_PLACEHOLDER_RULE = (
     "Erfinde niemals neue Platzhalter in eckigen Klammern für fehlende "
-    "Informationen (z. B. schreibe nicht \"[DATUM]\" oder \"[WERT]\", wenn etwas "
+    'Informationen (z. B. schreibe nicht "[DATUM]" oder "[WERT]", wenn etwas '
     "nicht diktiert wurde) - lasse den betroffenen Satz oder Abschnitt "
     "stattdessen komplett weg. Kommen im Text bereits Platzhalter wie [PERSON] "
     "oder [LOCATION] vor (aus der PII-Anonymisierung), übernimm diese unverändert."

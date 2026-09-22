@@ -12,6 +12,7 @@ Revises: 5a531711c9cb
 Create Date: 2026-07-13 23:19:55.520049
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -23,11 +24,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "UPDATE whispersettingsmodel "
-        "SET live_backend = 'parakeet' "
-        "WHERE id = 1"
-    )
+    op.execute("UPDATE whispersettingsmodel SET live_backend = 'parakeet' WHERE id = 1")
     op.execute(
         "UPDATE whispersettingsmodel "
         "SET live_api_endpoint = 'http://parakeet:5001/v1' "
@@ -56,31 +53,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        "UPDATE whispersettingsmodel "
-        "SET live_backend = 'api' "
-        "WHERE id = 1"
-    )
+    op.execute("UPDATE whispersettingsmodel SET live_backend = 'api' WHERE id = 1")
     op.execute(
         "UPDATE whispersettingsmodel "
         "SET live_api_endpoint = NULL "
         "WHERE id = 1 AND live_api_endpoint = 'http://parakeet:5001/v1'"
     )
-    op.execute(
-        "UPDATE whispersettingsmodel "
-        "SET live_api_model = NULL "
-        "WHERE id = 1"
-    )
+    op.execute("UPDATE whispersettingsmodel SET live_api_model = NULL WHERE id = 1")
     op.execute(
         "UPDATE whispersettingsmodel "
         "SET final_api_endpoint = NULL "
         "WHERE id = 1 AND final_api_endpoint = 'http://parakeet:5001/v1'"
     )
-    op.execute(
-        "UPDATE whispersettingsmodel "
-        "SET final_api_model = NULL "
-        "WHERE id = 1"
-    )
+    op.execute("UPDATE whispersettingsmodel SET final_api_model = NULL WHERE id = 1")
     op.execute(
         "UPDATE whispersettingsmodel "
         "SET left_context_s = 0 "

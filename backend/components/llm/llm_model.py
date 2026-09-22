@@ -66,7 +66,10 @@ _THINKING_STARTERS = re.compile(
 
 
 def _strip_thinking(text: str) -> str:
-    """Remove reasoning blocks that thinking-capable models (MedGemma, Qwen3, etc.) emit."""
+    """Remove reasoning blocks that thinking-capable models emit.
+
+    (MedGemma, Qwen3, etc.)
+    """
     # XML-style tags
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(
@@ -86,6 +89,8 @@ def _strip_thinking(text: str) -> str:
 
 
 class SummarizeModel:
+    """LLM client for summarizing and cleaning up transcriptions."""
+
     def __init__(
         self,
         model_name=None,
@@ -213,7 +218,7 @@ class SummarizeModel:
             "Inhalt kann, muss aber nicht medizinischer Natur sein.\n\n"
             "Aufgabe:\n"
             "- Entferne Füllwörter, Wiederholungen, Versprecher und gesprochene "
-            "Korrekturen (z. B. \"nein, streich das\") und übernimm nur die final "
+            'Korrekturen (z. B. "nein, streich das") und übernimm nur die final '
             "gemeinte Aussage.\n"
             "- Korrigiere Grammatik und Zeichensetzung, ohne den inhaltlichen Sinn "
             "zu verändern.\n"
@@ -236,6 +241,7 @@ class SummarizeModel:
     def generate_response(
         self, message: str, custom_system_prompt: str | None = None
     ) -> str:
+        """Send a message with a system prompt and return the model's answer."""
         prompt = (
             custom_system_prompt if custom_system_prompt else self.get_system_prompt()
         )
@@ -259,8 +265,8 @@ class SummarizeModel:
         )
         # Suppress thinking output for all models — harmless for non-thinking models
         prompt = (
-            prompt.rstrip()
-            + "\nDo not output your reasoning or thinking process. Output only the final result."
+            prompt.rstrip() + "\nDo not output your reasoning or thinking process. "
+            "Output only the final result."
         )
 
         template = ChatPromptTemplate.from_messages(

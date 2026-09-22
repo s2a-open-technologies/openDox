@@ -67,6 +67,8 @@ interface WhisperSettings {
     final_beam_size: number;
 }
 
+type WhisperSettingsResponse = Partial<WhisperSettings>;
+
 type TestResult = { ok: boolean; message: string } | null;
 
 const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
@@ -107,7 +109,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
     useEffect(() => {
         authFetch('/api/v1/settings/whisper-settings/')
             .then(res => res.json())
-            .then((data: any) => {
+            .then((data: WhisperSettingsResponse) => {
                 setConfig({
                     live_backend: data.live_backend || 'api',
                     live_api_endpoint: data.live_api_endpoint || '',
@@ -136,7 +138,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             .catch(console.error);
     }, []);
 
-    const updateField = (key: keyof WhisperSettings, value: any) => {
+    const updateField = (key: keyof WhisperSettings, value: WhisperSettings[keyof WhisperSettings]) => {
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 

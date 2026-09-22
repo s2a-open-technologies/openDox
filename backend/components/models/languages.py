@@ -23,18 +23,26 @@ from sqlmodel import Field, SQLModel
 
 
 class LanguagesBase(SQLModel):
+    """Base schema for language entries."""
+
     name: str = Field(index=True)
     country_code: str
     system_prompt: str
 
 
 class Languages(LanguagesBase, table=True):
+    """Language table model."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class LanguagesCreate(LanguagesBase):
+    """Schema for creating a language."""
+
     pass
 
 
 class LanguagesRead(LanguagesBase):
+    """Schema for reading a language."""
+
     id: int

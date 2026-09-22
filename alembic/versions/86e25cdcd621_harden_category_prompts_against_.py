@@ -5,6 +5,7 @@ Revises: d2127bfbc088
 Create Date: 2026-07-06 22:40:46.767019
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '86e25cdcd621'
-down_revision: Union[str, Sequence[str], None] = 'd2127bfbc088'
+revision: str = "86e25cdcd621"
+down_revision: Union[str, Sequence[str], None] = "d2127bfbc088"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -29,7 +30,7 @@ NEW_PROMPTS = {
         "Du erhältst die Rohtranskription eines deutschen Arzt-Diktats.\n\n"
         "Aufgabe:\n"
         "- Entferne Füllwörter, Wiederholungen, Versprecher und gesprochene Korrekturen "
-        "(z. B. \"nein, streich das\") und übernimm nur die final gemeinte Aussage.\n"
+        '(z. B. "nein, streich das") und übernimm nur die final gemeinte Aussage.\n'
         "- Korrigiere Grammatik und Zeichensetzung, ohne den fachlichen Inhalt zu verändern.\n"
         "- Erfinde keine Befunde, Diagnosen, Werte oder Symptome, die nicht im Diktat genannt wurden.\n"
         "- Verwende niemals Platzhalter in eckigen Klammern (z. B. [PERSON], [DATUM], [WERT]) "
@@ -124,7 +125,7 @@ OLD_PROMPTS = {
         "Du erhältst die Rohtranskription eines deutschen Arzt-Diktats.\n\n"
         "Aufgabe:\n"
         "- Entferne Füllwörter, Wiederholungen, Versprecher und gesprochene Korrekturen "
-        "(z. B. \"nein, streich das\") und übernimm nur die final gemeinte Aussage.\n"
+        '(z. B. "nein, streich das") und übernimm nur die final gemeinte Aussage.\n'
         "- Korrigiere Grammatik und Zeichensetzung, ohne den fachlichen Inhalt zu verändern.\n"
         "- Erfinde keine Befunde, Diagnosen, Werte oder Symptome, die nicht im Diktat genannt wurden.\n"
         "- Übernimm Zahlen, Maßeinheiten und Messwerte exakt wie diktiert.\n"

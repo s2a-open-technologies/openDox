@@ -27,7 +27,8 @@ describe("cn", () => {
   });
 
   it("drops falsy values", () => {
-    expect(cn("a", false && "b", undefined, null, "", "c")).toBe("a c");
+    const cond: boolean = false;
+    expect(cn("a", cond && "b", undefined, null, "", "c")).toBe("a c");
   });
 
   it("applies conditional object syntax", () => {

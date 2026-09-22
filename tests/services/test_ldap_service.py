@@ -190,9 +190,9 @@ def test_authenticate_denies_login_when_not_in_allowed_group(patched_connection)
     user_conn = MagicMock(bound=True)
     patched_connection(bind_conn, user_conn)
 
-    result = LdapService(
-        _settings(allowed_groups="opendox-user")
-    ).authenticate("jdoe", "secret")
+    result = LdapService(_settings(allowed_groups="opendox-user")).authenticate(
+        "jdoe", "secret"
+    )
 
     assert result == {
         "success": False,
@@ -212,9 +212,9 @@ def test_authenticate_allows_login_when_in_allowed_group(patched_connection):
     user_conn = MagicMock(bound=True)
     patched_connection(bind_conn, user_conn)
 
-    result = LdapService(
-        _settings(allowed_groups="opendox-user")
-    ).authenticate("jdoe", "secret")
+    result = LdapService(_settings(allowed_groups="opendox-user")).authenticate(
+        "jdoe", "secret"
+    )
 
     assert result["success"] is True
 
@@ -231,9 +231,9 @@ def test_authenticate_maps_admin_group_to_admin_role(patched_connection):
     user_conn = MagicMock(bound=True)
     patched_connection(bind_conn, user_conn)
 
-    result = LdapService(
-        _settings(admin_groups="opendox-admin")
-    ).authenticate("jdoe", "secret")
+    result = LdapService(_settings(admin_groups="opendox-admin")).authenticate(
+        "jdoe", "secret"
+    )
 
     assert result["role"] == "admin"
 
@@ -250,9 +250,9 @@ def test_authenticate_maps_moderator_group_to_moderator_role(patched_connection)
     user_conn = MagicMock(bound=True)
     patched_connection(bind_conn, user_conn)
 
-    result = LdapService(
-        _settings(moderator_groups="opendox-mod")
-    ).authenticate("jdoe", "secret")
+    result = LdapService(_settings(moderator_groups="opendox-mod")).authenticate(
+        "jdoe", "secret"
+    )
 
     assert result["role"] == "moderator"
 
@@ -293,8 +293,8 @@ def test_authenticate_group_matching_is_case_insensitive(patched_connection):
     user_conn = MagicMock(bound=True)
     patched_connection(bind_conn, user_conn)
 
-    result = LdapService(
-        _settings(admin_groups="opendox-admin")
-    ).authenticate("jdoe", "secret")
+    result = LdapService(_settings(admin_groups="opendox-admin")).authenticate(
+        "jdoe", "secret"
+    )
 
     assert result["role"] == "admin"

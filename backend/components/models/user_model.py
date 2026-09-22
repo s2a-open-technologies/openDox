@@ -30,6 +30,8 @@ ROLES = ("admin", "moderator", "demo_viewer", "user")
 
 
 class User(SQLModel, table=True):
+    """User model for authentication and role management."""
+
     id: Optional[int] = Field(primary_key=True, default=None)
     name: str = Field(index=True, unique=True)
     hashed_password: str
@@ -44,15 +46,21 @@ class User(SQLModel, table=True):
 
 
 class UserBase(SQLModel):
+    """Base schema for user payloads."""
+
     name: str
 
 
 class UserCreate(UserBase):
+    """Schema for creating a user."""
+
     password: str  # Klartext beim Eingang – wird gehasht gespeichert
     role: str = "user"
 
 
 class UserRead(UserBase):
+    """Schema for reading a user."""
+
     id: int
     is_active: bool
     role: str
@@ -60,11 +68,15 @@ class UserRead(UserBase):
 
 
 class UserLogin(SQLModel):
+    """Schema for login credentials."""
+
     name: str
     password: str
 
 
 class UserUpdate(SQLModel):
+    """Schema for updating a user."""
+
     name: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None

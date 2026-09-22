@@ -23,6 +23,8 @@ from sqlmodel import Field, SQLModel
 
 
 class WhisperSettingsModel(SQLModel, table=True):
+    """Whisper/ASR settings singleton model."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # Live (Near-Real-Time) Transcription Settings

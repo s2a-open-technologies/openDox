@@ -30,11 +30,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Beispiel-Route für deine API
 @root_router.get("/api/endpoint")
 async def api_endpoint():
+    """Return a simple API example response."""
     return {"message": "API Endpoint"}
 
 
 @root_router.get("/health")
 async def health_check():
+    """Return the service health status."""
     return {"status": "ok"}
 
 

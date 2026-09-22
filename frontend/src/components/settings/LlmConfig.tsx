@@ -43,6 +43,8 @@ interface LlmSettings {
     sanitizer_api_key: string;
 }
 
+type LlmSettingsResponse = Partial<LlmSettings>;
+
 const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [testStatus, setTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
@@ -66,7 +68,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
     useEffect(() => {
         authFetch('/api/v1/settings/llm-settings/')
             .then(res => res.json())
-            .then((data: any) => {
+            .then((data: LlmSettingsResponse) => {
                 setConfig({
                     llm_api_endpoint: data.llm_api_endpoint || 'http://localhost:11434/v1',
                     llm_api_key: data.llm_api_key || '',
@@ -85,7 +87,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             .catch(console.error);
     }, []);
 
-    const updateField = (key: keyof LlmSettings, value: any) => {
+    const updateField = (key: keyof LlmSettings, value: LlmSettings[keyof LlmSettings]) => {
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 

@@ -36,10 +36,13 @@ def _group_dn(name: str, base_dn: str) -> str:
 
 
 class LdapService:
+    """Service for authenticating users against an LDAP directory."""
+
     def __init__(self, settings):
         self.settings = settings
 
     def connect(self):
+        """Open an (optionally TLS-secured) LDAP connection to the server."""
         tls_config = None
         if self.settings.use_ssl:
             cert_data = self.settings.cert_data or None
@@ -64,6 +67,7 @@ class LdapService:
         return conn
 
     def authenticate(self, username, password):
+        """Authenticate a user and determine their role from group membership."""
         if not password or not password.strip():
             # RFC 4513 "unauthenticated bind": a SIMPLE bind with a non-empty
             # DN and an empty password is treated by ldap3/many servers as a

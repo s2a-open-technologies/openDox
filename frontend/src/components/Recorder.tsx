@@ -35,6 +35,12 @@ import {
 } from "@/components/ui/dialog";
 import { VoiceVisualizer, BarVisualizer } from "@/components/ui/voice-visualizer";
 
+export interface RecordingStartData {
+  session_id: string;
+  id?: number;
+  title?: string;
+}
+
 interface RecorderProps {
   userId: string;
   title?: string;
@@ -42,7 +48,7 @@ interface RecorderProps {
   patient?: string;
   subject?: string;
   onFinalTranscription?: (sessionId: string, taskId?: string | number) => void;
-  onRecordingStart?: (recordingData: any) => void;
+  onRecordingStart?: (recordingData: RecordingStartData) => void;
   autoStart?: boolean;
   resumeSessionId?: string;
 }
@@ -182,9 +188,9 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
         // otherwise the mic stream / AudioWorklet / AudioContext keep running
         // in the background with nothing consuming their output, burning CPU
         // until the tab is closed.
-        try { workletRef.current?.disconnect(); } catch (_) {}
-        try { streamRef.current?.getTracks().forEach((track) => track.stop()); } catch (_) {}
-        try { audioContextRef.current?.close(); } catch (_) {}
+        try { workletRef.current?.disconnect(); } catch { /* already gone */ }
+        try { streamRef.current?.getTracks().forEach((track) => track.stop()); } catch { /* already gone */ }
+        try { audioContextRef.current?.close(); } catch { /* already gone */ }
         setAnalyser(null);
 
         setIsRecording(false);
@@ -293,7 +299,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
 
     isPausedRef.current = false;
 
-    try { workletRef.current?.disconnect(); } catch (_) {}
+    try { workletRef.current?.disconnect(); } catch { /* already gone */ }
     streamRef.current?.getTracks().forEach(track => track.stop());
     audioContextRef.current?.close();
     setAnalyser(null);
@@ -361,10 +367,10 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       // close the socket as a plain disconnect -> backend keeps the session so it
       // can be resumed later.
       isPausedRef.current = true;
-      try { workletRef.current?.disconnect(); } catch (_) {}
-      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch (_) {}
-      try { audioContextRef.current?.close(); } catch (_) {}
-      try { socketRef.current?.close(); } catch (_) {}
+      try { workletRef.current?.disconnect(); } catch { /* already gone */ }
+      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* already gone */ }
+      try { audioContextRef.current?.close(); } catch { /* already gone */ }
+      try { socketRef.current?.close(); } catch { /* already gone */ }
     };
   }, []);
 

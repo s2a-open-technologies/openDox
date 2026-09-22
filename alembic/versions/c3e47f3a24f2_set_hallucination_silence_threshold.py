@@ -28,7 +28,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        "UPDATE whispersettingsmodel "
-        "SET hallucination_silence_threshold = NULL"
-    )
+    op.execute("UPDATE whispersettingsmodel SET hallucination_silence_threshold = NULL")

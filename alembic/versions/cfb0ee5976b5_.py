@@ -5,11 +5,12 @@ Revises: 431daad54f38
 Create Date: 2026-06-12 12:08:09.754356
 
 """
+
 from typing import Sequence, Union
 
 # revision identifiers, used by Alembic.
-revision: str = 'cfb0ee5976b5'
-down_revision: Union[str, Sequence[str], None] = '431daad54f38'
+revision: str = "cfb0ee5976b5"
+down_revision: Union[str, Sequence[str], None] = "431daad54f38"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

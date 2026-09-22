@@ -5,6 +5,7 @@ Revises: 2efe299f2cf0
 Create Date: 2026-08-27 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '42e236757c97'
-down_revision: Union[str, Sequence[str], None] = '2efe299f2cf0'
+revision: str = "42e236757c97"
+down_revision: Union[str, Sequence[str], None] = "2efe299f2cf0"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -35,18 +36,24 @@ def upgrade() -> None:
     # so thinking is disabled out of the box. Category overrides stay NULL
     # (= inherit the global value) and are intentionally not seeded here.
     # Guarded so an already-configured value is never overwritten.
-    op.execute(sa.text(
-        "UPDATE llmsettingsmodel SET llm_top_p = 0.9 "
-        "WHERE id = 1 AND llm_top_p IS NULL"
-    ))
-    op.execute(sa.text(
-        "UPDATE llmsettingsmodel SET llm_frequency_penalty = 0.3 "
-        "WHERE id = 1 AND llm_frequency_penalty IS NULL"
-    ))
-    op.execute(sa.text(
-        "UPDATE llmsettingsmodel SET llm_enable_thinking = false "
-        "WHERE id = 1 AND llm_enable_thinking IS NULL"
-    ))
+    op.execute(
+        sa.text(
+            "UPDATE llmsettingsmodel SET llm_top_p = 0.9 "
+            "WHERE id = 1 AND llm_top_p IS NULL"
+        )
+    )
+    op.execute(
+        sa.text(
+            "UPDATE llmsettingsmodel SET llm_frequency_penalty = 0.3 "
+            "WHERE id = 1 AND llm_frequency_penalty IS NULL"
+        )
+    )
+    op.execute(
+        sa.text(
+            "UPDATE llmsettingsmodel SET llm_enable_thinking = false "
+            "WHERE id = 1 AND llm_enable_thinking IS NULL"
+        )
+    )
 
 
 def downgrade() -> None:

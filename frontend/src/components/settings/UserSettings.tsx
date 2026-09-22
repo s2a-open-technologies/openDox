@@ -118,7 +118,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 : '/api/v1/auth/users';
             const method = editingUser ? 'PUT' : 'POST';
 
-            const body: any = {
+            const body: { name: string; is_active: boolean; role: Role; password?: string } = {
                 name: formData.name,
                 is_active: formData.is_active,
                 role: formData.role,

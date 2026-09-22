@@ -28,7 +28,8 @@ from backend.components.security.field_encryption import EncryptedString
 class OidcSettingsModel(SQLModel, table=True):
     """Configuration for an OpenID Connect provider (Authorization Code Flow).
 
-    All endpoint URLs are fetched via discovery from ``{provider_url}/.well-known/openid-configuration``;
+    All endpoint URLs are fetched via discovery from
+    ``{provider_url}/.well-known/openid-configuration``;
     only the issuer base URL needs to be configured here.
 
     Attributes:
@@ -39,7 +40,8 @@ class OidcSettingsModel(SQLModel, table=True):
         group_claim: Name of the claim in the id_token / userinfo response that
             contains the user's group memberships. Defaults to ``groups``.
         admin_groups: Comma-separated group names that map to ``is_superuser=True``.
-        username_claim: Claim used to derive the local ``User.name``. Defaults to ``preferred_username``.
+        username_claim: Claim used to derive the local ``User.name``.
+            Defaults to ``preferred_username``.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)

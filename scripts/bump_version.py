@@ -129,6 +129,7 @@ def commit_and_tag(new_version: str) -> None:
 
 
 def main() -> None:
+    """Parse CLI arguments and bump the app version accordingly."""
     parser = argparse.ArgumentParser(
         description="Bump the app version across pyproject.toml and "
         "frontend/package.json."

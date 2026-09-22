@@ -25,6 +25,8 @@ from sqlmodel import Field, SQLModel
 
 
 class Task(SQLModel, table=True):
+    """Background transcription task model."""
+
     id: int = Field(default=None, primary_key=True)
     status: str = Field(default="pending")  # pending, running, done, error
     result: Optional[str] = None

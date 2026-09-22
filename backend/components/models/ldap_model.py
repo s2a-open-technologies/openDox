@@ -26,6 +26,8 @@ from backend.components.security.field_encryption import EncryptedString
 
 
 class LdapSettingsModel(SQLModel, table=True):
+    """LDAP authentication settings singleton model."""
+
     id: Optional[int] = Field(default=None, primary_key=True)
     server_host: str
     server_port: int

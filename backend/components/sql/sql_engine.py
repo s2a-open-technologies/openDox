@@ -50,6 +50,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 # Session factory für background tasks
 def get_session_factory():
+    """Return a factory that creates new database sessions."""
+
     def create():
         return Session(engine)
 

@@ -33,7 +33,9 @@ if _raw_key is None:
     logger.warning(
         "ENCRYPTION_KEY is not set — patient data will be stored unencrypted. "
         "Set ENCRYPTION_KEY to a Fernet key for DSGVO compliance. "
-        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        "Generate one with: "
+        'python -c "from cryptography.fernet import Fernet; '
+        'print(Fernet.generate_key().decode())"'
     )
     _fernet = None
 else:
@@ -53,13 +55,17 @@ def get_current_key() -> bytes | None:
 
 
 def encrypt(value: str) -> str:
+    """Encrypt a string with Fernet, returning plaintext if disabled."""
     if _fernet is None or not value:
         return value
     return _fernet.encrypt(value.encode()).decode()
 
 
 def decrypt(value: str) -> str:
-    """Decrypt a Fernet-encrypted string. Falls back to plaintext for unencrypted legacy data."""
+    """Decrypt a Fernet-encrypted string.
+
+    Falls back to plaintext for unencrypted legacy data.
+    """
     if _fernet is None or not value:
         return value
     try:
@@ -84,17 +90,22 @@ def decrypt_bytes(data: bytes) -> bytes:
 
 
 class EncryptedString(TypeDecorator):
-    """SQLAlchemy column type that transparently encrypts on write and decrypts on read."""
+    """SQLAlchemy column type that transparently encrypts on write.
+
+    Decrypts on read.
+    """
 
     impl = String
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
+        """Encrypt the value before it is written to the database."""
         if value is None:
             return value
         return encrypt(value)
 
     def process_result_value(self, value, dialect):
+        """Decrypt the value after it is read from the database."""
         if value is None:
             return value
         return decrypt(value)

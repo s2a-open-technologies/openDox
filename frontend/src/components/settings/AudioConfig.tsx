@@ -33,6 +33,8 @@ interface AudioSettings {
   audio_format: string;
 }
 
+type AudioSettingsResponse = Partial<AudioSettings>;
+
 const BITRATE_FORMATS = new Set(["mp3", "ogg"]);
 
 export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
@@ -48,7 +50,7 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
   useEffect(() => {
     authFetch('/api/v1/settings/audio-settings/')
       .then(res => res.json())
-      .then((data: any) => {
+      .then((data: AudioSettingsResponse) => {
         setConfig({
           audio_download_enabled: data.audio_download_enabled ?? true,
           audio_bitrate: data.audio_bitrate ?? "64k",

@@ -135,9 +135,7 @@ def test_update_record_with_unknown_category_returns_404(
     record = _create_record(session_factory, user_id=owner.id)
     url = f"/api/v1/records/record/{record.id}"
 
-    response = client.put(
-        url, headers=auth_headers(owner), json={"category_id": 999}
-    )
+    response = client.put(url, headers=auth_headers(owner), json={"category_id": 999})
 
     assert response.status_code == 404
 

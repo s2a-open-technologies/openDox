@@ -23,5 +23,3 @@ record_bp = APIRouter(prefix="/api/v1/records", tags=["records"])
 
 # Import routes after creating router to avoid circular imports
 from backend.views.record_api import record  # noqa: E402,F401
-
-

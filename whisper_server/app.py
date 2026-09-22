@@ -81,6 +81,7 @@ async def list_models():
 
 @app.get("/health")
 async def health():
+    """Report server health and the loaded model name."""
     return {"status": "ok", "model": MODEL_NAME}
 
 

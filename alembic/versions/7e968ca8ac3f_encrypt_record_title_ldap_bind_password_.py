@@ -17,6 +17,7 @@ it's still plaintext) — safe to re-run, and a no-op if ENCRYPTION_KEY isn't
 set (encrypt()/decrypt() pass values through unchanged in that case, same
 as the rest of the app).
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -25,8 +26,8 @@ from alembic import op
 from backend.components.security.field_encryption import decrypt, encrypt
 
 # revision identifiers, used by Alembic.
-revision: str = '7e968ca8ac3f'
-down_revision: Union[str, Sequence[str], None] = 'dfba80abfe0c'
+revision: str = "7e968ca8ac3f"
+down_revision: Union[str, Sequence[str], None] = "dfba80abfe0c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

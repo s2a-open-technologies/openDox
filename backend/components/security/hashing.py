@@ -45,16 +45,19 @@ REFRESH_TOKEN_EXPIRE_DAYS = env_or_file("REFRESH_TOKEN_EXPIRE_DAYS", "7")
 
 
 def get_password_hash(password):
+    """Hash a plaintext password with bcrypt."""
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password, hashed_password):
+    """Verify a plaintext password against a bcrypt hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_token(
     data: dict, expires_delta: Union[timedelta, None] = None, token_type: str = "access"
 ) -> str:
+    """Create a signed JWT with expiry claims for the given payload."""
     to_encode = data.copy()
     now = datetime.now(timezone.utc)
     if expires_delta:
@@ -80,6 +83,7 @@ def create_refresh_token(sub: str) -> str:
 
 
 def decode_token(token: str) -> Union[dict, None]:
+    """Decode and verify a JWT, returning the payload or None on failure."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         print(payload)

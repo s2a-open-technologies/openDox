@@ -44,6 +44,8 @@ interface LdapSettingsData {
     moderator_groups: string;
 }
 
+type LdapSettingsResponse = Partial<LdapSettingsData>;
+
 const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { authFetch } = useAuth();
     const [settings, setSettings] = useState<LdapSettingsData>({
@@ -68,7 +70,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     useEffect(() => {
         authFetch('/api/v1/settings/ldap-settings/')
             .then(res => res.json())
-            .then((data: any) => {
+            .then((data: LdapSettingsResponse) => {
                 if (data && data.server_host !== undefined) {
                     setSettings({
                         server_host: data.server_host || '',

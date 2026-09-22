@@ -89,7 +89,10 @@ def _require_owner(current_user: User, owner_id: int) -> None:
 
 
 async def _run_periodic_cleanup(session_id: str, websocket: WebSocket) -> None:
-    """Smooth chunk-boundary punctuation in the live transcript via LLM (non-blocking)."""
+    """Smooth chunk-boundary punctuation in the live transcript via LLM.
+
+    Non-blocking.
+    """
     from backend.components.services.chunk_correction_service import smooth_transcript
 
     session = session_store.get_by_session(session_id)
@@ -992,7 +995,7 @@ _NON_TERMINAL_TASK_STATUSES = {"pending", "running", "transcribing", "processing
 async def transcription_status(
     task_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
 ):
-
+    """Return the current status of a transcription task."""
     task = db.get(Task, task_id)
 
     if not task:

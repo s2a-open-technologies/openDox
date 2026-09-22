@@ -103,11 +103,23 @@ line-length = 88
 # I = Isort (Import-Sortierung)
 # D = Pydocstyle (Docstrings)
 select = ["E", "F", "I", "D"]
-ignore = ["D107"] # Optional: Wenn du __init__ nicht immer dokumentieren willst
+ignore = [
+    "D107", # Optional: Wenn du __init__ nicht immer dokumentieren willst
+    # Der SPDX-Lizenzheader am Dateianfang wird als Modul-Docstring
+    # fehlinterpretiert; D-Regeln für Rechtstext sind Rauschen.
+    "D205",
+    "D415",
+    # Lizenzheader + eigener Modul-Docstring führen zu doppelten
+    # Docstring-Blöcken und damit zu E402-Treffern bei den Imports.
+    "E402",
+]
 
 [tool.ruff.lint.per-file-ignores]
-# Test function names are self-documenting; don't require docstrings on them.
-"tests/**" = ["D103"]
+# Test-Klassen/-Funktionen sind selbstdokumentierend.
+"tests/**" = ["D101", "D102", "D103"]
+# Alembic-Migrationen sind (teil-)autogeneriert; Docstrings/Länge dort
+# sind Rauschen. Lange Prompt-Strings lassen sich nicht sinnvoll umbrechen.
+"alembic/versions/**" = ["D101", "D102", "D103", "E501"]
 
 # Konfiguration der Import-Sortierung
 [tool.ruff.lint.isort]

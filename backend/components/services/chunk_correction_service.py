@@ -60,18 +60,22 @@ def _sanitize_live(text: str) -> tuple[str, dict[str, str]]:
 
 
 _SYSTEM_PROMPT = (
-    "Du bereinigst deutschen Whisper-Transkriptionstext für medizinische Diktiersoftware.\n\n"
+    "Du bereinigst deutschen Whisper-Transkriptionstext "
+    "für medizinische Diktiersoftware.\n\n"
     "Entferne diese bekannten Whisper-Artefakte aus dem Text:\n"
     '- "Vielen Dank", "Danke schön", "Danke", "Bitte"\n'
     '- "Tschüss", "Auf Wiedersehen", "Bis zum nächsten Mal"\n'
     '- "Das ist ein Video", "Das ist ein Test"\n'
     '- "Untertitel von", "Abonnieren", ♪, [Musik], [Applaus]\n\n'
-    "Erlaubte weitere Korrekturen: Satzzeichen, abgehackte Wörter an Chunk-Grenzen.\n\n"
-    "VERBOTEN: Erklärungen schreiben, Kommentare, neue Wörter erfinden, Inhalt ändern.\n"
+    "Erlaubte weitere Korrekturen: Satzzeichen, abgehackte Wörter "
+    "an Chunk-Grenzen.\n\n"
+    "VERBOTEN: Erklärungen schreiben, Kommentare, neue Wörter erfinden, "
+    "Inhalt ändern.\n"
     "Gib NUR den bereinigten Text aus. Wenn nichts übrig bleibt, gib nichts aus."
 )
 
-# LLM meta-commentary patterns — small models sometimes explain instead of outputting empty.
+# LLM meta-commentary patterns — small models sometimes explain
+# instead of outputting empty.
 _META_PATTERNS = [
     "kein medizinischer inhalt",
     "kein inhalt",

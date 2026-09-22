@@ -51,7 +51,7 @@ from backend.views.auth_api.dependencies import get_current_user
 
 @auth_bp.post("/register", response_model=UserRead, status_code=201)
 async def register(user_in: UserCreate, db: SessionDep):
-
+    """Register a new user with a hashed password."""
     # check i user already exists
     stmt = select(User).where(User.name == user_in.name)
     existing_user = db.exec(stmt).first()
@@ -76,6 +76,7 @@ async def register(user_in: UserCreate, db: SessionDep):
 
 @auth_bp.post("/login", response_model=Token)
 async def login(request: Request, user_in: UserLogin, db: SessionDep):
+    """Authenticate via local DB or LDAP and return a token pair."""
     login_limiter.check(request)
 
     # Check if user exists and password is correct
@@ -131,7 +132,7 @@ async def login(request: Request, user_in: UserLogin, db: SessionDep):
 
 @auth_bp.post("/refresh", response_model=Token)
 async def refresh_token_endpoint(refresh_token: str):
-
+    """Issue a new token pair for a valid refresh token."""
     # Refreshes token
     try:
         payload = decode_token(refresh_token)
@@ -165,6 +166,7 @@ async def refresh_token_endpoint(refresh_token: str):
 
 @auth_bp.get("/me", response_model=UserRead)
 async def read_me(current_user: User = Depends(get_current_user)):
+    """Return the currently authenticated user."""
     return current_user
 
 
@@ -205,6 +207,7 @@ async def list_users(
     offset: int = 0,
     limit: int = 100,
 ):
+    """List users with pagination (admin or demo_viewer only)."""
     users = db.exec(select(User).offset(offset).limit(limit)).all()
     return users
 
@@ -215,6 +218,7 @@ async def create_user(
     db: SessionDep,
     current_user: User = Depends(_require_role("admin")),
 ):
+    """Create a new user with role validation (admin only)."""
     existing = db.exec(select(User).where(User.name == user_in.name)).first()
     if existing:
         raise HTTPException(status_code=422, detail="User already exists")
@@ -236,6 +240,7 @@ async def get_user(
     db: SessionDep,
     current_user: User = Depends(_require_role("admin", "demo_viewer")),
 ):
+    """Return a single user by ID (admin or demo_viewer only)."""
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -249,6 +254,7 @@ async def update_user(
     db: SessionDep,
     current_user: User = Depends(_require_role("admin")),
 ):
+    """Update a user's name, active state, role, or password (admin only)."""
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -274,6 +280,7 @@ async def delete_user(
     db: SessionDep,
     current_user: User = Depends(_require_role("admin")),
 ):
+    """Delete a user by ID, preventing self-deletion (admin only)."""
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

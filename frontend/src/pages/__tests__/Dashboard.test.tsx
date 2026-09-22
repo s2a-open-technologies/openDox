@@ -38,14 +38,26 @@ vi.mock("sonner", () => ({
 // live WS, rich text editing) that aren't the concern of this page-level
 // test - they're replaced with minimal stand-ins that expose the exact props
 // Dashboard wires up, so we can drive Dashboard's own state machine.
+
+type SidebarMockProps = {
+  showArchived: boolean;
+  onToggleArchived: (show: boolean) => void;
+  onUploadClick: () => void;
+  recordings: { id: string; title: string }[];
+  onSelectRecording: (recording: { id: string; title: string }) => void;
+  onDeleteRecording: (id: string) => void;
+  onArchiveRecording: (id: string) => void;
+  onUnarchiveRecording: (id: string) => void;
+};
+
 vi.mock("@/components/Sidebar", () => ({
-  default: (props: any) => (
+  default: (props: SidebarMockProps) => (
     <div data-testid="sidebar">
       <button onClick={() => props.onToggleArchived(!props.showArchived)}>
         ToggleArchived-{props.showArchived ? "archived" : "library"}
       </button>
       <button onClick={props.onUploadClick}>OpenUpload</button>
-      {props.recordings.map((r: any) => (
+      {props.recordings.map((r) => (
         <div key={r.id}>
           <span>{r.title}</span>
           <button onClick={() => props.onSelectRecording(r)}>Select-{r.title}</button>
@@ -58,26 +70,40 @@ vi.mock("@/components/Sidebar", () => ({
   ),
 }));
 
+type RecorderMockProps = {
+  categoryId: string | null;
+  onRecordingStart: (data: { session_id: string; id: number; title: string }) => void;
+  onFinalTranscription: (sessionId: string, taskId: string) => void;
+};
+
 vi.mock("@/components/Recorder", () => ({
-  default: React.forwardRef((props: any, _ref: any) => (
+  default: React.forwardRef((_props: RecorderMockProps, _ref: unknown) => (
     <div data-testid="recorder">
-      <span data-testid="recorder-category-id">{props.categoryId}</span>
+      <span data-testid="recorder-category-id">{_props.categoryId}</span>
       <button
         onClick={() =>
-          props.onRecordingStart({ session_id: "sess-1", id: 42, title: "Neue Aufnahme" })
+          _props.onRecordingStart({ session_id: "sess-1", id: 42, title: "Neue Aufnahme" })
         }
       >
         StartRec
       </button>
-      <button onClick={() => props.onFinalTranscription("sess-1", "task-1")}>
+      <button onClick={() => _props.onFinalTranscription("sess-1", "task-1")}>
         FinishRec
       </button>
     </div>
   )),
 }));
 
+type TranscriptViewMockProps = {
+  transcript: { id: string; title: string };
+  categories: { id: number }[];
+  onNewRecording: () => void;
+  onSave: (id: string, content: string, summarize: string) => void;
+  onCategoryChange: (id: string, categoryId: number | undefined) => void;
+};
+
 vi.mock("@/components/TranscriptView", () => ({
-  default: (props: any) => (
+  default: (props: TranscriptViewMockProps) => (
     <div data-testid="transcript-view">
       <span>TranscriptView-{props.transcript.title}</span>
       <button onClick={props.onNewRecording}>NewRecording</button>
@@ -109,9 +135,9 @@ const baseUser = {
 };
 
 type FetchMap = {
-  records?: any[];
-  categories?: any[];
-  activeSession?: any;
+  records?: Record<string, unknown>[];
+  categories?: { id: number; name: string }[];
+  activeSession?: { active: boolean; session_id?: string };
 };
 
 function buildAuthFetch(overrides: FetchMap = {}) {

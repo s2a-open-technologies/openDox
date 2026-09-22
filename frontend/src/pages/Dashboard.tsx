@@ -20,7 +20,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
-import Recorder, { RecorderHandle } from "@/components/Recorder";
+import Recorder, { RecorderHandle, RecordingStartData } from "@/components/Recorder";
 import TranscriptView from "@/components/TranscriptView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +66,19 @@ export interface Category {
   name: string;
 }
 
+interface RecordData {
+  id: number;
+  session_id: string;
+  user_id: number;
+  category_id: number | null;
+  title: string;
+  content: string | null;
+  summarize: string | null;
+  timestamp: string;
+  task_id?: number | null;
+  has_audio?: boolean;
+}
+
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
   const recorderRef = useRef<RecorderHandle>(null);
@@ -97,7 +110,7 @@ const Dashboard = () => {
       const response = await authFetch(`/api/v1/records/list-records/${userId}?archived=${showArchived}`);
       if (response.ok) {
         const data = await response.json();
-        setRecordings(data.map((d: any) => ({
+        setRecordings(data.map((d: RecordData) => ({
           id: d.session_id || d.id.toString(),
           dbId: d.id,
           title: d.title,
@@ -207,7 +220,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleRecordingStart = (recordingData: any) => {
+  const handleRecordingStart = (recordingData: RecordingStartData) => {
     setActiveSessionId(recordingData.session_id);
     setUnfinishedSessionId(recordingData.session_id);
     const cat = categories.find(c => c.id.toString() === categoryId);
@@ -472,7 +485,7 @@ const Dashboard = () => {
                   if (!ok) return;
                   // Wait for pending chunk uploads before cancelling on the server,
                   // so in-flight uploads don't create orphaned files after cleanup.
-                  try { await recorderRef.current?.waitForUploads(); } catch {}
+                  try { await recorderRef.current?.waitForUploads(); } catch { /* nothing to wait for */ }
                   setActiveSessionId(null);
                   setUnfinishedSessionId(null);
                   setSelectedRecording(null);

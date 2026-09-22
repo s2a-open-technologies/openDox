@@ -5,11 +5,12 @@ Revises: e68c3c754d84
 Create Date: 2026-06-11 23:26:53.883141
 
 """
+
 from typing import Sequence, Union
 
 # revision identifiers, used by Alembic.
-revision: str = '799c91e33c3a'
-down_revision: Union[str, Sequence[str], None] = 'e68c3c754d84'
+revision: str = "799c91e33c3a"
+down_revision: Union[str, Sequence[str], None] = "e68c3c754d84"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

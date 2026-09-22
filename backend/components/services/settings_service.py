@@ -46,6 +46,7 @@ class SettingsService:
     _audio_settings: Optional[AudioSettingsModel] = None
 
     def __new__(cls):
+        """Return the singleton instance, creating it on first call."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance

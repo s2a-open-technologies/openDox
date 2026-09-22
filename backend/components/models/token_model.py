@@ -22,6 +22,8 @@ from pydantic import BaseModel
 
 
 class Token(BaseModel):
+    """JWT token pair returned by the auth endpoints."""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"

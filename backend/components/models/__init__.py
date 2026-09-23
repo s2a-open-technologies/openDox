@@ -43,7 +43,6 @@ from backend.components.models.record_model import (
 )
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.task_model import Task
-from backend.components.models.terminology import Terminology
 from backend.components.models.token_model import Token
 from backend.components.models.user_model import User
 
@@ -67,7 +66,6 @@ __all__ = [
     "FinalizeRecord",
     "WhisperSettingsModel",
     "Task",
-    "Terminology",
     "Token",
     "User",
 ]

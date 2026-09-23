@@ -43,9 +43,14 @@ from backend.components.services.sanitizing_service import (
 )
 from backend.components.services.settings_service import (
     get_audio_settings,
+    get_settings,
     get_whisper_params,
 )
 from backend.components.services.task_service import update_task_status
+from backend.components.services.term_correction_service import (
+    correct_terms,
+    parse_glossary,
+)
 from backend.components.sql.sql_engine import get_session_factory
 
 logger = get_logger(__name__)
@@ -227,6 +232,27 @@ def background_transcription_task(
             )
         else:
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
+
+        whisper_settings = get_settings()
+        if whisper_settings.term_correction_enabled and category_whisper_prompt:
+            try:
+                glossary = parse_glossary(category_whisper_prompt)
+                if glossary:
+                    text, replacements = correct_terms(
+                        text, glossary, whisper_settings.term_correction_threshold
+                    )
+                    for r in replacements:
+                        logger.info(
+                            f"[TASK {task_id}] Fachbegriff-Korrektur: "
+                            f"{r['original']!r} -> {r['replacement']!r} "
+                            f"(score={r['score']:.1f})"
+                        )
+            except Exception:
+                logger.warning(
+                    f"[TASK {task_id}] term_correction_service failed, "
+                    "using uncorrected text",
+                    exc_info=True,
+                )
 
         if record:
             if _should_overwrite_content(text, record.content):

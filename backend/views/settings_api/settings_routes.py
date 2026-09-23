@@ -44,7 +44,6 @@ from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
-from backend.components.models.terminology import Terminology
 from backend.components.models.user_model import User
 from backend.components.modules.env import env_or_file
 from backend.components.services import audio_storage
@@ -130,6 +129,9 @@ async def update_whisper_settings(
     )
     settings.live_beam_size = settings_in.live_beam_size
     settings.final_beam_size = settings_in.final_beam_size
+
+    settings.term_correction_enabled = settings_in.term_correction_enabled
+    settings.term_correction_threshold = settings_in.term_correction_threshold
 
     db.add(settings)
     db.commit()
@@ -724,7 +726,6 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
     audio = db.exec(select(AudioSettingsModel)).first()
     categories = db.exec(select(Categories)).all()
     languages = db.exec(select(Languages)).all()
-    terminology = db.exec(select(Terminology)).all()
 
     return {
         "version": "1.0",
@@ -736,7 +737,6 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
             "audio": _serialize_model(audio) if audio else None,
             "categories": [_serialize_model(c) for c in categories],
             "languages": [_serialize_model(lang) for lang in languages],
-            "terminology": [_serialize_model(t) for t in terminology],
         },
     }
 
@@ -745,7 +745,7 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     """Restore settings from a backup dict into the database.
 
     Overwrites singleton rows in place (matching by first row) and replaces
-    all list-table rows (categories, languages, terminology) wholesale.
+    all list-table rows (categories, languages) wholesale.
 
     Args:
         db: Active database session.
@@ -780,7 +780,6 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     for model_cls, key in [
         (Categories, "categories"),
         (Languages, "languages"),
-        (Terminology, "terminology"),
     ]:
         rows_data = settings.get(key)
         if not isinstance(rows_data, list):

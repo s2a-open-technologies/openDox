@@ -62,6 +62,8 @@ const baseSettings = {
   hallucination_silence_threshold: null,
   live_beam_size: 1,
   final_beam_size: 5,
+  term_correction_enabled: false,
+  term_correction_threshold: 85.0,
 };
 
 function renderWithAuthFetch(authFetch: ReturnType<typeof vi.fn>, readOnly = false) {

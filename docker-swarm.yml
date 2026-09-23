@@ -282,3 +282,4 @@ secrets:
     external: true
   opendox_garage_admin_token:
     external: true
+

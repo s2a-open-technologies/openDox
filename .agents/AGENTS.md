@@ -114,6 +114,10 @@ No automated integration tests for Docker/full-stack scenarios.
 - Parakeet live text: `record.py` forwards every float32 PCM frame to the Parakeet server's WS; the server's `StreamingSession` runs Silero VAD + Parakeet ONNX, commits segments at pauses (re-decoding the open segment every 0.4s for a live partial) and streams back `{"partial": <open segment>}` / `{"committed": ..., "delta": ...}` / `{"final": ...}`. `record.py` relays `delta` as `{"text": delta}` (appended to `stableTranscript` client-side) and `partial` as `{"partial": ...}` (renders as the live tail). No LLM correction (Parakeet already outputs punctuation). `chunk_length_s`/`overlap_s`/`left_context_s`/`merge_overlapping_text` do **not** apply to the streaming path — segmentation is internal to the Parakeet server.
 - Whisper (`"api"`) live text goes through the fixed-chunk path in `record.py` (chunk_length_s/overlap_s/merge_overlapping_text) with batch LLM correction (`chunk_correction_service.py`, flushes every 5 chunks).
 
+### Phonetic Term Correction
+
+`term_correction_service.py` fuzzy-corrects mistranscribed German medical terms in the **final** Whisper text only (not live). No separate glossary UI/table — it reuses `Categories.whisper_prompt` (the same free text already sent to Whisper as `initial_prompt`), parsed into a term list (`parse_glossary()`, comma/semicolon/newline-split). `background_transcription_service.py` calls `correct_terms(text, glossary, threshold)` right after the final `backend.transcribe(...)` call, before the text is assigned to `record.content`: it slides a 1-3 word window over the text, compares each window's **Kölner Phonetik** code (`koelner_phonetik()`, self-contained, no dependency — Soundex/Metaphone don't fit German) against the glossary's precomputed codes via `rapidfuzz.fuzz.ratio`, and replaces windows scoring ≥ threshold with the glossary term's original spelling. Fail-open like `chunk_correction_service.py` (any exception → original text unchanged, `logger.warning`). Gated by `WhisperSettingsModel.term_correction_enabled` (default **off**) + `term_correction_threshold` (0-100 rapidfuzz scale, default 85.0), configurable in Admin UI → Dienste → Whisper → Final tab. Each replacement is logged (`original`/`replacement`/`score`) for threshold tuning, not persisted to the DB.
+
 ### PII Sanitizer (EntityGuard)
 
 See `docs/pii.md` for the full flow. Summary:
@@ -168,7 +172,7 @@ OIDC depends on `itsdangerous` (added to `pyproject.toml`) and reuses `httpx` + 
 
 ### Settings Backup / Restore
 
-`GET /api/v1/settings/backup/` exports all settings tables (Whisper, LLM, LDAP, OIDC, Categories, Languages, Terminology) as a JSON file with `Content-Disposition: attachment`. `POST /api/v1/settings/backup/restore/` accepts a `multipart/form-data` upload and upserts singletons / replaces list tables wholesale. User table is intentionally excluded (passwords). After restore, `invalidate_cache()` + `reset_asr_backends()` are called.
+`GET /api/v1/settings/backup/` exports all settings tables (Whisper, LLM, LDAP, OIDC, Categories, Languages) as a JSON file with `Content-Disposition: attachment`. `POST /api/v1/settings/backup/restore/` accepts a `multipart/form-data` upload and upserts singletons / replaces list tables wholesale. User table is intentionally excluded (passwords). After restore, `invalidate_cache()` + `reset_asr_backends()` are called.
 
 ### System Health Check
 

@@ -65,6 +65,9 @@ interface WhisperSettings {
     hallucination_silence_threshold: number | null;
     live_beam_size: number;
     final_beam_size: number;
+    // Phonetic/fuzzy post-correction of the final transcript
+    term_correction_enabled: boolean;
+    term_correction_threshold: number;
 }
 
 type WhisperSettingsResponse = Partial<WhisperSettings>;
@@ -104,6 +107,8 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         hallucination_silence_threshold: null,
         live_beam_size: 1,
         final_beam_size: 5,
+        term_correction_enabled: false,
+        term_correction_threshold: 85.0,
     });
 
     useEffect(() => {
@@ -133,6 +138,8 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                     hallucination_silence_threshold: data.hallucination_silence_threshold ?? null,
                     live_beam_size: data.live_beam_size ?? 1,
                     final_beam_size: data.final_beam_size ?? 5,
+                    term_correction_enabled: data.term_correction_enabled ?? false,
+                    term_correction_threshold: data.term_correction_threshold ?? 85.0,
                 });
             })
             .catch(console.error);
@@ -359,9 +366,38 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     placeholder="large-v3-turbo" 
                                     disabled={readOnly}
                                     value={config.final_api_model} 
-                                    onChange={(e) => updateField('final_api_model', e.target.value)} 
+                                    onChange={(e) => updateField('final_api_model', e.target.value)}
                                 />
                             </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="term-correction-enabled">
+                                    Fachbegriff-Korrektur (Phonetik/Fuzzy)
+                                </Label>
+                                <Switch
+                                    id="term-correction-enabled"
+                                    checked={config.term_correction_enabled}
+                                    disabled={readOnly}
+                                    onCheckedChange={(checked) => updateField('term_correction_enabled', checked)}
+                                />
+                            </div>
+                            {config.term_correction_enabled && (
+                                <div className="space-y-2">
+                                    <Label>Schwellenwert (0-100)</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Vergleicht den finalen Text gegen das
+                                        Vokabular aus dem Kategorie-Feld
+                                        "Whisper-Prompt" (Kölner Phonetik +
+                                        Fuzzy-Matching) und ersetzt Treffer ab
+                                        diesem Score.
+                                    </p>
+                                    <Input
+                                        type="number" min={0} max={100} step={1}
+                                        disabled={readOnly}
+                                        value={config.term_correction_threshold}
+                                        onChange={(e) => updateField('term_correction_threshold', parseFloat(e.target.value) || 0)}
+                                    />
+                                </div>
+                            )}
                             <div className="flex gap-2 pt-2">
                                 <Button
                                     variant="outline"

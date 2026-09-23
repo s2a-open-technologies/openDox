@@ -58,3 +58,8 @@ class WhisperSettingsModel(SQLModel, table=True):
     hallucination_silence_threshold: Optional[float] = Field(default=2.0)
     live_beam_size: int = Field(default=1)
     final_beam_size: int = Field(default=5)
+
+    # Phonetic/fuzzy post-correction of the final transcript against a
+    # category's whisper_prompt glossary (see term_correction_service.py).
+    term_correction_enabled: bool = Field(default=False)
+    term_correction_threshold: float = Field(default=85.0)

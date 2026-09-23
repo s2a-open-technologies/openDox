@@ -15,12 +15,20 @@ updates:
     directory: /parakeet_server
     schedule:
       interval: weekly
+    groups:
+      parakeet:
+        patterns:
+          - "*"
     open-pull-requests-limit: 3
 
   - package-ecosystem: pip
     directory: /whisper_server
     schedule:
       interval: weekly
+    groups:
+      whisper:
+        patterns:
+          - "*"
     open-pull-requests-limit: 3
 
   - package-ecosystem: npm
@@ -38,6 +46,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      docker:
+        patterns:
+          - "*"
     open-pull-requests-limit: 3
 
   - package-ecosystem: github-actions

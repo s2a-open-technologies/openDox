@@ -4,6 +4,6 @@ onnx-asr[gpu,hub]>=0.11.0
 # multi-arch build can resolve the same file. Requires glibc >= 2.34, which
 # the Ubuntu 22.04 CUDA base (2.35) provides.
 onnxruntime-gpu>=1.23.0
-fastapi>=0.115.0
+fastapi>=0.141.1
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.12

@@ -21,7 +21,8 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
-import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library, Radio, Upload } from "lucide-react";
+import { groupRecordingsByDate } from "@/lib/archive";
+import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library, Radio, Upload, CalendarDays } from "lucide-react";
 import UserDropdown from "@/components/UserDropdown";
 import {
   DropdownMenu,
@@ -44,6 +45,8 @@ interface SidebarProps {
   onUnarchiveRecording?: (id: string) => void;
   showArchived?: boolean;
   onToggleArchived?: (show: boolean) => void;
+  selectedArchiveDate?: string | null;
+  onSelectArchiveDate?: (dateKey: string | null) => void;
   onUploadClick?: () => void;
   showUploadButton?: boolean;
   mobileOpen?: boolean;
@@ -60,6 +63,8 @@ const Sidebar = ({
   onUnarchiveRecording,
   showArchived = false,
   onToggleArchived,
+  selectedArchiveDate = null,
+  onSelectArchiveDate,
   onUploadClick,
   showUploadButton = true,
   mobileOpen = false,
@@ -70,6 +75,8 @@ const Sidebar = ({
     onSelectRecording(recording);
     onMobileOpenChange?.(false);
   };
+
+  const dateGroups = showArchived ? groupRecordingsByDate(recordings) : [];
 
   const content = (
     <>
@@ -109,15 +116,59 @@ const Sidebar = ({
       </div>
 
       <ScrollArea className="flex-1 min-h-0 py-3 px-2">
-        <div className="space-y-1">
-          {recordings.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground">
-              <FileAudio className="w-8 h-8 mx-auto mb-2" />
-              <p className="text-sm">
-                {showArchived ? "Keine archivierten Aufnahmen" : "Keine Aufnahmen"}
-              </p>
-            </div>
-          ) : (
+        {showArchived ? (
+          <div className="space-y-1">
+            {dateGroups.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                <FileAudio className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm">Keine archivierten Aufnahmen</p>
+              </div>
+            ) : (
+              dateGroups.map((group) => {
+                const isSelected = selectedArchiveDate === group.key;
+                return (
+                  <button
+                    key={group.key}
+                    onClick={() => onSelectArchiveDate?.(group.key)}
+                    className={cn(
+                      "w-full rounded-lg px-4 py-3 text-left transition-all duration-200 flex items-center gap-3",
+                      isSelected
+                        ? "bg-blue-50 dark:bg-zinc-800/80 ring-1 ring-primary/20"
+                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                      isSelected
+                        ? "bg-primary/10 text-primary"
+                        : "bg-zinc-100 dark:bg-zinc-800 text-muted-foreground"
+                    )}>
+                      <CalendarDays className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-semibold truncate",
+                        isSelected ? "text-primary" : "text-foreground"
+                      )}>
+                        {group.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {group.count === 1 ? "1 Transkription" : `${group.count} Transkriptionen`}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {recordings.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                <FileAudio className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm">Keine Aufnahmen</p>
+              </div>
+            ) : (
             recordings.map((recording) => {
               const isActive = activeSessionId && recording.id === activeSessionId;
               const isSelected = selectedId === recording.id;
@@ -204,8 +255,9 @@ const Sidebar = ({
                 </div>
               );
             })
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </ScrollArea>
       <div className="p-2 border-t border-border">
         <UserDropdown />

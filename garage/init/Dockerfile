@@ -14,5 +14,11 @@ FROM alpine:3.20
 RUN apk add --no-cache curl jq
 COPY --from=garage-bin /garage /usr/local/bin/garage
 COPY init.sh /init.sh
-RUN chmod +x /init.sh
+# Unprivileged runtime user (UID/GID 1000) — the init script only reads its
+# secrets (Docker/Swarm mount them world-readable at /run/secrets), talks to
+# the Garage admin API over HTTP, and needs no local writes, so root is not
+# required. Named appuser for parity with the other openDox images.
+RUN adduser --no-create-home --uid 1000 -D appuser \
+    && chmod +x /init.sh
+USER appuser
 ENTRYPOINT ["/init.sh"]

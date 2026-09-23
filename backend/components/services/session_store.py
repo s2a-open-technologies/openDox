@@ -192,4 +192,80 @@ def _create_session_store():
     return SessionStore()
 
 
-session_store = _create_session_store()
+# Mutable module-level holder: record.py imports ``session_store`` (the object)
+# at import time, so swapping the factory result after startup needs a mutable
+# container that every consumer re-reads on attribute access.
+class _SessionStoreRef:
+    """Mutable reference to the active session store.
+
+    Lets the Redis-reconnect path swap the underlying store at runtime while
+    import-time consumers (``from ... import session_store``) keep working —
+    they read through this proxy on every attribute access.
+    """
+
+    def __init__(self, store):
+        self._store = store
+
+    def get(self):
+        """Return the currently active store instance."""
+        return self._store
+
+    def set(self, store):
+        """Replace the active store instance (reconnect path only)."""
+        self._store = store
+
+    def __getattr__(self, name):
+        return getattr(self._store, name)
+
+
+def reconnect_session_store() -> bool:
+    """Try to (re)establish the Redis-backed session store.
+
+    Called by the services-health check when Redis is configured but the
+    app is running on the in-memory fallback (typical race: the app process
+    restarted while Redis was still down — ``depends_on: service_healthy``
+    only orders initial ``compose up`` creation, not single-container
+    restarts). If REDIS_URL is configured but the store currently is (or
+    was degraded to) in-memory, a fresh ``RedisSessionStore`` is built and
+    swapped in atomically.
+
+    Returns:
+        True if a Redis-backed store is active afterwards (either it was
+        already, or the reconnect succeeded); False if REDIS_URL is unset
+        or Redis is still unreachable.
+    """
+    redis_url = env_or_file("REDIS_URL")
+    if not redis_url:
+        return False
+
+    from backend.components.services.session_store_redis import RedisSessionStore
+
+    current = session_store.get()
+    # Duck-type instead of isinstance: the health-check/tests may inject
+    # Redis-compatible stand-ins, and isinstance against a patched factory
+    # callable would raise TypeError.
+    if hasattr(current, "ping") and not isinstance(current, SessionStore):
+        try:
+            current.ping()
+            return True
+        except Exception:
+            logger.warning("Redis ping failed on existing store; attempting reconnect")
+
+    try:
+        store = RedisSessionStore(redis_url)
+        store.ping()
+    except Exception as exc:
+        logger.warning("Redis reconnect failed (%s): %s", redis_url, exc)
+        return False
+
+    session_store.set(store)
+    logger.info("Session store: Redis (re)connected (%s)", redis_url)
+    return True
+
+
+# Exported name consumed via ``from ... import session_store`` everywhere.
+# It IS the mutable proxy — attribute lookups forward to whichever store is
+# active, so a runtime reconnect swap is visible to import-time consumers.
+# (Defined after reconnect_session_store so the function body can reference
+# the module-level name via global lookup at call time.)
+session_store = _SessionStoreRef(_create_session_store())

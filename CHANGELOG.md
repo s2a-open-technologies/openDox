@@ -11,6 +11,21 @@ and tagged in git (`--commit` flag).
 
 ### Added
 
+- Redis session-store auto-reconnect: when the app process starts while Redis
+  is still down (single-container restart race — `depends_on` only orders
+  initial compose creation), the in-memory fallback is no longer permanent.
+  The services-health check (`/api/v1/settings/services-health/`) and the
+  `/api/ready` readiness probe now trigger a live reconnect whenever
+  `REDIS_URL` is configured but the active store is in-memory, swapping in a
+  fresh `RedisSessionStore` at runtime via a mutable proxy
+  (`backend/components/services/session_store.py`, 7 new tests in
+  `tests/services/test_session_store_reconnect.py`).
+- Voluntary SBOM generation in the Docker publish workflow: CycloneDX JSON
+  SBOMs per published image variant (pinned to the exact manifest digest,
+  `anchore/sbom-action`), plus `provenance`/`sbom` attestations on the
+  build step. Deliberately voluntary — CRA obligations don't apply to
+  non-commercial AGPL v3 OSS; the artifacts serve audit/procurement
+  evidence instead.
 - Rate-Limiting for the `/login` endpoint (sliding window, 5 requests/60s per
   client IP, HTTP 429 on exceed) with 10 pytest tests
   (`backend/components/services/rate_limiter.py`,
@@ -23,6 +38,10 @@ and tagged in git (`--commit` flag).
 
 ### Fixed
 
+- Parakeet GPU image: `onnxruntime-gpu>=1.29.0` in
+  `parakeet_server/requirements.gpu.txt` — aarch64 wheels only exist from
+  1.29.0, so the arm64 half of the multi-arch build failed with "No matching
+  distribution found" while the amd64 half built fine.
 - AdminModal tab-switch remount bug: React reused component state between
   structurally identical tabs, leaving sub-tabs inactive (`key` props added).
 - TranscriptView: `aria-label` on the icon-only summary copy button
@@ -78,7 +97,7 @@ category. AGPL-3.0-or-later; not a certified medical device.
   init container, ROOT_PATH sub-path deployment support, version bump
   tooling (`scripts/bump_version.py`), license-check tooling
   (`scripts/check_licenses.py`, `THIRD_PARTY_NOTICES.md` generation).
-- **Documentation**: `docs/SECURITY.md` (incl. Art. 32 measures table,
+- **Documentation**: `SECURITY.md` (incl. Art. 32 measures table,
   vulnerability disclosure policy), `docs/data-mapping.md` (DSGVO/Art. 30
   starting point with flowchart), `docs/pii.md`, `docs/CONTRIBUTING.md`,
   audit checklist (`docs/audit-checklist-opendox.md`).

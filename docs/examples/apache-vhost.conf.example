@@ -1,0 +1,63 @@
+# openDox — example Apache reverse-proxy VirtualHost
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Matches the actual documented production setup (see AGENTS.md /
+# SECURITY.md "Network Security"): Apache terminates TLS and proxies
+# to the app container on 127.0.0.1:<APP_PORT> (default 20000).
+#
+# Required modules:
+#   a2enmod proxy proxy_http proxy_wstunnel ssl headers
+#
+# IMPORTANT: the WebSocket ProxyPass for live recording MUST be declared
+# BEFORE the catch-all "/" ProxyPass below. mod_proxy_http lets a WS
+# upgrade handshake through but breaks on the binary audio frames that
+# follow — only mod_proxy_wstunnel handles those correctly. If you swap the
+# order, live transcription will drop after the first sentence or two.
+#
+# Replace opendox.example.com / cert paths / backend port before using.
+
+<VirtualHost *:443>
+    ServerName opendox.example.com
+
+    SSLEngine on
+    SSLCertificateFile /etc/apache2/ssl/opendox.crt
+    SSLCertificateKeyFile /etc/apache2/ssl/opendox.key
+
+    # Overwrite, don't just append — a client-supplied value here would
+    # otherwise be forwarded straight through to the app. The app only
+    # trusts these headers from peers listed in TRUSTED_PROXY_IPS (loopback
+    # + the Docker gateway IP are auto-detected for a same-host proxy).
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Port  "443"
+    RequestHeader set X-Forwarded-Host  "opendox.example.com"
+    RequestHeader set X-Forwarded-For   %{REMOTE_ADDR}s
+
+    # WebSocket route MUST come before the catch-all ProxyPass below.
+    ProxyPass        "/api/v1/records/ws/record" "ws://127.0.0.1:20000/api/v1/records/ws/record"
+    ProxyPassReverse "/api/v1/records/ws/record" "ws://127.0.0.1:20000/api/v1/records/ws/record"
+
+    ProxyPass        "/" "http://127.0.0.1:20000/"
+    ProxyPassReverse "/" "http://127.0.0.1:20000/"
+
+    # ─── Security response headers ──────────────────────────────────────
+    # None of these are set by openDox itself (only Permissions-Policy is,
+    # in backend/run.py) — they must come from here. Deliberately NOT
+    # including a Content-Security-Policy: the app injects an inline
+    # <script> (window.__ROOT_PATH__) into index.html at startup and uses
+    # a WebSocket + a blob: AudioWorklet for live recording — a strict CSP
+    # without matching script-src/connect-src/worker-src allowances would
+    # silently break ROOT_PATH sub-path deployments and live transcription.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</VirtualHost>
+
+# Plain-HTTP vhost: redirect to HTTPS instead of proxying, so HSTS above is
+# actually reachable-by-upgrade rather than assuming every client already
+# has it cached.
+<VirtualHost *:80>
+    ServerName opendox.example.com
+    RewriteEngine On
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>

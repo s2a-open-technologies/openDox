@@ -163,6 +163,14 @@ class SummarizeModel:
         once — Ollama's top-level "think" field and vLLM/Qwen3's nested
         "chat_template_kwargs.enable_thinking" — since a self-hosted
         OpenAI-compatible server ignores fields it doesn't recognize.
+
+        These are provider-specific, non-standard OpenAI fields, so they must
+        go through ``extra_body`` (which the openai SDK merges into the JSON
+        request body). ``model_kwargs`` would be wrong here: current
+        langchain-openai versions flatten it into the top-level
+        ``Completions.create()`` kwargs, and the strictly typed openai SDK
+        rejects unknown top-level parameters with
+        ``TypeError: ... unexpected keyword argument 'think'``.
         """
         return ChatOpenAI(
             model=self.model,
@@ -173,7 +181,7 @@ class SummarizeModel:
             top_p=self.top_p,
             frequency_penalty=self.frequency_penalty,
             timeout=self.timeout,
-            model_kwargs={
+            extra_body={
                 "think": self.enable_thinking,
                 "chat_template_kwargs": {"enable_thinking": self.enable_thinking},
             },

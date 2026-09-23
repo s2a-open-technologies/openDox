@@ -18,7 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Sidebar from "@/components/Sidebar";
@@ -38,6 +38,11 @@ class ResizeObserverMock {
   unobserve() {}
   disconnect() {}
 }
+
+// "Today" fixed to 2026-09-23 so "Heute"/"Gestern" labels are deterministic.
+// Fake timers would hang userEvent interactions, so Date.now() is stubbed instead.
+const NOW = new Date(2026, 8, 23, 12, 0, 0);
+const nowSpy = vi.spyOn(Date, "now").mockReturnValue(NOW.getTime());
 
 const recordings: Recording[] = [
   {
@@ -63,8 +68,17 @@ const recordings: Recording[] = [
 ];
 
 describe("Sidebar", () => {
+  beforeAll(() => {
+    nowSpy.mockReturnValue(NOW.getTime());
+  });
+
+  afterAll(() => {
+    nowSpy.mockRestore();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    nowSpy.mockReturnValue(NOW.getTime());
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
   });
 
@@ -202,13 +216,47 @@ describe("Sidebar", () => {
       />
     );
 
-    const menuButtons = screen.getAllByRole("button").filter((btn) =>
-      btn.querySelector("svg.lucide-ellipsis")
-    );
-    await user.click(menuButtons[0]);
-    await user.click(await screen.findAllByText("Wiederherstellen").then((els) => els[0]));
+    // In archive mode the sidebar shows date groups instead of recording rows;
+    // the per-recording actions live in ArchiveDayList. Only the empty-state
+    // label applies here since the rows themselves are replaced.
+    expect(screen.queryByText("Aufnahme Kardiologie")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Gestern").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("21.09.2026").length).toBeGreaterThan(0);
+  });
 
-    expect(onUnarchiveRecording).toHaveBeenCalledWith("1");
+  it("renders date groups with counts in archive mode", () => {
+    render(
+      <Sidebar
+        recordings={[...recordings, recordings[0]]}
+        onSelectRecording={vi.fn()}
+        showArchived
+        selectedArchiveDate="2026-09-22"
+        onSelectArchiveDate={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByText("Gestern").length).toBeGreaterThan(0);
+    expect(screen.getByText("2 Transkriptionen")).toBeInTheDocument();
+    expect(screen.getByText("1 Transkription")).toBeInTheDocument();
+  });
+
+  it("calls onSelectArchiveDate when a date group is clicked", async () => {
+    const onSelectArchiveDate = vi.fn();
+    const onMobileOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Sidebar
+        recordings={recordings}
+        onSelectRecording={vi.fn()}
+        showArchived
+        onSelectArchiveDate={onSelectArchiveDate}
+        onMobileOpenChange={onMobileOpenChange}
+      />
+    );
+
+    await user.click(screen.getAllByText("Gestern")[0]);
+    expect(onSelectArchiveDate).toHaveBeenCalledWith("2026-09-22");
+    expect(onMobileOpenChange).not.toHaveBeenCalled();
   });
 
   it("hides the row menu for the actively recording session", () => {

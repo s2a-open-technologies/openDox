@@ -38,19 +38,39 @@ python scripts/bump_version.py patch|minor|major
 python scripts/bump_version.py 1.2.3            # explicit version
 python scripts/bump_version.py patch --commit   # also git add+commit+tag
 
-# Build + push all four Docker images (app, whisper, parakeet, garage-init) to the registry
-# (uses bump_version.py --current, or OPENDOX_VERSION if already exported)
+# Build + push all four Docker images (app, whisper, parakeet, garage-init) to the registry.
+# docker_build_push.sh is local-only (gitignored), not checked into the repo.
+# Uses bump_version.py --current, or OPENDOX_VERSION if already exported.
+# Builds multi-arch (linux/amd64,linux/arm64) via buildx by default — override
+# with OPENDOX_PLATFORMS=linux/amd64 for a fast single-arch test build.
+# Pushes to registry.nutsolution.de by default; dual-push to ghcr.io too with
+# OPENDOX_REGISTRIES="registry.nutsolution.de ghcr.io/<owner>". Whisper/Parakeet
+# also get cpu-* tagged variants (no CUDA runtime — set WHISPER_DEVICE=cpu at
+# deploy time for the Whisper cpu-* image; Parakeet's onnx-asr falls back to
+# CPUExecutionProvider on its own).
 ./docker_build_push.sh
 
 # Docker Swarm production deploy (docker-compose.yml stays the local/dev/demo setup)
 docker swarm init                        # once per manager node
 ./create_docker_secrets.sh               # once — creates all secrets docker-swarm.yml needs
 export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
+# export OPENDOX_REGISTRY=ghcr.io/<owner>  # optional — defaults to registry.nutsolution.de
 ./docker_build_push.sh
 docker stack deploy -c docker-swarm.yml opendox
 ```
 
-No CI workflows configured.
+CI: `.github/workflows/ci.yml` runs backend (ruff + pytest) and frontend
+(vitest + eslint) on every push/PR to `master`. `.github/workflows/docker-publish.yml`
+is a separate, manual-only (`workflow_dispatch`) workflow that builds and
+pushes all 4 images (multi-arch, plus Whisper/Parakeet `cpu-*` variants) to
+`ghcr.io/<repo-owner>` using the built-in `GITHUB_TOKEN` — no extra secret
+needed. Each build also emits a CycloneDX SBOM artifact per image variant
+(`anchore/sbom-action`, pinned to the pushed manifest digest) plus
+`provenance`/`sbom` attestations — voluntary, since CRA obligations don't
+apply to non-commercial AGPL v3 OSS (see `docs/hospital-audit-frameworks.md`
+§7); there is intentionally no CVE-scan gate behind it. Newly published
+packages start private; switch each to public in its own Package Settings if
+that's the intent.
 
 **Backend tests** — pytest, config in `pyproject.toml` (`[tool.pytest.ini_options]`: `pythonpath=["."]`, `testpaths=["tests"]`):
 
@@ -234,6 +254,7 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 - **Apache reverse proxy + WebSocket**: If live transcription drops after 1-2 sentences behind Apache, `mod_proxy_wstunnel` is likely not loaded — `mod_proxy_http` lets the WS upgrade through but breaks on binary audio frames. Fix: `a2enmod proxy_wstunnel` and declare the WS `ProxyPass` for `/api/v1/records/ws/record` *before* the catch-all `ProxyPass /`. `Recorder.tsx`'s `ws.onclose` already handles unexpected disconnects (shows a toast, resets recording state).
 - **`/api/health` is dead code**: `backend/views/root_view/root.py` defines `/health` and a second `/api/endpoint`, but that router is never `include_router()`'d in `create_app()`. Any request to `/api/health` silently falls through to the `SPAStaticFiles` catch-all and returns the SPA shell with a 200 — it looks like a working health check but isn't one. The real liveness/version routes are `/api/endpoint` and `/api/version`, both registered directly on `app` inside `create_app()`. Follow that same inline-registration pattern for new public root-level routes, not the unmounted `root_view` router.
 - **Parakeet server deps**: `parakeet_server/requirements.txt` was split into `requirements.cpu.txt` and `requirements.gpu.txt` — the Dockerfile selects via `DEVICE` build-arg. Always add deps to **both** files (with the matching onnxruntime extra).
+- **`onnxruntime-gpu` arm64 wheels**: linux/aarch64 wheels only exist from 1.29.0 onwards (older releases are x86_64-only), and they require glibc ≥ 2.34 (Ubuntu 22.04 base has 2.35 — fine). `requirements.gpu.txt` pins `>=1.29.0` accordingly; lowering the floor back to `<1.29` breaks the arm64 half of the multi-arch build with "No matching distribution found". Note the CUDA base (12.4) stays compatible — 1.29+ still targets CUDA 12.x.
 - **CORS**: `allow_origins` is driven by `CORS_ALLOWED_ORIGINS` (comma-separated, `backend/run.py`) — empty/unset falls back to `["*"]` and logs a warning rather than failing. Set it once the real public origin(s) behind the reverse proxy are known.
 - **`docker stack config`/`docker stack deploy` interpolation bug**: a literal ` - ` (space-hyphen-space) inside a `${VAR:?error message}` clause makes the Compose-spec interpolator silently mangle the substitution (returns garbage instead of the variable's value, even when it's set) — reproduced directly, not theoretical. Avoid dashes in `:?`/`:-` default/error text in any Swarm compose file; `docker-swarm.yml`'s `OPENDOX_VERSION` guard message was reworded around this.
 

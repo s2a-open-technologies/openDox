@@ -59,6 +59,18 @@ RUN chmod +x entrypoint.sh
 # Postgres or S3-compatible object storage, not on local disk.
 RUN mkdir -p chunks
 
+# Unprivileged runtime user (UID/GID 1000) — nothing in this container needs
+# root: uvicorn binds an unprivileged port, Alembic migrations run as this
+# user, and every runtime write stays inside /app (recording chunks, the
+# ROOT_PATH injection into backend/static/index.html) or /tmp. chown -R /app
+# so those writes succeed; a fresh app-chunks volume inherits this ownership
+# via Docker's volume copy-up. Volumes created by older root-based images
+# need a one-time chown — see docs/SECURITY.md "Docker Security".
+RUN useradd --no-log-init -m -u 1000 appuser \
+    && chown -R 1000:1000 /app
+
+USER appuser
+
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:5000${ROOT_PATH:-}/api/endpoint || exit 1

@@ -48,6 +48,8 @@ type SidebarMockProps = {
   onDeleteRecording: (id: string) => void;
   onArchiveRecording: (id: string) => void;
   onUnarchiveRecording: (id: string) => void;
+  selectedArchiveDate: string | null;
+  onSelectArchiveDate: (dateKey: string | null) => void;
 };
 
 vi.mock("@/components/Sidebar", () => ({
@@ -56,6 +58,8 @@ vi.mock("@/components/Sidebar", () => ({
       <button onClick={() => props.onToggleArchived(!props.showArchived)}>
         ToggleArchived-{props.showArchived ? "archived" : "library"}
       </button>
+      <button onClick={() => props.onSelectArchiveDate("2026-09-23")}>PickDate</button>
+      <span data-testid="archive-date">{props.selectedArchiveDate ?? "none"}</span>
       <button onClick={props.onUploadClick}>OpenUpload</button>
       {props.recordings.map((r) => (
         <div key={r.id}>
@@ -66,6 +70,32 @@ vi.mock("@/components/Sidebar", () => ({
           <button onClick={() => props.onUnarchiveRecording(r.id)}>Unarchive-{r.title}</button>
         </div>
       ))}
+    </div>
+  ),
+}));
+
+type ArchiveDayListMockProps = {
+  recordings: { id: string; title: string }[];
+  selectedDate: string | null;
+  onSelectRecording: (recording: { id: string; title: string }) => void;
+  onUnarchiveRecording: (id: string) => void;
+  onDeleteRecording: (id: string) => void;
+  onBackToDates: () => void;
+};
+
+vi.mock("@/components/ArchiveDayList", () => ({
+  default: (props: ArchiveDayListMockProps) => (
+    <div data-testid="archive-day-list">
+      <span data-testid="archive-day-date">{props.selectedDate ?? "none"}</span>
+      {props.recordings.map((r) => (
+        <div key={r.id}>
+          <span>{r.title}</span>
+          <button onClick={() => props.onSelectRecording(r)}>ArchiveSelect-{r.title}</button>
+          <button onClick={() => props.onUnarchiveRecording(r.id)}>ArchiveUnarchive-{r.title}</button>
+          <button onClick={() => props.onDeleteRecording(r.id)}>ArchiveDelete-{r.title}</button>
+        </div>
+      ))}
+      <button onClick={props.onBackToDates}>BackToDates</button>
     </div>
   ),
 }));
@@ -494,5 +524,139 @@ describe("Dashboard", () => {
       )
     );
     expect(toast.success).toHaveBeenCalledWith("Aufnahme gespeichert");
+  });
+
+  it("shows the archive day list instead of the welcome screen in archive mode", async () => {
+    const authFetch = buildAuthFetch();
+    const user = userEvent.setup();
+    renderDashboard(authFetch);
+
+    await screen.findByTestId("sidebar");
+    await user.click(screen.getByRole("button", { name: /ToggleArchived/ }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("archive-day-list")).toBeInTheDocument()
+    );
+    // No date selected yet -> the day list shows its date prompt, not the welcome screen.
+    expect(screen.queryByText("Willkommen bei openDox")).not.toBeInTheDocument();
+    expect(screen.getByTestId("archive-day-date")).toHaveTextContent("none");
+  });
+
+  it("selects an archive date in the sidebar and passes it to the day list", async () => {
+    const authFetch = buildAuthFetch();
+    const user = userEvent.setup();
+    renderDashboard(authFetch);
+
+    await screen.findByTestId("sidebar");
+    await user.click(screen.getByRole("button", { name: /ToggleArchived/ }));
+    await user.click(await screen.findByRole("button", { name: "PickDate" }));
+
+    expect(screen.getByTestId("archive-date")).toHaveTextContent("2026-09-23");
+    expect(screen.getByTestId("archive-day-date")).toHaveTextContent("2026-09-23");
+  });
+
+  it("opens a transcript from the archive day list", async () => {
+    const authFetch = vi.fn((url: string) => {
+      if (url.includes("/records/list-records/")) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 8,
+              session_id: "s8",
+              title: "Archivierte Aufnahme",
+              category_id: null,
+              timestamp: "2024-01-01",
+              content: "archiv-inhalt",
+              summarize: "",
+              user_id: 5,
+            },
+          ])
+        );
+      }
+      if (url.includes("/settings/categories/")) return Promise.resolve(jsonResponse([]));
+      if (url.includes("/records/active-session/")) return Promise.resolve(jsonResponse({ active: false }));
+      if (url === "/api/v1/records/record/8") {
+        return Promise.resolve(
+          jsonResponse({
+            id: 8,
+            session_id: "s8",
+            title: "Archivierte Aufnahme",
+            category_id: null,
+            timestamp: "2024-01-01",
+            content: "archiv-inhalt",
+            summarize: "",
+            user_id: 5,
+          })
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    const user = userEvent.setup();
+    renderDashboard(authFetch);
+
+    await screen.findByTestId("sidebar");
+    await user.click(screen.getByRole("button", { name: /ToggleArchived/ }));
+    await screen.findByTestId("archive-day-list");
+    await user.click(screen.getByRole("button", { name: "ArchiveSelect-Archivierte Aufnahme" }));
+
+    expect(await screen.findByText("TranscriptView-Archivierte Aufnahme")).toBeInTheDocument();
+  });
+
+  it("unarchives a recording from the archive day list", async () => {
+    const authFetch = vi.fn((url: string, options?: RequestInit) => {
+      if (url.includes("/records/list-records/")) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 9,
+              session_id: "s9",
+              title: "Wiederherzustellende Aufnahme",
+              category_id: null,
+              timestamp: "2024-01-01",
+              content: "",
+              summarize: "",
+              user_id: 5,
+            },
+          ])
+        );
+      }
+      if (url.includes("/settings/categories/")) return Promise.resolve(jsonResponse([]));
+      if (url.includes("/records/active-session/")) return Promise.resolve(jsonResponse({ active: false }));
+      if (url === "/api/v1/records/record/9/unarchive" && options?.method === "PUT") {
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    const user = userEvent.setup();
+    renderDashboard(authFetch);
+
+    await screen.findByTestId("sidebar");
+    await user.click(screen.getByRole("button", { name: /ToggleArchived/ }));
+    await screen.findByTestId("archive-day-list");
+    await user.click(
+      screen.getByRole("button", { name: "ArchiveUnarchive-Wiederherzustellende Aufnahme" })
+    );
+
+    await waitFor(() =>
+      expect(authFetch).toHaveBeenCalledWith("/api/v1/records/record/9/unarchive", { method: "PUT" })
+    );
+    expect(toast.success).toHaveBeenCalledWith("Aufnahme wiederhergestellt");
+  });
+
+  it("clears the archive date selection when toggling back to the library", async () => {
+    const authFetch = buildAuthFetch();
+    const user = userEvent.setup();
+    renderDashboard(authFetch);
+
+    await screen.findByTestId("sidebar");
+    await user.click(screen.getByRole("button", { name: /ToggleArchived/ }));
+    await user.click(await screen.findByRole("button", { name: "PickDate" }));
+    expect(screen.getByTestId("archive-date")).toHaveTextContent("2026-09-23");
+
+    await user.click(screen.getByRole("button", { name: "ToggleArchived-archived" }));
+
+    expect(screen.getByTestId("archive-date")).toHaveTextContent("none");
+    expect(screen.queryByTestId("archive-day-list")).not.toBeInTheDocument();
+    expect(await screen.findByText("Willkommen bei openDox")).toBeInTheDocument();
   });
 });

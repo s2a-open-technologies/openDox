@@ -35,10 +35,10 @@ gibt, der diese Fragen sonst regeln würde:
 
 | Dimension | Kernfrage | openDox-Beispiel |
 |---|---|---|
-| **Security/Code-Audit** | Ist die Implementierung sicher? | Fernet-Feldverschlüsselung, RBAC, Docker-Secrets-Konvention — siehe [`docs/SECURITY.md`](SECURITY.md) |
+| **Security/Code-Audit** | Ist die Implementierung sicher? | Fernet-Feldverschlüsselung, RBAC, Docker-Secrets-Konvention — siehe [`SECURITY.md`](../SECURITY.md) |
 | **Datenschutz/DSGVO-Audit** | Ist die Datenverarbeitung rechtmäßig und nachvollziehbar? | [`docs/data-mapping.md`](data-mapping.md) als ROPA-Ausgangspunkt, EntityGuard-PII-Pipeline ([`docs/pii.md`](pii.md)) |
 | **Lizenz-/Compliance-Audit** | Darf ich das nutzen/verändern/weitergeben? | AGPL-3.0-or-later, vollständige Lizenz-Header in fast jeder Datei |
-| **Projekt-Health/Governance-Audit** | Überlebt das Projekt den nächsten Bus-Unfall des Maintainers? | Bus-Faktor 1 (alle Commits von einer Person unter vier Git-Identitäten), kein CI/CD |
+| **Projekt-Health/Governance-Audit** | Überlebt das Projekt den nächsten Bus-Unfall des Maintainers? | Bus-Faktor 1 (alle Commits von einer Person unter vier Git-Identitäten) — CI/CD und Dependabot inzwischen vorhanden, ersetzen die Lücke nicht |
 
 Der Kern der Vortragsbotschaft: **bei Open Source ist die vierte Dimension
 (Governance) genauso auditierbar wie Code — und wird am häufigsten
@@ -57,18 +57,22 @@ Ein Auditor kann nur das prüfen, was **dokumentiert und auffindbar** ist —
 nicht das, was implizit im Kopf des Maintainers steckt. Typische
 Dokumentenliste:
 
-- **Threat Model / Sicherheitsarchitektur-Doku** — openDox: [`docs/SECURITY.md`](SECURITY.md)
+- **Threat Model / Sicherheitsarchitektur-Doku** — openDox: [`SECURITY.md`](../SECURITY.md)
 - **Datenflussdiagramm** — openDox: [`docs/data-mapping.md`](data-mapping.md) (inkl. Mermaid-Diagramm)
-- **Dependency-Manifest/Lockfile (SBOM-Vorstufe)** — openDox: `pyproject.toml`/`uv.lock`, `frontend/package.json`/`package-lock.json`
+- **Dependency-Manifest/Lockfile + Image-SBOMs** — openDox: `pyproject.toml`/`uv.lock`, `frontend/package.json`/`package-lock.json`, dazu CycloneDX-SBOMs pro Container-Image aus dem Publish-Workflow (`.github/workflows/docker-publish.yml`, freiwillig)
 - **Lizenztext + Datei-Header** — openDox: `LICENSE`, AGPL-Header in 115/117 stichprobenartig geprüften Quelldateien
 - **Testberichte / Testabdeckung** — openDox: 26 Backend-Testdateien (u. a. `tests/security/`, `tests/auth/`), aber nur 2 Frontend-Tests
 - **Zugriffs-/Rollenkonzept** — openDox: `User.ROLES = (admin, moderator, demo_viewer, user)`, durchgesetzt in FastAPI-Dependencies
-- **Vulnerability-Disclosure-Prozess** — openDox: Security-Kontakt + 90-Tage-Policy in `docs/SECURITY.md`
+- **Vulnerability-Disclosure-Prozess** — openDox: Security-Kontakt + 90-Tage-Policy in `SECURITY.md`
 
 Pointe für den Vortrag: openDox hat **die meisten dieser Dokumente
 tatsächlich vorliegen** — das ist ungewöhnlich für ein Ein-Personen-Projekt
-und genau der Punkt, den man am Beispiel zeigen will. Was fehlt (SBOM im
-engeren Sinne, CI-gestützte Dependency-Scans), wird in Abschnitt 6 ehrlich
+und genau der Punkt, den man am Beispiel zeigen will. Die SBOM existiert als
+freiwilliges Artifact (CycloneDX pro Image, siehe
+[`docs/audit-checklist-opendox.md`](audit-checklist-opendox.md)) — die CRA-
+*Pflicht* dazu entfällt für nicht-kommerzielles AGPL-v3-OSS (siehe
+[`docs/hospital-audit-frameworks.md`](hospital-audit-frameworks.md) §7),
+weshalb kein CVE-Scan-Gate dahinter steht. Diese Abgrenzung wird ehrlich
 benannt.
 
 ## 4. Wie ein Audit generell abläuft
@@ -76,7 +80,7 @@ benannt.
 1. **Scoping** — welcher Teil des Systems, welcher Maßstab (z. B. "DSGVO
    Art. 32" oder "OWASP ASVS Level 1")?
 2. **Dokumentenprüfung** — existiert die Doku überhaupt, ist sie aktuell?
-   (Ein Datum wie "Last updated: 2026-08-02" in `docs/SECURITY.md` ist
+   (Ein Datum wie "Last updated: 2026-08-02" in `SECURITY.md` ist
    selbst ein Prüfpunkt — Staleness ist ein häufiger Findings-Typ.)
 3. **Technische Prüfung** — Code lesen, Konfiguration prüfen, Secrets-Handling
    verifizieren, ggf. automatisierte Scans (SAST, Dependency-Scan).
@@ -105,36 +109,46 @@ Konkrete Stärken, die man im Vortrag zeigen kann (alle mit Fundstelle):
   erreichbar, geht die Aufgabe auf `error` statt unsanitisiert ans LLM zu
   gehen — bewusste Entscheidung gegen Verfügbarkeit zugunsten Datenschutz
   (siehe [`docs/pii.md`](pii.md)).
-- **Ehrliche eigene Dokumentation als Kulturmerkmal**: `docs/SECURITY.md`
-  markiert explizit, was *nicht* implementiert ist (keine MFA, kein
-  Rate-Limiting, Root-Container) — das ist genau das Verhalten, das man von
-  einem auditierbaren Projekt erwartet, aber selten in freier Wildbahn
-  sieht.
+- **Ehrliche eigene Dokumentation als Kulturmerkmal**: `SECURITY.md`
+  markiert explizit, was *nicht* implementiert ist (keine MFA, keine
+  Redis-Authentifizierung, kein Audit-Log) — das ist genau das Verhalten,
+  das man von einem auditierbaren Projekt erwartet, aber selten in freier
+  Wildbahn sieht.
 - **Vollständige Lizenz-Transparenz**: AGPL-Header in praktisch jeder Datei,
   konsistente Lizenzangabe in `pyproject.toml`, `LICENSE`, `AUTHORS`.
+- **Freiwillige SBOM pro Container-Image**: der Publish-Workflow erzeugt bei
+  jedem Lauf CycloneDX-SBOMs für alle 6 Image-Varianten, gepinnt auf den
+  exakten Manifest-Digest (`.github/workflows/docker-publish.yml`,
+  `anchore/sbom-action`) — bewusst freiwillig, weil die CRA-Pflicht für
+  nicht-kommerzielles AGPL-v3-OSS entfällt, aber fertig als Nachweis-Artifact
+  für Audit-/Beschaffungsfragen.
 
 ## 6. openDox als Fallbeispiel: ehrlich benannte Lücken
 
 Genauso wichtig für die Vortragsbotschaft — ein auditierbares Projekt
 versteckt seine Lücken nicht, es benennt sie:
 
-- **Kein Rate-Limiting/Brute-Force-Schutz** im Backend (verifiziert per
-  Code-Suche, auch in `docs/SECURITY.md`'s Checkliste als offen markiert).
+- **Keine Digest-Pins bei Docker-Base-Images**: `node:22-slim`/
+  `python:3.12-slim` floaten auf Minor/Patch, nur `dxflrs/garage:v1.0.1`
+  ist exakt gepinnt — Builds sind nicht bit-identisch reproduzierbar
+  (`docs/audit-checklist-opendox.md`, "Docker-Reproduzierbarkeit").
 - **Kein technisches Audit-Log**: es gibt keine Tabelle/kein Mechanismus,
   der "wer hat wann welchen Datensatz gelesen/verändert" festhält — nur
   DB-Timestamps. Für Art. 30/32 DSGVO-Rechenschaftspflicht eine reale
   Lücke, kein Nice-to-have.
-- **Keine CI/CD-Pipeline, kein Dependabot**: `.github/` existiert nicht im
-  Repo. Dependency-Scanning (`safety check`, `npm audit`) ist dokumentierte
-  *Empfehlung*, aber nicht automatisiert durchgesetzt.
-- **Bus-Faktor 1**: alle 112 Commits stammen von einer Person (vier
+- **Keine Redis-Authentifizierung**: kein `requirepass` in
+  `docker-compose.yml`/`docker-swarm.yml` — nur akzeptabel, weil Redis
+  nicht extern exponiert ist, aber eine reale Lücke, falls das
+  Docker-Netz selbst mal nicht vertrauenswürdig ist.
+- **Bus-Faktor 1**: alle 113 Commits stammen von einer Person (vier
   verschiedene Git-Identitäten, gleicher Mensch) — kein zweiter Maintainer,
   kein dokumentierter Governance-/Nachfolgeprozess.
-- **Versionierungs-Tooling ungenutzt**: `scripts/bump_version.py`
-  unterstützt Git-Tags, aber es existieren 0 Tags im Repo — Releases sind
-  nicht nachvollziehbar an einem Commit festgemacht.
+- **Verschlüsselung in Transit nicht erzwungen**: ob LLM-/Sanitizer-/
+  LDAP-Endpunkte tatsächlich `https://`/`ldaps://` nutzen, hängt von der
+  eingetragenen URL ab — die Anwendung selbst erzwingt nichts
+  (`SECURITY.md`, Art. 32).
 - **Data-Subject-Rights unvollständig**: Auskunfts- und
-  Portabilitätsrecht (Art. 15/20 DSGVO) sind laut `docs/SECURITY.md`
+  Portabilitätsrecht (Art. 15/20 DSGVO) sind laut `SECURITY.md`
   explizit **nicht implementiert** — nur manuelle DB-Abfrage möglich.
 
 ## 7. Kernbotschaft für den Vortrag

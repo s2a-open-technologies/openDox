@@ -280,7 +280,10 @@ def create_app():
     @app.get(ready_path)
     async def readiness_check():
         """Readiness probe: returns 503 if DB or Redis is unreachable."""
-        from backend.components.services.session_store import session_store
+        from backend.components.services.session_store import (
+            reconnect_session_store,
+            session_store,
+        )
         from backend.components.services.session_store_redis import RedisSessionStore
         from backend.components.sql.sql_engine import get_session_factory
 
@@ -295,9 +298,15 @@ def create_app():
         except Exception as exc:
             errors.append(f"database: {exc}")
 
-        if isinstance(session_store, RedisSessionStore):
+        active_store = session_store.get()
+        if env_or_file("REDIS_URL") and not isinstance(active_store, RedisSessionStore):
+            # App started while Redis was down → try to recover instead of
+            # permanently reporting unready.
+            await asyncio.to_thread(reconnect_session_store)
+            active_store = session_store.get()
+        if isinstance(active_store, RedisSessionStore):
             try:
-                session_store.ping()
+                active_store.ping()
             except Exception as exc:
                 errors.append(f"redis: {exc}")
 

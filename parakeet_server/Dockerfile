@@ -29,15 +29,43 @@ ENV DEVICE=${DEVICE} \
 # System deps: ffmpeg for audio decoding, curl for healthcheck.
 # The CUDA base is Ubuntu 22.04 (apt), the CPU base is Debian slim (apt) —
 # both use the same package names.
+# The `python` symlink points at the same interpreter pip3 installs for
+# (`command -v python3`): on the Ubuntu/CUDA base that's /usr/bin/python3,
+# on python:3.12-slim it's the image's own /usr/local/bin/python3. A hard
+# /usr/bin/python3 target breaks the slim base — pip3 there is Python 3.12's
+# pip, so `python` (3.11) couldn't import anything pip3 installed (this is
+# what made the CPU build fail).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     python3 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/python3 /usr/local/bin/python
+    && ln -sf "$(command -v python3)" /usr/local/bin/python
 
 WORKDIR /app
+
+# Model caches for the unprivileged runtime user (see USER below):
+#   HF_HOME      — Parakeet ASR model via the default HuggingFace cache.
+#                 Without this the cache lands in /root/.cache, which is
+#                 unreadable once USER downgrades.
+#   RTT_VAD_DIR  — Silero VAD flat directory. streaming.py defaults this to
+#                 <repo>/models/silero-vad, a path that doesn't exist in
+#                 this container, so pointing it at the build-time download
+#                 also fixes a silent runtime re-download that used to hit
+#                 the network on every container start.
+#   HF_HUB_DISABLE_XET — hf-xet (pulled in by onnx-asr's [hub] extra) stores
+#                 blobs in a nested shared pool OUTSIDE the model directory
+#                 (hub/blobs/xx/...). The Parakeet ONNX model uses external
+#                 data (.onnx.data), and onnxruntime validates that external
+#                 data files live in the SAME directory as the model file —
+#                 with xet the .onnx and .onnx.data blobs end up in different
+#                 shards and every load fails with "External data path
+#                 escapes model directory". Plain HTTP downloads keep the
+#                 classic flat per-model blobs/ layout and load fine.
+ENV HF_HOME=/app/models/hf \
+    RTT_VAD_DIR=/app/models/silero-vad \
+    HF_HUB_DISABLE_XET=1
 
 # Install onnx-asr with the matching extra. [gpu] pulls onnxruntime-gpu
 # (CUDA 12), [cpu] pulls plain onnxruntime. onnxruntime is imported
@@ -63,6 +91,15 @@ RUN python -c "import onnx_asr; onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3',
 
 COPY parakeet_server/streaming.py .
 COPY parakeet_server/main.py .
+
+# Unprivileged runtime user (UID/GID 1000). Both model caches live in /app
+# and are read-only at runtime (pre-downloaded at build time), uvicorn binds
+# an unprivileged port, and temp files go to /tmp via tempfile — nothing
+# needs root. chown -R /app so the pre-downloaded caches are readable.
+RUN useradd --no-log-init -m -u 1000 appuser \
+    && chown -R 1000:1000 /app
+
+USER appuser
 
 EXPOSE 5001
 

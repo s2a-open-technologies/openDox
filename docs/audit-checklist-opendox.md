@@ -7,15 +7,17 @@
 > aktualisiert am 2026-09-22 (Rate-Limiting `/login` implementiert,
 > Frontend-Testabdeckung ausgebaut, Governance-Lücken geschlossen: CI/CD,
 > Dependabot, CHANGELOG, CODE_OF_CONDUCT, Templates, Root-Symlinks,
-> Git-Tag `v0.1.0`, Commit-Identitäten vereinheitlicht); vor
-> Wiederverwendung gegen den dann aktuellen Code gegenprüfen — Status kann
+> Git-Tag `v0.1.0`, Commit-Identitäten vereinheitlicht), aktualisiert am
+> 2026-09-23 (alle 4 Container laufen jetzt als non-root `appuser`), am
+> 2026-09-23 (freiwillige CycloneDX-SBOMs pro Image im Publish-Workflow);
+> vor Wiederverwendung gegen den dann aktuellen Code gegenprüfen — Status kann
 > sich ändern.
 
 ## Security
 
 | Prüfpunkt | Status | Fundstelle/Beleg | Kommentar |
 |---|---|---|---|
-| Passwort-Hashing | ✅ | `User.hashed_password`, bcrypt, 12 Runden (`docs/SECURITY.md`) | Salt automatisch pro Passwort |
+| Passwort-Hashing | ✅ | `User.hashed_password`, bcrypt, 12 Runden (`SECURITY.md`) | Salt automatisch pro Passwort |
 | JWT-Signierung ohne unsicheren Fallback | ✅ | `backend/components/security/hashing.py`, `SECRET_KEY` — kein Hardcoded-Default, zufälliger Key + `logger.critical()` falls unset | Invalidiert alle Sessions bei jedem Neustart ohne festen `SECRET_KEY` |
 | Feldverschlüsselung sensibler Daten | ✅ (bei gesetztem Key) | `backend/components/security/field_encryption.py`, Fernet, `EncryptedString`-Spaltentyp | `record.content/summarize/pii_mapping/title`, `LdapSettingsModel.bind_user_password`, `OidcSettingsModel.client_secret` |
 | Verschlüsselung fällt bei fehlendem Key still auf Klartext zurück | ⚠️ | `field_encryption.py` — nur geloggte Warnung, kein Hard-Fail | Audit-Risiko: Betreiber merkt es ggf. nicht |
@@ -25,14 +27,14 @@
 | RBAC mit mehreren Rollen | ✅ | `backend/components/models/user_model.py:27`, `ROLES = ("admin", "moderator", "demo_viewer", "user")` | Durchgesetzt via FastAPI-Dependencies in `auth_routes.py`/`settings_routes.py`/`record.py` |
 | LDAP-Filter-Injection-Schutz | ✅ | `ldap.py`, `ldap3.utils.conv.escape_filter_chars()` vor Filteraufbau | |
 | Leeres-Passwort-Bind-Bypass verhindert | ✅ | `ldap.py`, Empty-Password-Check vor Bind (RFC-4513-Guard) | |
-| CSRF-Schutz | ✅ (strukturell) | Bearer-Token statt Cookie-Auth für API — klassischer CSRF-Vektor entfällt (`docs/SECURITY.md`) | Einzige Cookie: signierter OIDC-`state` |
+| CSRF-Schutz | ✅ (strukturell) | Bearer-Token statt Cookie-Auth für API — klassischer CSRF-Vektor entfällt (`SECURITY.md`) | Einzige Cookie: signierter OIDC-`state` |
 | CORS-Konfiguration | ⚠️ | `CORS_ALLOWED_ORIGINS`, fällt bei unset auf `*` zurück (mit Logwarnung) | Muss vom Betreiber gesetzt werden |
 | Rate-Limiting / Brute-Force-Schutz | ✅ (app-seitig, `/login`) | `backend/components/services/rate_limiter.py` — Sliding-Window-Limiter (5 Req/60s per Client-IP, `X-Forwarded-For`-bewusst), HTTP 429 bei Überschreitung; aufgerufen in `auth_routes.py:login()` vor jedem Login-Versuch; Tests: `tests/auth/test_rate_limiter.py` (8 Unit- + 2 Integrationstests) | Nur Login-Endpoint; andere Endpoints weiterhin über Reverse Proxy/Gateway zu schützen. In-Memory (per Prozess) — bei Multi-Instance-Deployments wirkt das Limit pro Instanz, Redis-basierte Ablage wäre der nächste Ausbauschritt |
-| Multi-Faktor-Authentifizierung | ❌ | `docs/SECURITY.md`: "not implemented anywhere in this app" | Weder lokal noch LDAP/OIDC-seitig |
-| Security-Response-Header (HSTS, X-Frame-Options etc.) | ❌ (app-seitig) | `docs/SECURITY.md`: nur `Permissions-Policy` in `backend/run.py`, Rest muss Reverse Proxy liefern | |
+| Multi-Faktor-Authentifizierung | ❌ | `SECURITY.md`: "not implemented anywhere in this app" | Weder lokal noch LDAP/OIDC-seitig |
+| Security-Response-Header (HSTS, X-Frame-Options etc.) | ⚠️ (Betreiber-Konfig) | `SECURITY.md`: nur `Permissions-Policy` in `backend/run.py`; HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy jetzt als fertige Reverse-Proxy-Beispiele in `docs/examples/apache-vhost.conf.example` + `docs/examples/nginx-vhost.conf.example` | App setzt sie weiterhin nicht selbst — Betreiber muss die Beispiel-Config übernehmen. Bewusst keine CSP (Inline-Script/WS/AudioWorklet, siehe Beispieldateien) |
 | Security-relevante Tests vorhanden | ✅ | `tests/security/test_field_encryption.py`, `tests/auth/test_rbac.py`, `tests/auth/test_oidc_routes.py`, `tests/auth/test_rate_limiter.py`, `tests/services/test_ldap_service.py`, `tests/services/test_oidc_service.py`, `tests/services/test_sanitizing_service.py` | |
-| Vulnerability-Disclosure-Prozess | ✅ | `docs/SECURITY.md` — E-Mail-Kontakt, 48h-Antwortzeit, 90-Tage-Policy | Dedizierte `security@`-Adresse laut Doku noch offen |
-| Container läuft als Root | ❌ | `docs/SECURITY.md`: aktuelles `Dockerfile` implementiert kein `USER`-Downgrade | Dokumentiert als bekannte Lücke |
+| Vulnerability-Disclosure-Prozess | ✅ | `SECURITY.md` — E-Mail-Kontakt, 48h-Antwortzeit, 90-Tage-Policy | Dedizierte `security@`-Adresse laut Doku noch offen |
+| Container läuft als Root | ✅ | `Dockerfile:69-72`, `parakeet_server/Dockerfile:99-102`, `whisper_server/Dockerfile:58-62`, `garage/init/Dockerfile:17-23` — alle 4 First-Party-Images laufen als `appuser` (UID/GID 1000); `SECURITY.md` aktualisiert | Gilt für neue Deployments/Volumes; bestehende (root-owned) Volumes bräuchten vor einem Upgrade einen einmaligen `chown` |
 | DB/Redis nicht öffentlich erreichbar | ✅ | `docker-compose.yml`/`docker-swarm.yml`: keine `ports:`-Mappings für `postgres`/`redis` | |
 | Redis-Authentifizierung | ❌ | Kein `requirepass` in beiden Compose-Dateien | Nur akzeptabel, weil nicht extern exponiert |
 
@@ -41,15 +43,15 @@
 | Prüfpunkt | Status | Fundstelle/Beleg | Kommentar |
 |---|---|---|---|
 | Datenflussdiagramm / ROPA-Ausgangspunkt | ✅ | [`docs/data-mapping.md`](data-mapping.md) inkl. Mermaid-Flowchart | Explizit als Startpunkt für Art. 30 DSGVO deklariert |
-| Art.-32-Maßnahmentabelle | ✅ | `docs/SECURITY.md` "Technical Measures (Article 32)" | Ehrlich mit ⚠️ markierte Zeilen (z. B. Verschlüsselung in Transit) |
+| Art.-32-Maßnahmentabelle | ✅ | `SECURITY.md` "Technical Measures (Article 32)" | Ehrlich mit ⚠️ markierte Zeilen (z. B. Verschlüsselung in Transit) |
 | PII-Pseudonymisierung (EntityGuard) | ✅ (optional aktivierbar) | [`docs/pii.md`](pii.md) | Fail-closed bei nicht erreichbarem Sanitizer |
 | Eindeutigkeit der PII-Tokens als Kollisionsrisiko dokumentiert | ✅ | `docs/pii.md`: Tokens müssen pro Vorkommen eindeutig sein, sonst Mapping-Kollision | Verantwortung liegt beim Sanitizer-Dienst |
 | Datenminimierung bei Rohaudio | ⚠️ | `data-mapping.md`: PCM/WAV wird nach *erfolgreicher* Verarbeitung gelöscht, bei Fehlschlag unverschlüsselt in `chunks/failed/` ohne automatisches Ablaufdatum | Bewusster Trade-off (Retry-Fähigkeit vs. Minimierung) |
-| Recht auf Berichtigung | ✅ | `PUT /record/{id}`, `PUT /users/{id}` (`docs/SECURITY.md`) | |
+| Recht auf Berichtigung | ✅ | `PUT /record/{id}`, `PUT /users/{id}` (`SECURITY.md`) | |
 | Recht auf Löschung | ⚠️ | `DELETE /record/{id}` — Hard-Delete, aber kein Bulk-"alles zu Patient X löschen" | |
-| Recht auf Auskunft | ❌ | `docs/SECURITY.md`: kein Self-Service-Export-Endpoint | Nur manuelle DB-Abfrage |
-| Recht auf Datenübertragbarkeit | ❌ | `docs/SECURITY.md`: kein JSON/strukturierter Export | Gleiche Lücke wie Auskunftsrecht |
-| Widerspruchsrecht (Opt-out LLM-Verarbeitung) | ❌ | `docs/SECURITY.md`: kein Consent-Flag pro Datensatz/Patient | LLM-Schritt läuft immer, wenn Kategorie konfiguriert ist |
+| Recht auf Auskunft | ❌ | `SECURITY.md`: kein Self-Service-Export-Endpoint | Nur manuelle DB-Abfrage |
+| Recht auf Datenübertragbarkeit | ❌ | `SECURITY.md`: kein JSON/strukturierter Export | Gleiche Lücke wie Auskunftsrecht |
+| Widerspruchsrecht (Opt-out LLM-Verarbeitung) | ❌ | `SECURITY.md`: kein Consent-Flag pro Datensatz/Patient | LLM-Schritt läuft immer, wenn Kategorie konfiguriert ist |
 | Verschlüsselung in Transit zu externen Endpunkten erzwungen | ❌ (nicht erzwungen) | `data-mapping.md`: hängt von eingetragener URL ab (`https://`/`ldaps://`), Anwendung erzwingt nichts | Betreiberverantwortung |
 | Externe Auftragsverarbeiter dokumentiert | ✅ | `data-mapping.md` "Externe Stellen / mögliche Auftragsverarbeiter" | Unterscheidet default-self-hosted vs. betreiberkonfiguriert |
 | Aufbewahrungsfristen dokumentiert | ⚠️ | `data-mapping.md` "Aufbewahrung & Löschung" | Transkript/Summary ohne automatisches Ablaufdatum — manuelle Löschung nötig |
@@ -66,9 +68,10 @@
 | `AUTHORS`-Datei | ✅ | listet einen "Primary Developer" | Contributions-Abschnitt aspirational, keine tatsächlichen externen Contributor |
 | Dependency-Lockfiles vorhanden | ✅ | `pyproject.toml` (75 Einträge) + `uv.lock`; `frontend/package.json` (75 Pakete) + `package-lock.json` | Reproduzierbare Installationen |
 | Third-Party-Notices-Datei | ✅ | [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) (Root), generiert via `python scripts/check_licenses.py --write-notices` | 90 Backend- + 368 Frontend-Pakete mit Name/Version/Lizenz; regenerierbar, nicht von Hand gepflegt (gleiches Muster wie `scripts/bump_version.py`) |
-| Automatisierte Lizenzkompatibilitäts-Prüfung | ✅ | `scripts/check_licenses.py` (nutzt `pip-licenses` + `license-checker-rseidelsohn`, Allowlist AGPL-3.0-kompatibler Lizenzen) | Manuell auszuführen, nicht CI-erzwungen (kein CI im Repo) — konsistent mit `safety check`/`npm audit` in `docs/CONTRIBUTING.md`. Aktuell 3 Pakete zur manuellen Prüfung markiert (2 davon nur eigene Dev-Tools: `reuse`, `python-debian`) |
+| Automatisierte Lizenzkompatibilitäts-Prüfung | ✅ | `scripts/check_licenses.py` (nutzt `pip-licenses` + `license-checker-rseidelsohn`, Allowlist AGPL-3.0-kompatibler Lizenzen) | Manuell auszuführen, nicht CI-erzwungen — konsistent mit `safety check`/`npm audit` in `docs/CONTRIBUTING.md`. Aktuell 3 Pakete zur manuellen Prüfung markiert (2 davon nur eigene Dev-Tools: `reuse`, `python-debian`) |
 | SPDX-konforme Kurzform-Header | ✅ | `SPDX-FileCopyrightText`/`SPDX-License-Identifier`-Zeilen in allen Quelldateien; `REUSE.toml` deckt Tests, Migrationen, Lockfiles, Config/Doku-Dateien pauschal ab | |
-| REUSE-Spec-Konformität | ✅ | `reuse lint` (REUSE Tool 6.2.0) läuft grün: 265/265 Dateien mit Copyright- und Lizenzinformation | Direkter Nachweis, nicht nur Behauptung — Tool ist als Dev-Dependency in `pyproject.toml` |
+| REUSE-Spec-Konformität | ✅ | `reuse lint` (REUSE Tool 6.2.0) läuft grün: 310/310 Dateien mit Copyright- und Lizenzinformation (Stand 2026-09-23, `.github/**` + Root-Governance-Dateien über `REUSE.toml` abgedeckt) | Direkter Nachweis, nicht nur Behauptung — Tool ist als Dev-Dependency in `pyproject.toml` |
+| SBOM (Software-Stückliste) pro Container-Image | ✅ (freiwillig) | `.github/workflows/docker-publish.yml`: `anchore/sbom-action` (syft, v0.24.2) erzeugt bei jedem Publish-Lauf CycloneDX-JSON-SBOMs für alle 6 Image-Varianten, gepinnt auf den exakten Manifest-Digest, als herunterladbare Artifacts; zusätzlich `provenance: true` + `sbom: true` im build-push-Step | **Bewusst freiwillig, keine Pflicht**: CRA-Pflichten entfallen für nicht-kommerzielles AGPL-v3-OSS (siehe `docs/hospital-audit-frameworks.md` §7) — die SBOM ist ein fertiges Nachweis-Artifact für Audits/Krankenhaus-Beschaffung, nicht Compliance-Zwang. Kein CVE-Scan-Gate dahinter (bewusst, siehe CRA-Abschnitt) |
 
 ## Projekt-Health / Governance
 
@@ -78,7 +81,7 @@
 | Dependency-Scanning automatisiert (Dependabot o. ä.) | ✅ | `.github/dependabot.yml` — wöchentliche PRs für pip (Root, `parakeet_server/`, `whisper_server/`), npm (`frontend/`), Docker-Base-Images und GitHub Actions selbst; gruppierte Updates, PR-Limits pro Ökosystem | Ergänzt die manuellen `safety check`/`npm audit`-Empfehlungen aus `docs/CONTRIBUTING.md` |
 | `CONTRIBUTING.md` | ✅ | Root-`CONTRIBUTING.md` ist Symlink auf `docs/CONTRIBUTING.md` | GitHub erkennt Root-Ebene automatisch; keine Duplikatpflege nötig |
 | CODE_OF_CONDUCT.md | ✅ | Root-`CODE_OF_CONDUCT.md`, adaptiert vom Contributor Covenant 2.1 | Enforce­ment-Kontakt = Maintainer-Adresse |
-| `SECURITY.md` an Standard-Ort | ✅ | Root-`SECURITY.md` ist Symlink auf `docs/SECURITY.md` | GitHub's Security-Tab-Erkennung greift jetzt |
+| `SECURITY.md` an Standard-Ort | ✅ | `SECURITY.md` liegt direkt im Repo-Root (bis 2026-09-23 Symlink auf `docs/SECURITY.md`, jetzt die kanonische Datei selbst — Referenzen in anderen Docs entsprechend angepasst) | GitHub's Security-Tab-Erkennung greift |
 | CHANGELOG.md | ✅ | Root-`CHANGELOG.md`, Keep-a-Changelog-Format; `[Unreleased]` + retroaktives `[0.1.0]` mit Release-Links | Pflege-Empfehlung: Eintrag pro Feature/Fix im zugehörigen PR |
 | Issue-/PR-Templates | ✅ | `.github/ISSUE_TEMPLATE/bug_report.yaml`, `feature_request.yaml` (Formulare, inkl. "Kein Medizinprodukt"/Patientendaten-Warnhinweis), `.github/PULL_REQUEST_TEMPLATE.md` (Checkliste: Tests, Alembic-Migration, Lizenz-Header, Disclaimer-Integrität) | |
 | Versionierungs-Tooling vorhanden | ✅ | `scripts/bump_version.py`, synct `pyproject.toml` + `frontend/package.json` + Lockfile | |

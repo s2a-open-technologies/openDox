@@ -1,5 +1,9 @@
 onnx-asr[gpu,hub]>=0.11.0
-onnxruntime-gpu>=1.18.0
+# onnxruntime-gpu wheels for linux/aarch64 only exist from 1.29.0 onwards
+# (older releases ship x86_64-only) — pin >=1.29.0 so the arm64 half of the
+# multi-arch build can resolve the same file. Requires glibc >= 2.34, which
+# the Ubuntu 22.04 CUDA base (2.35) provides.
+onnxruntime-gpu>=1.29.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.12

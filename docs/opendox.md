@@ -978,7 +978,7 @@ services:
 │                                                               │
 │  ✅ Dokumentation (Art. 30 DSGVO)                            │
 │     - Datenfluss-Dokumentation: docs/data-mapping.md          │
-│     - Sicherheitsmaßnahmen: docs/SECURITY.md                  │
+│     - Sicherheitsmaßnahmen: SECURITY.md                       │
 │                                                               │
 │  ⚠️  TODO: Audit-Logging (Art. 5 DSGVO)                      │
 │     - Wer hat wann auf welche Patientendaten zugegriffen?    │
@@ -1397,8 +1397,8 @@ Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${V
 ### Repositories
 
 - **Quellcode:** [GitHub - daemolition/openDox](https://github.com/daemolition/openDox)
-- **Docker Images:** `registry.nutsolution.de` (per `docker_build_push.sh`) — App, Whisper, Parakeet, Garage-Init
-- **Weitere Dokumentation:** `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `docs/SECURITY.md`, `docs/TODO.md` (Kubernetes-/Skalierungs-Roadmap), `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
+- **Docker Images:** `registry.nutsolution.de` (per `docker_build_push.sh`) — App, Whisper, Parakeet, Garage-Init; zusätzlich optional `ghcr.io/<owner>` (Dual-Push, multi-arch amd64+arm64, `.github/workflows/docker-publish.yml`)
+- **Weitere Dokumentation:** `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `docs/TODO.md` (Kubernetes-/Skalierungs-Roadmap), `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
 
 ### Technologie-Dokumentation
 

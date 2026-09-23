@@ -1,0 +1,86 @@
+name: Docker Publish (GHCR)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: ${{ matrix.name }} (${{ matrix.device || 'default' }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: opendox
+            dockerfile: Dockerfile
+            context: .
+            tag_suffix: ""
+          - name: opendox-garage-init
+            dockerfile: garage/init/Dockerfile
+            context: ./garage/init
+            tag_suffix: ""
+          - name: opendox-whisper
+            dockerfile: whisper_server/Dockerfile
+            context: .
+            device: gpu
+            tag_suffix: ""
+          - name: opendox-whisper
+            dockerfile: whisper_server/Dockerfile
+            context: .
+            device: cpu
+            tag_suffix: "cpu-"
+          - name: opendox-parakeet
+            dockerfile: parakeet_server/Dockerfile
+            context: .
+            device: gpu
+            tag_suffix: ""
+          - name: opendox-parakeet
+            dockerfile: parakeet_server/Dockerfile
+            context: .
+            device: cpu
+            tag_suffix: "cpu-"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: echo "version=$(python3 scripts/bump_version.py --current)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          build-args: ${{ matrix.device && format('DEVICE={0}', matrix.device) || '' }}
+          provenance: true
+          sbom: true
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ matrix.tag_suffix }}${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:${{ matrix.tag_suffix }}latest
+
+      # Voluntary SBOM per image (CycloneDX JSON), pinned to the exact pushed
+      # manifest digest. Not a CRA obligation for non-commercial AGPL use, but
+      # a ready-made artifact for audits / hospital procurement questions.
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.24.2
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          artifact-name: sbom-${{ matrix.name }}-${{ matrix.tag_suffix || 'gpu-' }}${{ steps.version.outputs.version }}.cdx.json
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}

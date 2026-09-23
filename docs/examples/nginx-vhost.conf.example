@@ -1,0 +1,75 @@
+# openDox — example Nginx reverse-proxy server block
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Not the documented production setup (that's Apache — see AGENTS.md /
+# SECURITY.md "Network Security"), but equivalent for deployments
+# that use Nginx instead. Terminates TLS and proxies to the app container
+# on 127.0.0.1:<APP_PORT> (default 20000).
+#
+# IMPORTANT (Nginx-specific gotcha): `add_header` in a location block does
+# NOT merge with `add_header` directives inherited from the parent server
+# block — it REPLACES them entirely for that location. The security
+# headers below are therefore set once at the `server` level and
+# deliberately NOT repeated (or overridden) inside either `location`
+# block; if you ever add an `add_header`/`proxy_hide_header` inside a
+# location here, you must repeat all four security headers there too, or
+# they will silently disappear for requests matching that location.
+#
+# Replace opendox.example.com / cert paths / backend port before using.
+
+server {
+    listen 80;
+    server_name opendox.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name opendox.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/opendox.crt;
+    ssl_certificate_key /etc/nginx/ssl/opendox.key;
+
+    # ─── Security response headers ──────────────────────────────────────
+    # None of these are set by openDox itself (only Permissions-Policy is,
+    # in backend/run.py) — they must come from here. Deliberately NOT
+    # including a Content-Security-Policy: the app injects an inline
+    # <script> (window.__ROOT_PATH__) into index.html at startup and uses
+    # a WebSocket + a blob: AudioWorklet for live recording — a strict CSP
+    # without matching script-src/connect-src/worker-src allowances would
+    # silently break ROOT_PATH sub-path deployments and live transcription.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # WebSocket route for live recording. Unlike Apache's ProxyPass,
+    # Nginx's location matching is not order-dependent (longest/most
+    # specific match wins), so this can be declared before or after the
+    # catch-all "/" below — kept first here only for readability.
+    location /api/v1/records/ws/record {
+        proxy_pass http://127.0.0.1:20000/api/v1/records/ws/record;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port  443;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+
+        # Live recordings can run long — the default 60s idle timeout
+        # would otherwise close the socket mid-recording.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:20000/;
+
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port  443;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+    }
+}

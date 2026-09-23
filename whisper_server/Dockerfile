@@ -49,6 +49,18 @@ ENV HF_HOME=/var/lib/whisper \
     WHISPER_DEVICE=cuda \
     WHISPER_COMPUTE_TYPE=float16
 
+# Unprivileged runtime user (UID/GID 1000) — nothing needs root: uvicorn
+# binds an unprivileged port, the first model download writes into
+# /var/lib/whisper (chowned here; a fresh named volume inherits the
+# ownership via Docker's volume copy-up), and per-request audio goes to
+# /tmp via tempfile. Pre-existing volumes created by older root-based
+# images need a one-time chown — see docs/SECURITY.md "Docker Security".
+RUN useradd --no-log-init -m -u 1000 appuser \
+    && mkdir -p /var/lib/whisper \
+    && chown -R 1000:1000 /var/lib/whisper
+
+USER appuser
+
 EXPOSE 9000
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]

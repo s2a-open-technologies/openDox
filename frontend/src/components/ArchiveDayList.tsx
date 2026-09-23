@@ -1,0 +1,149 @@
+/*
+  openDox - Medical transcription platform
+  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+import { CalendarDays, FileAudio, MoreHorizontal, RotateCcw, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatDateLabel, formatRecordTime, groupRecordingsByDate } from "@/lib/archive";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import type { Recording } from "@/pages/Dashboard";
+
+interface ArchiveDayListProps {
+  recordings: Recording[];
+  selectedDate: string | null;
+  onSelectRecording: (recording: Recording) => void;
+  onUnarchiveRecording?: (id: string) => void;
+  onDeleteRecording?: (id: string) => void;
+  onBackToDates: () => void;
+}
+
+const ArchiveDayList = ({
+  recordings,
+  selectedDate,
+  onSelectRecording,
+  onUnarchiveRecording,
+  onDeleteRecording,
+  onBackToDates,
+}: ArchiveDayListProps) => {
+  const groups = groupRecordingsByDate(recordings);
+  const dayGroup = selectedDate
+    ? groups.find((group) => group.key === selectedDate)
+    : undefined;
+
+  if (!dayGroup) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-4 text-center px-4">
+        <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+          <CalendarDays className="w-6 h-6 text-muted-foreground" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Archiv</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Wählen Sie links ein Datum aus, um die archivierten Transkriptionen dieses Tages zu sehen.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl w-full mx-auto px-4 py-6">
+      <div className="flex items-center gap-3 mb-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBackToDates}
+          title="Zurück zur Datumsauswahl"
+          className="shrink-0"
+        >
+          <CalendarDays className="w-5 h-5" />
+        </Button>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold truncate">
+            {formatDateLabel(dayGroup.key)}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {dayGroup.count === 1 ? "1 Transkription" : `${dayGroup.count} Transkriptionen`}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        {dayGroup.recordings.map((recording) => (
+          <div
+            key={recording.id}
+            className="group relative w-full rounded-lg transition-all duration-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <button
+              onClick={() => onSelectRecording(recording)}
+              className="w-full text-left px-4 py-3 pr-10"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-muted-foreground">
+                  <FileAudio className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate text-foreground">
+                    {recording.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatRecordTime(recording.timestamp)}
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                    <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onUnarchiveRecording?.(recording.id)}>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Wiederherstellen
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => onDeleteRecording?.(recording.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Löschen
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default ArchiveDayList;

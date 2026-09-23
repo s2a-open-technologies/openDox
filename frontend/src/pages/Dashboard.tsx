@@ -22,6 +22,7 @@ import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import Recorder, { RecorderHandle, RecordingStartData } from "@/components/Recorder";
 import TranscriptView from "@/components/TranscriptView";
+import ArchiveDayList from "@/components/ArchiveDayList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -93,6 +94,8 @@ const Dashboard = () => {
   // unfinishedSessionId: server-tracked unfinished recording -> drives the sidebar badge.
   const [unfinishedSessionId, setUnfinishedSessionId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // Archive overview: selected day key (YYYY-MM-DD or "unknown") in archive mode.
+  const [selectedArchiveDate, setSelectedArchiveDate] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -104,6 +107,15 @@ const Dashboard = () => {
   const [uploading, setUploading] = useState(false);
 
   const userId = user?.id?.toString() || "";
+
+  // Mode switch between Library and Archive. Leaves recorder mode if active and
+  // clears any selection so a transcript from one mode never leaks into the other.
+  const handleToggleArchived = (show: boolean) => {
+    setShowArchived(show);
+    setSelectedArchiveDate(null);
+    if (selectedRecording) setSelectedRecording(null);
+    if (activeSessionId) setActiveSessionId(null);
+  };
 
   const fetchRecords = async () => {
     try {
@@ -445,7 +457,12 @@ const Dashboard = () => {
         onArchiveRecording={handleArchive}
         onUnarchiveRecording={handleUnarchive}
         showArchived={showArchived}
-        onToggleArchived={setShowArchived}
+        onToggleArchived={handleToggleArchived}
+        selectedArchiveDate={selectedArchiveDate}
+        onSelectArchiveDate={(dateKey) => {
+          setSelectedArchiveDate(dateKey);
+          if (selectedRecording) setSelectedRecording(null);
+        }}
         onUploadClick={() => setUploadDialogOpen(true)}
         showUploadButton={!activeSessionId && !selectedRecording}
         mobileOpen={mobileSidebarOpen}
@@ -513,6 +530,31 @@ const Dashboard = () => {
               </Button>
             </div>
           </div>
+        ) : showArchived ? (
+          selectedRecording ? (
+            <TranscriptView
+              transcript={selectedRecording}
+              categories={categories}
+              onNewRecording={async () => {
+                setSelectedRecording(null);
+                await fetchRecords();
+              }}
+              onSave={handleSaveRecording}
+              onCategoryChange={handleCategoryChange}
+            />
+          ) : (
+            <ArchiveDayList
+              recordings={recordings}
+              selectedDate={selectedArchiveDate}
+              onSelectRecording={handleSelectRecording}
+              onUnarchiveRecording={handleUnarchive}
+              onDeleteRecording={handleDelete}
+              onBackToDates={() => {
+                setSelectedArchiveDate(null);
+                setSelectedRecording(null);
+              }}
+            />
+          )
         ) : !selectedRecording ? (
           <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
             {unfinishedSessionId && (

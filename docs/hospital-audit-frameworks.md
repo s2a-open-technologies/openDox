@@ -40,7 +40,7 @@ Kommunikationssicherheit) typischerweise auch eingesetzte Software auf
 Datenabfluss-Risiken. Hier zählt konkret: **keine Telemetrie/Phone-Home**
 (verifiziert per Grep über `backend/` und `frontend/src/` — keine
 Sentry/PostHog/Google-Analytics/Mixpanel/Datadog-o.-ä.-Aufrufe gefunden) und
-die durchgängige Feldverschlüsselung (`docs/SECURITY.md`) als direkt
+die durchgängige Feldverschlüsselung (`SECURITY.md`) als direkt
 zitierbare technische Kontrolle für A.8.24 (Kryptographie).
 
 ## 2. BSI IT-Grundschutz
@@ -138,16 +138,26 @@ grundsätzlich ausgenommen — sobald aber ein Hersteller/Anbieter das
 Produkt kommerziell vertreibt oder als Dienstleistung betreibt, greift
 der CRA regulär.
 
-**openDox-Bezug — hier ehrlich bleiben**: die Lockfiles
+**openDox-Bezug**: die Lockfiles
 (`pyproject.toml`/`uv.lock`, `frontend/package.json`/`package-lock.json`)
-sind eine gute SBOM-*Vorstufe*, aber wie in
-[`docs/audit-checklist-opendox.md`](audit-checklist-opendox.md) dokumentiert,
-gibt es **kein `.github/`-Verzeichnis, keine CI/CD, kein automatisiertes
-Dependency-/Vulnerability-Scanning**. Für den Vortrag ist das der
-richtige Moment, die Gegenthese zu zeigen: lokale KI-Architektur löst das
-*Datenabfluss*-Problem, ersetzt aber nicht die CRA-Pflicht zu
-automatisierter Schwachstellenbehandlung — das bleibt eine echte,
-unerledigte Lücke, kein Pluspunkt.
+sind eine gute SBOM-*Vorstufe*; über sie hinaus erzeugt der
+Publish-Workflow (`.github/workflows/docker-publish.yml`) seit 2026-09-23
+**CycloneDX-SBOMs pro Container-Image** (`anchore/sbom-action`/syft, gepinnt
+auf den exakten Manifest-Digest, als herunterladbare Artifacts) — siehe
+[`docs/audit-checklist-opendox.md`](audit-checklist-opendox.md).
+Die **Pflichtseite ist trotzdem sauber abgegrenzt**: openDox bleibt AGPL v3
+und nicht-kommerziell — damit greift die CRA-Open-Source-Ausnahme, es besteht
+keine eigene SBOM- oder Vulnerability-Handling-Pflicht. Die SBOM ist
+**freiwillig** (fertiges Nachweis-Artifact für Audits/Beschaffungsfragen),
+kein Compliance-Zwang. Wer openDox kommerziell weiterverreibt oder als
+Dienst betreibt, zieht die CRA-Pflichten (inkl. SBOM, koordinierte
+Schwachstellenbehandlung) auf sich selbst — das ist der AGPL-/CRA-Mechanismus,
+keine Lücke auf Maintainer-Seite. Was weiterhin **offen und ehrlich
+benannt** bleibt: es gibt kein automatisiertes CVE-Scanning als Gate
+(Dependabot-PRs ersetzen kein Vulnerability-Management) — lokale
+KI-Architektur löst das *Datenabfluss*-Problem, aber nicht die
+Prozesspflicht zu automatisierter Schwachstellenbehandlung, die ein
+kommerzieller Weiterverbieter zu tragen hätte.
 
 ## 8. EU MDR (Medical Device Regulation) — bewusste Abgrenzung
 
@@ -175,7 +185,7 @@ der MDR hält.
 ## 9. DSGVO/BDSG
 
 Bereits ausführlich in [`docs/data-mapping.md`](data-mapping.md) und
-[`docs/SECURITY.md`](SECURITY.md) (Art.-32-Maßnahmentabelle,
+[`SECURITY.md`](../SECURITY.md) (Art.-32-Maßnahmentabelle,
 Data-Subject-Rights-Tabelle) sowie in
 [`docs/oss-audit-talk-outline.md`](oss-audit-talk-outline.md) behandelt —
 hier nur der Querverweis, um Dopplung zu vermeiden.

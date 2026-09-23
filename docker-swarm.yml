@@ -112,7 +112,7 @@ services:
   # Exits 0 once configured; `on-failure` keeps retrying until `garage` is up
   # (no depends_on/service_healthy under Swarm — see header comment).
   garage-init:
-    image: registry.nutsolution.de/opendox-garage-init:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    image: ${OPENDOX_REGISTRY:-registry.nutsolution.de}/opendox-garage-init:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
     environment:
       GARAGE_HOST: garage
       GARAGE_ADMIN_TOKEN_FILE: /run/secrets/garage_admin_token
@@ -121,12 +121,18 @@ services:
       GARAGE_KEY_ID_FILE: /run/secrets/s3_access_key_id
       GARAGE_KEY_SECRET_FILE: /run/secrets/s3_secret_access_key
     secrets:
+      # mode: 0444 (Swarm's default, restated for clarity): the garage-init
+      # container runs as an unprivileged user (UID 1000), and Swarm mounts
+      # secrets root-owned — the default 0444 keeps them readable. The
+      # `garage` service below genuinely needs 0600 for its own secret files
+      # (Garage refuses group/world-readable ones), which is why those are
+      # overridden.
       - source: opendox_garage_admin_token
         target: garage_admin_token
-        mode: 0600
+        mode: 0444
       - source: opendox_garage_rpc_secret
         target: garage_rpc_secret
-        mode: 0600
+        mode: 0444
       - source: opendox_s3_access_key_id
         target: s3_access_key_id
       - source: opendox_s3_secret_access_key
@@ -142,7 +148,7 @@ services:
   # Whisper Server (OpenAI-compatible API for transcription)
   # ═══════════════════════════════════════════════════════════════════════════════
   whisper:
-    image: registry.nutsolution.de/opendox-whisper:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    image: ${OPENDOX_REGISTRY:-registry.nutsolution.de}/opendox-whisper:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
     volumes:
       - whisper-data:/var/lib/whisper
     environment:
@@ -177,7 +183,7 @@ services:
   # Parakeet Server (onnx-asr, OpenAI-compatible API for live ASR)
   # ═══════════════════════════════════════════════════════════════════════════════
   parakeet:
-    image: registry.nutsolution.de/opendox-parakeet:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    image: ${OPENDOX_REGISTRY:-registry.nutsolution.de}/opendox-parakeet:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
     environment:
       PARAKEET_MAX_CONCURRENT_DECODES: ${PARAKEET_MAX_CONCURRENT_DECODES:-2}
     deploy:
@@ -193,7 +199,7 @@ services:
   # openDox Application (FastAPI + React)
   # ═══════════════════════════════════════════════════════════════════════════════
   app:
-    image: registry.nutsolution.de/opendox:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
+    image: ${OPENDOX_REGISTRY:-registry.nutsolution.de}/opendox:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
     ports:
       - "${APP_PORT:-20000}:5000"
     environment:

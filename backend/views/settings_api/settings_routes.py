@@ -46,6 +46,7 @@ from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.terminology import Terminology
 from backend.components.models.user_model import User
+from backend.components.modules.env import env_or_file
 from backend.components.services import audio_storage
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
@@ -54,7 +55,10 @@ from backend.components.services.asr_factory import (
     reset_asr_backends,
 )
 from backend.components.services.ldap import LdapService
-from backend.components.services.session_store import session_store
+from backend.components.services.session_store import (
+    reconnect_session_store,
+    session_store,
+)
 from backend.components.services.session_store_redis import RedisSessionStore
 from backend.components.services.settings_service import get_settings_service
 from backend.components.sql.sql_engine import SessionDep
@@ -307,10 +311,21 @@ async def get_services_health(db: SessionDep):
             return {"name": "Datenbank", "status": "offline"}
 
     async def check_redis():
-        if not isinstance(session_store, RedisSessionStore):
+        # REDIS_URL configured but the active store is in-memory → the app
+        # process started while Redis was still down (depends_on only orders
+        # initial compose creation, not single-container restarts). Try a
+        # live reconnect before reporting "offline" — the health check is
+        # the natural trigger since it runs every 10s from the admin UI.
+        active_store = session_store.get()
+        if env_or_file("REDIS_URL") and not isinstance(active_store, RedisSessionStore):
+            reconnected = await asyncio.to_thread(reconnect_session_store)
+            active_store = session_store.get()
+            if not reconnected:
+                return {"name": "Cache", "status": "offline"}
+        if not isinstance(active_store, RedisSessionStore):
             return {"name": "Cache", "status": "disabled"}
         try:
-            await asyncio.to_thread(session_store.ping)
+            await asyncio.to_thread(active_store.ping)
             return {"name": "Cache", "status": "online"}
         except Exception:
             return {"name": "Cache", "status": "offline"}

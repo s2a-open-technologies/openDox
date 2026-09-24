@@ -526,7 +526,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     if use_streaming and isinstance(backend, ParakeetStreamBackend):
         # Callbacks update local_live_text via nonlocal and push to the client.
         async def _on_partial(partial_text: str) -> None:
-            nonlocal client_connected
+            # A failed send here is transient (e.g. a brief proxy hiccup) —
+            # it must NOT permanently disable the rest of the session. The
+            # main loop's own "websocket.disconnect" check (below) is the
+            # only place that should latch `client_connected` to False.
             if client_connected:
                 try:
                     await websocket.send_json(
@@ -534,10 +537,9 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     )
                 except Exception as e:
                     print(f"[WS-SEND-ERROR] partial: {e}")
-                    client_connected = False
 
         async def _on_committed(committed: str, delta: str) -> None:
-            nonlocal local_live_text, client_connected
+            nonlocal local_live_text
             local_live_text = committed
             session_store.set_live_state(session_id, local_last_index, committed)
             if client_connected and delta:
@@ -545,7 +547,6 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     await websocket.send_json({"session_id": session_id, "text": delta})
                 except Exception as e:
                     print(f"[WS-SEND-ERROR] committed: {e}")
-                    client_connected = False
 
         async def _on_final(final_text: str) -> None:
             nonlocal local_live_text
@@ -713,7 +714,6 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                                     )
                                 except Exception as e:
                                     print(f"[WS-SEND-ERROR] {e}")
-                                    client_connected = False
 
                             # Periodic LLM cleanup every 30s
                             _now = time.monotonic()

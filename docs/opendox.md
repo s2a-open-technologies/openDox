@@ -700,11 +700,12 @@ Authorization-Code-Flow mit Discovery (`{provider_url}/.well-known/openid-config
 
 ## Kategorien & LLM-Prompt-Komposition
 
-`Categories`-Zeilen (`backend/components/models/categories.py`) erfüllen drei Rollen pro Aufnahme, einmal beim Aufnahmestart gewählt (Kategorie-`<Select>` in `Dashboard.tsx`) und nachträglich änderbar über `PUT /record/{id}`:
+`Categories`-Zeilen (`backend/components/models/categories.py`) erfüllen vier Rollen pro Aufnahme, einmal beim Aufnahmestart gewählt (Kategorie-`<Select>` in `Dashboard.tsx`) und nachträglich änderbar über `PUT /record/{id}`:
 
-1. **`whisper_prompt`** → als `initial_prompt` an Whisper übergeben (Vokabular-/Rechtschreib-Hinweise für die finale Transkription).
-2. **`system_prompt`** → der LLM-System-Prompt für die Zusammenfassung (`SummarizeModel.generate_response(custom_system_prompt=...)`). Fällt nur auf `SummarizeModel.get_system_prompt()` zurück (ein generischer, nicht-medizinischer „nur bereinigen und strukturieren"-Prompt), wenn `record.category_id` leer ist oder die Kategorie keinen `system_prompt` hat — in der Praxis selten, da die UI immer eine Kategorie vorbelegt.
-3. **`llm_override_enabled`** + `llm_model`/`llm_api_endpoint`/`llm_api_key`/`llm_temperature`/`llm_max_tokens` → optionaler Per-Kategorie-LLM-Backend-Override, z. B. um „Kardiologie" auf ein anderes Modell/Endpoint zu routen als den globalen Default.
+1. **`whisper_prompt`** → als `initial_prompt` an Whisper übergeben (Vokabular-/Rechtschreib-Hinweise für die finale Transkription). Faster-whisper behält davon nur die letzten 224 Tokens (last-N-Truncation, ohne Warnung) — daher bewusst kurz halten.
+2. **`glossary`** → Quelltext für die phonetische Fachbegriff-Korrektur (`term_correction_service.py`, Kölner Phonetik) — bewusst getrennt von `whisper_prompt`, da hier kein Längenlimit gilt. Wird zur Korrekturzeit mit dem privaten „Mein Wörterbuch" (`User.personal_glossary`, `GET`/`PUT /api/v1/settings/my-dictionary/`, nur für den jeweiligen User sichtbar, auch nicht für Admins) zusammengeführt.
+3. **`system_prompt`** → der LLM-System-Prompt für die Zusammenfassung (`SummarizeModel.generate_response(custom_system_prompt=...)`). Fällt nur auf `SummarizeModel.get_system_prompt()` zurück (ein generischer, nicht-medizinischer „nur bereinigen und strukturieren"-Prompt), wenn `record.category_id` leer ist oder die Kategorie keinen `system_prompt` hat — in der Praxis selten, da die UI immer eine Kategorie vorbelegt.
+4. **`llm_override_enabled`** + `llm_model`/`llm_api_endpoint`/`llm_api_key`/`llm_temperature`/`llm_max_tokens` → optionaler Per-Kategorie-LLM-Backend-Override, z. B. um „Kardiologie" auf ein anderes Modell/Endpoint zu routen als den globalen Default.
 
 **Platzhalter-Halluzination wird im Code erzwungen, nicht im Prompt-Text:** `generate_response()` hängt unconditional eine Anti-Halluzinations-Regel an **jeden** Prompt an (keine erfundenen `[DATUM]`/`[WERT]`-Platzhalter für fehlende Informationen, aber bestehende EntityGuard-Token wie `[PERSON]`/`[LOCATION]` bleiben ausdrücklich erhalten) — direkt neben der bestehenden „Do not output your reasoning"-Unterdrückung. Grund: ein Admin, der über die Admin-UI eine neue Kategorie mit eigenem `system_prompt` anlegt, hat keine Möglichkeit zu wissen, dass das lokale Modell zu solchen Platzhaltern neigt — die Regel darf sich also nicht darauf verlassen, im Prompt-Text zu stehen.
 
@@ -1164,7 +1165,8 @@ Legend:
 | POST | `/ldap-settings/test` | LDAP-Bind testen |
 | POST | `/ldap-settings/upload-cert/` | LDAPS-CA-Zertifikat hochladen (landet in der DB, nicht auf Disk) |
 | GET/PUT | `/oidc-settings/` | OIDC-Konfiguration |
-| GET/POST/PUT/DELETE | `/categories/`, `/categories/{id}` | Kategorien (Whisper-/LLM-Prompts, siehe Abschnitt „Kategorien") |
+| GET/POST/PUT/DELETE | `/categories/`, `/categories/{id}` | Kategorien (Whisper-/Glossar-/LLM-Prompts, siehe Abschnitt „Kategorien") |
+| GET/PUT | `/my-dictionary/` | Eigenes, privates Korrektur-Wörterbuch des angemeldeten Users (nie für Admins sichtbar) |
 | GET/POST/PUT/DELETE | `/languages/`, `/languages/{id}` | Sprachen |
 | GET | `/backup/` | Alle Settings-Tabellen als JSON exportieren |
 | POST | `/backup/restore/` | Settings-Backup importieren |

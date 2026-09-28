@@ -30,6 +30,7 @@ class Categories(SQLModel, table=True):
     description: str
     system_prompt: str
     whisper_prompt: Optional[str] = Field(default=None)
+    glossary: Optional[str] = Field(default=None)
     llm_override_enabled: bool = Field(default=False)
     llm_model: Optional[str] = Field(default=None)
     llm_api_endpoint: Optional[str] = Field(default=None)
@@ -49,6 +50,7 @@ class CategoriesCreate(SQLModel):
     description: str
     system_prompt: str
     whisper_prompt: Optional[str] = None
+    glossary: Optional[str] = None
     llm_override_enabled: bool = False
     llm_model: Optional[str] = None
     llm_api_endpoint: Optional[str] = None
@@ -68,6 +70,7 @@ class CategoriesRead(SQLModel):
     description: str
     system_prompt: str
     whisper_prompt: Optional[str] = None
+    glossary: Optional[str] = None
     llm_override_enabled: bool
     llm_model: Optional[str]
     llm_api_endpoint: Optional[str]
@@ -95,6 +98,7 @@ class CategoriesListRead(SQLModel):
     description: str
     system_prompt: str
     whisper_prompt: Optional[str] = None
+    glossary: Optional[str] = None
     llm_override_enabled: bool
     llm_model: Optional[str]
     llm_api_endpoint: Optional[str]

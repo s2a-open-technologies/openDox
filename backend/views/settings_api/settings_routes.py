@@ -44,7 +44,11 @@ from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
-from backend.components.models.user_model import User
+from backend.components.models.user_model import (
+    PersonalGlossaryRead,
+    PersonalGlossaryUpdate,
+    User,
+)
 from backend.components.modules.env import env_or_file
 from backend.components.services import audio_storage
 from backend.components.services.asr_backends import DisabledBackend
@@ -632,6 +636,36 @@ async def delete_category(
     db.delete(category)
     db.commit()
     return {"ok": True}
+
+
+# Personal Dictionary Endpoint
+#
+# Each user's own free-text correction glossary, private to them — never
+# exposed via any admin-facing endpoint or schema, unlike personal
+# categories (which admins can see for support purposes, see above).
+# Merged with the selected recording's category glossary at term-correction
+# time (background_transcription_service.py), regardless of which category
+# was picked.
+
+
+@settings_bp.get("/my-dictionary/", response_model=PersonalGlossaryRead)
+async def get_my_dictionary(current_user: User = Depends(get_current_user)):
+    """Return the current user's personal glossary."""
+    return PersonalGlossaryRead(personal_glossary=current_user.personal_glossary)
+
+
+@settings_bp.put("/my-dictionary/", response_model=PersonalGlossaryRead)
+async def update_my_dictionary(
+    payload: PersonalGlossaryUpdate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Update the current user's personal glossary."""
+    current_user.personal_glossary = payload.personal_glossary
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return PersonalGlossaryRead(personal_glossary=current_user.personal_glossary)
 
 
 # Languages Endpoints

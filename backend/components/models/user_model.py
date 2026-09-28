@@ -38,6 +38,12 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     role: str = Field(default="user", index=True)
     disclaimer_accepted_at: Optional[datetime] = Field(default=None)
+    # Free-text glossary (same comma/semicolon/newline format as
+    # Categories.glossary), private to the owner — merged with the
+    # selected recording's category glossary at term-correction time. Never
+    # exposed via UserRead/any admin-facing user schema, only via the
+    # dedicated PersonalGlossaryRead/-Update pair below.
+    personal_glossary: Optional[str] = Field(default=None)
 
     @property
     def is_superuser(self) -> bool:
@@ -81,3 +87,20 @@ class UserUpdate(SQLModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
+
+
+class PersonalGlossaryRead(SQLModel):
+    """Schema for reading the current user's personal glossary.
+
+    Deliberately narrow — never composed with UserRead or any
+    admin-facing user schema, since the personal glossary is private to
+    its owner (see GET/PUT /api/v1/settings/my-dictionary/).
+    """
+
+    personal_glossary: Optional[str] = None
+
+
+class PersonalGlossaryUpdate(SQLModel):
+    """Schema for updating the current user's personal glossary."""
+
+    personal_glossary: Optional[str] = None

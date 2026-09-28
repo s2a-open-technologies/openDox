@@ -97,18 +97,24 @@ def koelner_phonetik(word: str) -> str:
     return "".join(result)
 
 
-def parse_glossary(whisper_prompt: str) -> list[str]:
-    """Parse a category's free-text ``whisper_prompt`` into a glossary list.
+def parse_glossary(glossary_text: str) -> list[str]:
+    """Parse free-text glossary source into a term list.
 
-    Splits on comma/semicolon/newline, trims whitespace, drops very short
-    tokens (<3 chars, too ambiguous phonetically) and duplicates.
+    Called with a category's ``glossary`` field merged with the record
+    owner's ``User.personal_glossary`` (see
+    ``background_transcription_service._build_correction_glossary``) —
+    deliberately separate from ``whisper_prompt``, which only feeds
+    Whisper's ``initial_prompt`` and is subject to its 224-token, last-N
+    truncation. Splits on comma/semicolon/newline, trims whitespace, drops
+    very short tokens (<3 chars, too ambiguous phonetically) and
+    duplicates.
     """
-    if not whisper_prompt:
+    if not glossary_text:
         return []
 
     seen: set[str] = set()
     glossary: list[str] = []
-    for raw in re.split(r"[,;\n]+", whisper_prompt):
+    for raw in re.split(r"[,;\n]+", glossary_text):
         term = raw.strip()
         if len(term) < 3:
             continue

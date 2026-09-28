@@ -79,6 +79,24 @@ def test_should_overwrite_content_empty_result_with_no_prior_content():
     assert svc._should_overwrite_content("", None) is True
 
 
+def test_build_correction_glossary_merges_both_sources():
+    result = svc._build_correction_glossary("Sertralin, Metformin", "Ibuprofen")
+    assert result == "Sertralin, Metformin\nIbuprofen"
+
+
+def test_build_correction_glossary_category_only():
+    assert svc._build_correction_glossary("Sertralin", None) == "Sertralin"
+
+
+def test_build_correction_glossary_personal_only():
+    assert svc._build_correction_glossary(None, "Ibuprofen") == "Ibuprofen"
+
+
+def test_build_correction_glossary_neither_returns_none():
+    assert svc._build_correction_glossary(None, None) is None
+    assert svc._build_correction_glossary("", "") is None
+
+
 def test_retain_audio_for_retry_does_not_nest_failed_dirs(tmp_path):
     failed_dir = tmp_path / "failed"
     failed_dir.mkdir()

@@ -35,6 +35,7 @@ interface CategorySettingsData {
     description: string;
     system_prompt: string;
     whisper_prompt: string | null;
+    glossary: string | null;
     llm_override_enabled: boolean;
     llm_model: string | null;
     llm_api_endpoint: string | null;
@@ -52,6 +53,7 @@ const emptyForm = (): CategorySettingsData => ({
     description: '',
     system_prompt: '',
     whisper_prompt: null,
+    glossary: null,
     llm_override_enabled: false,
     llm_model: null,
     llm_api_endpoint: null,
@@ -276,6 +278,20 @@ const CategorySettings = () => {
                             />
                             <p className="text-xs text-muted-foreground">
                                 Fachvokabular für die Spracherkennung. Kommagetrennte Begriffe helfen Whisper Fachbegriffe korrekt zu erkennen. Optional.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Korrektur-Glossar</Label>
+                            <Textarea
+                                value={settings.glossary ?? ''}
+                                onChange={e => setSettings({ ...settings, glossary: e.target.value || null })}
+                                placeholder="Sertralin, Metformin, Ibuprofen ..."
+                                className="min-h-[80px]"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Begriffe, die nach der finalen Transkription automatisch phonetisch korrigiert werden
+                                (unabhängig vom Transkriptions-Hint oben, ohne Längenbegrenzung). Gleiches Format:
+                                Komma-, Semikolon- oder zeilengetrennt.
                             </p>
                         </div>
 

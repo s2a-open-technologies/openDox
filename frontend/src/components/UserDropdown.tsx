@@ -29,17 +29,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, LogOut, Settings, Sun, Moon, BookOpenCheck } from "lucide-react";
+import { User, LogOut, Settings, Sun, Moon, BookOpenCheck, BookMarked } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import AdminModal from "./AdminModal";
 import MyCategoriesModal from "./MyCategoriesModal";
+import MyDictionaryModal from "./MyDictionaryModal";
 
 const UserDropdown = () => {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const [showAdmin, setShowAdmin] = useState(false);
     const [showCategories, setShowCategories] = useState(false);
+    const [showDictionary, setShowDictionary] = useState(false);
 
     return (
         <>
@@ -85,6 +87,12 @@ const UserDropdown = () => {
                             <span>Meine Kategorien</span>
                         </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem onClick={() => {
+                        setTimeout(() => setShowDictionary(true), 100);
+                    }}>
+                        <BookMarked className="mr-2 h-4 w-4" />
+                        <span>Mein Wörterbuch</span>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={logout}>
                         <LogOut className="mr-2 h-4 w-4" />
                         <span>Abmelden</span>
@@ -94,6 +102,7 @@ const UserDropdown = () => {
 
             <AdminModal isOpen={showAdmin} onClose={() => setShowAdmin(false)} />
             <MyCategoriesModal isOpen={showCategories} onClose={() => setShowCategories(false)} />
+            <MyDictionaryModal isOpen={showDictionary} onClose={() => setShowDictionary(false)} />
         </>
     );
 };

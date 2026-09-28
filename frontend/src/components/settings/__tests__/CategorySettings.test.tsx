@@ -187,6 +187,38 @@ describe("CategorySettings", () => {
     );
   });
 
+  it("sends the glossary field independently of the whisper prompt", async () => {
+    const authFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse({ id: 6, name: "Onkologie" }))
+      .mockResolvedValueOnce(jsonResponse([]));
+    const user = userEvent.setup();
+    renderWithAuth(authFetch);
+
+    await screen.findByText("Keine Kategorien vorhanden");
+    await fillRequiredFields(user, {
+      name: "Onkologie",
+      description: "Krebs",
+      systemPrompt: "Prompt",
+    });
+    await user.type(
+      screen.getByPlaceholderText("Kardiologie, Echokardiographie, Sinusbradykardie, Dr. Müller, EKG, Herzinsuffizienz ..."),
+      "Stil-Hinweis"
+    );
+    await user.type(
+      screen.getByPlaceholderText("Sertralin, Metformin, Ibuprofen ..."),
+      "Sertralin, Ibuprofen"
+    );
+    await user.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(3));
+    const [, options] = authFetch.mock.calls[1];
+    const body = JSON.parse(options.body);
+    expect(body.whisper_prompt).toBe("Stil-Hinweis");
+    expect(body.glossary).toBe("Sertralin, Ibuprofen");
+  });
+
   it("shows the server error detail and keeps the form on create failure", async () => {
     const authFetch = vi
       .fn()

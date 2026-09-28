@@ -43,6 +43,11 @@ vi.mock("@/components/MyCategoriesModal", () => ({
     isOpen ? <div data-testid="my-categories-modal">MyCategoriesModal</div> : null,
 }));
 
+vi.mock("@/components/MyDictionaryModal", () => ({
+  default: ({ isOpen }: { isOpen: boolean; onClose: () => void }) =>
+    isOpen ? <div data-testid="my-dictionary-modal">MyDictionaryModal</div> : null,
+}));
+
 const mockedUseAuth = vi.mocked(useAuth);
 const mockedUseTheme = vi.mocked(useTheme);
 
@@ -129,6 +134,27 @@ describe("UserDropdown", () => {
 
     await waitFor(() =>
       expect(screen.getByTestId("my-categories-modal")).toBeInTheDocument()
+    );
+  });
+
+  it("shows 'Mein Wörterbuch' for every role", async () => {
+    const user = userEvent.setup();
+    setup({ role: "admin" });
+
+    await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
+
+    expect(await screen.findByText("Mein Wörterbuch")).toBeInTheDocument();
+  });
+
+  it("opens MyDictionaryModal when 'Mein Wörterbuch' is clicked", async () => {
+    const user = userEvent.setup();
+    setup({ role: "user" });
+
+    await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
+    await user.click(await screen.findByText("Mein Wörterbuch"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("my-dictionary-modal")).toBeInTheDocument()
     );
   });
 

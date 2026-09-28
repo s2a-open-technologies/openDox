@@ -277,7 +277,9 @@ const CategorySettings = () => {
                                 className="min-h-[80px]"
                             />
                             <p className="text-xs text-muted-foreground">
-                                Fachvokabular für die Spracherkennung. Kommagetrennte Begriffe helfen Whisper Fachbegriffe korrekt zu erkennen. Optional.
+                                Kurzer Stil-/Aussprache-Hinweis für Whisper. Whisper berücksichtigt davon nur die
+                                letzten ~224 Tokens — für lange Fachbegriffslisten das Korrektur-Glossar unten
+                                verwenden. Optional.
                             </p>
                         </div>
                         <div className="space-y-2">

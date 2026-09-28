@@ -95,6 +95,36 @@ describe("PersonalDictionary", () => {
     expect(toast.success).toHaveBeenCalledWith("Wörterbuch gespeichert");
   });
 
+  it("disables the textarea and save button until the initial load succeeds", async () => {
+    let resolveLoad: (value: Response) => void;
+    const loadPromise = new Promise<Response>(resolve => {
+      resolveLoad = resolve;
+    });
+    const authFetch = vi.fn().mockReturnValue(loadPromise);
+    renderWithAuth(authFetch);
+
+    expect(screen.getByPlaceholderText("Sertralin, Metformin, Ibuprofen ...")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+
+    resolveLoad!(jsonResponse({ personal_glossary: "Metformin" }));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Sertralin, Metformin, Ibuprofen ...")).not.toBeDisabled()
+    );
+    expect(screen.getByRole("button", { name: "Speichern" })).not.toBeDisabled();
+  });
+
+  it("keeps the form disabled and shows an error toast when the initial load fails", async () => {
+    const authFetch = vi.fn().mockResolvedValue(jsonResponse({}, false));
+    renderWithAuth(authFetch);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Wörterbuch konnte nicht geladen werden")
+    );
+    expect(screen.getByPlaceholderText("Sertralin, Metformin, Ibuprofen ...")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
   it("shows an error toast when saving fails", async () => {
     const authFetch = vi
       .fn()

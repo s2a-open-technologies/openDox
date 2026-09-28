@@ -33,14 +33,22 @@ const PersonalDictionary = () => {
     const { authFetch } = useAuth();
     const [glossary, setGlossary] = useState('');
     const [loading, setLoading] = useState(false);
+    const [loaded, setLoaded] = useState(false);
 
     useEffect(() => {
         authFetch('/api/v1/settings/my-dictionary/')
-            .then(res => res.json())
-            .then((data: PersonalGlossaryResponse) => {
+            .then(async res => {
+                if (!res.ok) {
+                    throw new Error('Laden fehlgeschlagen');
+                }
+                const data: PersonalGlossaryResponse = await res.json();
                 setGlossary(data.personal_glossary ?? '');
+                setLoaded(true);
             })
-            .catch(console.error);
+            .catch(error => {
+                console.error(error);
+                toast.error('Wörterbuch konnte nicht geladen werden');
+            });
     }, []);
 
     const save = async () => {
@@ -78,12 +86,13 @@ const PersonalDictionary = () => {
                     onChange={e => setGlossary(e.target.value)}
                     placeholder="Sertralin, Metformin, Ibuprofen ..."
                     className="min-h-[120px]"
+                    disabled={!loaded}
                 />
                 <p className="text-xs text-muted-foreground">
                     Komma-, Semikolon- oder zeilengetrennte Begriffe. Wird bei der finalen
-                    Transkription mit dem Glossar des gewählten Profils zusammengeführt.
+                    Transkription mit dem Glossar der gewählten Kategorie zusammengeführt.
                 </p>
-                <Button onClick={save} disabled={loading}>
+                <Button onClick={save} disabled={loading || !loaded}>
                     {loading ? 'Speichern...' : 'Speichern'}
                 </Button>
             </CardContent>

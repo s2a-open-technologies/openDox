@@ -6,6 +6,9 @@ failed/-dir nesting guard used by the WAV-retry failsafe.
 
 import os
 
+from backend.components.models.categories import Categories
+from backend.components.models.record_model import Record
+from backend.components.models.user_model import User
 from backend.components.services import background_transcription_service as svc
 
 
@@ -95,6 +98,109 @@ def test_build_correction_glossary_personal_only():
 def test_build_correction_glossary_neither_returns_none():
     assert svc._build_correction_glossary(None, None) is None
     assert svc._build_correction_glossary("", "") is None
+
+
+def _make_record_owner_and_category(
+    session_factory,
+    *,
+    category_glossary=None,
+    category_whisper_prompt=None,
+    personal_glossary=None,
+):
+    """Create owner/category/record rows and return their ids.
+
+    Returning bare ids (not the ORM objects) avoids DetachedInstanceError
+    when a later test re-opens a fresh session — the caller re-fetches
+    within whichever session it's actually testing against.
+    """
+    with session_factory() as session:
+        owner = User(
+            name="alice",
+            hashed_password="x",
+            personal_glossary=personal_glossary,
+        )
+        session.add(owner)
+        session.commit()
+        session.refresh(owner)
+
+        category = Categories(
+            name="Kardiologie",
+            description="Herz",
+            system_prompt="Fasse zusammen",
+            whisper_prompt=category_whisper_prompt,
+            glossary=category_glossary,
+        )
+        session.add(category)
+        session.commit()
+        session.refresh(category)
+
+        record = Record(
+            session_id="sess-1",
+            user_id=owner.id,
+            category_id=category.id,
+            title="t",
+            content="",
+            timestamp="2026-01-01T00:00:00",
+            summarize="",
+            file="",
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+
+        return record.id, category.id
+
+
+def test_resolve_correction_glossary_merges_category_and_personal(session_factory):
+    record_id, category_id = _make_record_owner_and_category(
+        session_factory,
+        category_glossary="Sertralin",
+        category_whisper_prompt="unrelated Whisper style hint",
+        personal_glossary="Ibuprofen",
+    )
+
+    with session_factory() as session:
+        record = session.get(Record, record_id)
+        category = session.get(Categories, category_id)
+        result = svc._resolve_correction_glossary(session, record, category)
+
+    assert result == "Sertralin\nIbuprofen"
+
+
+def test_resolve_correction_glossary_ignores_whisper_prompt():
+    """Regression guard: must read category.glossary, never whisper_prompt."""
+    category = Categories(
+        name="X",
+        description="d",
+        system_prompt="s",
+        whisper_prompt="should never appear in correction glossary",
+        glossary=None,
+    )
+
+    result = svc._resolve_correction_glossary(db=None, record=None, category=category)
+
+    assert result is None
+
+
+def test_resolve_correction_glossary_with_no_category_still_applies_personal(
+    session_factory,
+):
+    record_id, _ = _make_record_owner_and_category(
+        session_factory, personal_glossary="Metformin"
+    )
+
+    with session_factory() as session:
+        record = session.get(Record, record_id)
+        result = svc._resolve_correction_glossary(session, record, category=None)
+
+    assert result == "Metformin"
+
+
+def test_resolve_correction_glossary_with_no_record_is_none(session_factory):
+    with session_factory() as session:
+        result = svc._resolve_correction_glossary(session, record=None, category=None)
+
+    assert result is None
 
 
 def test_retain_audio_for_retry_does_not_nest_failed_dirs(tmp_path):

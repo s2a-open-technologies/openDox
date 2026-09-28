@@ -161,6 +161,25 @@ def _build_correction_glossary(
     return "\n".join(parts) if parts else None
 
 
+def _resolve_correction_glossary(
+    db, record: Record | None, category: Categories | None
+) -> str | None:
+    """Resolve the merged term-correction glossary for a task.
+
+    Combines the selected category's ``glossary`` (never ``whisper_prompt``
+    — see ``_build_correction_glossary``) with the record owner's
+    ``User.personal_glossary``, which always applies regardless of which
+    category (global or personal) was picked for the recording.
+    """
+    category_glossary = category.glossary or None if category else None
+    personal_glossary = None
+    if record:
+        owner = db.get(User, record.user_id)
+        if owner:
+            personal_glossary = owner.personal_glossary or None
+    return _build_correction_glossary(category_glossary, personal_glossary)
+
+
 def _retain_audio_for_retry(db, task_id: int, file_path: str) -> None:
     """Move a failed task's source audio out of the ephemeral scratch dir.
 
@@ -221,24 +240,15 @@ def background_transcription_task(
     # Get category config if set
     category_prompt = None  # → LLM system prompt
     category_whisper_prompt = None  # → Whisper initial_prompt (vocabulary hints)
-    category_glossary = None  # → term-correction glossary (decoupled from the above)
     category_llm_override = None
+    cat = None
     if record and record.category_id:
         cat = db.get(Categories, record.category_id)
         if cat:
             category_prompt = cat.system_prompt
             category_whisper_prompt = cat.whisper_prompt or None
-            category_glossary = cat.glossary or None
             if cat.llm_override_enabled and cat.llm_model:
                 category_llm_override = cat
-
-    # Record owner's personal glossary — always applies for term correction,
-    # regardless of which category (global or personal) was selected.
-    personal_glossary = None
-    if record:
-        owner = db.get(User, record.user_id)
-        if owner:
-            personal_glossary = owner.personal_glossary or None
 
     try:
         backend = get_final_backend()
@@ -261,9 +271,7 @@ def background_transcription_task(
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
 
         whisper_settings = get_settings()
-        correction_glossary_text = _build_correction_glossary(
-            category_glossary, personal_glossary
-        )
+        correction_glossary_text = _resolve_correction_glossary(db, record, cat)
         if whisper_settings.term_correction_enabled and correction_glossary_text:
             try:
                 glossary = parse_glossary(correction_glossary_text)

@@ -821,8 +821,15 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
         for row in db.exec(select(model_cls)).all():
             db.delete(row)
         for row_data in rows_data:
-            if isinstance(row_data, dict):
-                db.add(model_cls(**row_data))
+            if not isinstance(row_data, dict):
+                continue
+            if model_cls is Categories and "glossary" not in row_data:
+                # Backups made before the glossary/whisper_prompt split only
+                # have whisper_prompt — backfill so term correction doesn't
+                # silently stop working after restoring an older backup
+                # (mirrors the migration's own backfill).
+                row_data = {**row_data, "glossary": row_data.get("whisper_prompt")}
+            db.add(model_cls(**row_data))
 
     db.commit()
     get_settings_service().invalidate_cache()

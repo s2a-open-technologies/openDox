@@ -21,7 +21,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+
+from backend.components.security.field_encryption import EncryptedString
 
 # Valid role values. ``admin`` supersedes the legacy ``is_superuser=True``.
 # ``demo_viewer``: sieht alle Admin-Bereiche, aber nur lesend (Demo-Zwecke);
@@ -42,8 +45,12 @@ class User(SQLModel, table=True):
     # Categories.glossary), private to the owner — merged with the
     # selected recording's category glossary at term-correction time. Never
     # exposed via UserRead/any admin-facing user schema, only via the
-    # dedicated PersonalGlossaryRead/-Update pair below.
-    personal_glossary: Optional[str] = Field(default=None)
+    # dedicated PersonalGlossaryRead/-Update pair below. Encrypted at rest
+    # like the other patient-adjacent fields (Record.content etc.) — users
+    # realistically enter patient/doctor names here.
+    personal_glossary: Optional[str] = Field(
+        default=None, sa_column=Column(EncryptedString, nullable=True)
+    )
 
     @property
     def is_superuser(self) -> bool:

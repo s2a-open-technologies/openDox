@@ -33,7 +33,7 @@ const MyDictionaryModal = ({ isOpen, onClose }: MyDictionaryModalProps) => (
                 <DialogTitle>Mein Wörterbuch</DialogTitle>
                 <DialogDescription>
                     Ihr persönliches Korrektur-Wörterbuch, das bei jeder Ihrer Aufnahmen
-                    angewendet wird, unabhängig vom gewählten Profil.
+                    angewendet wird, unabhängig von der gewählten Kategorie.
                 </DialogDescription>
             </DialogHeader>
             <PersonalDictionary />

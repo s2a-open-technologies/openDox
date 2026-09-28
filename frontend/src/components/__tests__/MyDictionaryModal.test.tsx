@@ -64,7 +64,7 @@ describe("MyDictionaryModal", () => {
 
     expect(screen.getByText("Mein Wörterbuch")).toBeInTheDocument();
     expect(
-      screen.getByText(/unabhängig vom gewählten Profil/)
+      screen.getByText(/unabhängig von der gewählten Kategorie/)
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(authFetch).toHaveBeenCalledWith("/api/v1/settings/my-dictionary/")

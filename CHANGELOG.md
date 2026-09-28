@@ -9,8 +9,29 @@ and tagged in git (`--commit` flag).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-28
+
 ### Added
 
+- Personal dictionary: every user gets a private, per-user correction
+  glossary ("Mein Wörterbuch", `UserDropdown.tsx` →
+  `MyDictionaryModal.tsx`/`PersonalDictionary.tsx`,
+  `GET`/`PUT /api/v1/settings/my-dictionary/`) that applies at final
+  transcription regardless of which category was selected for the
+  recording — merged with that category's glossary
+  (`_build_correction_glossary()` in
+  `background_transcription_service.py`). Deliberately never exposed to
+  admins through any endpoint or schema, unlike personal categories.
+- `Categories.glossary`: the term-correction glossary source is now a
+  dedicated field, split off from `whisper_prompt`. `whisper_prompt` is
+  only ever sent to Whisper as `initial_prompt`, which faster-whisper
+  truncates to the last 224 tokens with no length check or warning —
+  combining it with an arbitrarily long glossary risked silently dropping
+  whichever part landed at the front. `glossary` has no such limit. A
+  migration backfills `glossary = whisper_prompt` for existing categories
+  so current term-correction behavior is preserved. New
+  "Korrektur-Glossar" textarea in `CategorySettings.tsx`, independent of
+  the existing "Transkriptions-Hint (Whisper)" field.
 - Redis session-store auto-reconnect: when the app process starts while Redis
   is still down (single-container restart race — `depends_on` only orders
   initial compose creation), the in-memory fallback is no longer permanent.

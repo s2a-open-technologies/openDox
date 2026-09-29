@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # Standard library
 import asyncio
 import os
+import secrets
 import struct
 import tempfile
 from contextlib import asynccontextmanager
@@ -29,11 +30,51 @@ import numpy as np
 
 # Third-party imports
 import onnx_asr
-from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import JSONResponse
 from streaming import PCM_SAMPLE_RATE, parakeet_stream_engine
 
 DEFAULT_MODEL = os.getenv("PARAKEET_MODEL", "nemo-parakeet-tdt-0.6b-v3")
+
+# Sub-path this server is reverse-proxied under (e.g. "/parakeet"), so a
+# separate edge proxy can expose it alongside other services on one port —
+# see AGENTS.md "Parakeet server". Never passed as FastAPI(root_path=...):
+# Starlette would strip it before route matching and double-count it.
+ROOT_PATH = os.getenv("ROOT_PATH", "").rstrip("/")
+
+
+def _read_secret(env_name: str) -> str:
+    """Read a config value, honoring the Docker Swarm `_FILE` secret convention.
+
+    Mirrors ``backend/components/modules/env.py``'s ``env_or_file()`` for
+    this one variable, duplicated locally so this standalone service doesn't
+    need to depend on the ``backend`` package.
+
+    Args:
+        env_name: Base environment variable name (e.g. "PARAKEET_API_KEY").
+
+    Returns:
+        The secret value, or "" if neither the plain var nor the `_FILE`
+        variant is set.
+    """
+    file_path = os.getenv(f"{env_name}_FILE")
+    if file_path and os.path.isfile(file_path):
+        with open(file_path) as f:
+            return f.read().strip()
+    return os.getenv(env_name, "")
+
+
+EXPECTED_API_KEY = _read_secret("PARAKEET_API_KEY")
 
 _models: dict[str, "onnx_asr.adapters.TextResultsAsrAdapter"] = {}
 
@@ -105,6 +146,11 @@ async def lifespan(app: FastAPI):
     streaming WebSocket endpoint so the first client doesn't pay the cold-load
     penalty.
     """
+    if not EXPECTED_API_KEY:
+        print(
+            "[PARAKEET] WARNING: PARAKEET_API_KEY not set — "
+            "endpoints are unauthenticated"
+        )
     get_model()
     parakeet_stream_engine.ensure_loaded()
     yield
@@ -115,9 +161,32 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="openDox Parakeet ASR", lifespan=lifespan)
 
 
-@app.get("/v1/models")
+def require_api_key(authorization: str = Header(default="")) -> None:
+    """Validate the `Authorization: Bearer <key>` header for HTTP routes.
+
+    A no-op when `PARAKEET_API_KEY`/`PARAKEET_API_KEY_FILE` isn't configured
+    (dev fallback — a startup warning is logged in that case instead).
+
+    Raises:
+        HTTPException: 401 if the header is missing or doesn't match.
+    """
+    if not EXPECTED_API_KEY:
+        return
+    scheme, _, token = authorization.partition(" ")
+    valid = scheme.lower() == "bearer" and secrets.compare_digest(
+        token, EXPECTED_API_KEY
+    )
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+@app.get(f"{ROOT_PATH}/v1/models")
 async def list_models():
     """List available models.
+
+    Intentionally unauthenticated: it's the Docker HEALTHCHECK target (which
+    has no straightforward way to read a Swarm-secret-backed API key) and
+    carries no sensitive data — just the configured model name.
 
     Returns:
         OpenAI-compatible /v1/models response with the default model.
@@ -145,7 +214,10 @@ def _run_recognition(wav_bytes: bytes, model_name: str | None) -> str:
             return ""
 
 
-@app.post("/v1/audio/transcriptions")
+@app.post(
+    f"{ROOT_PATH}/v1/audio/transcriptions",
+    dependencies=[Depends(require_api_key)],
+)
 async def transcribe(
     file: UploadFile = File(...),
     model: str = Form(default=""),
@@ -219,7 +291,7 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
     return header + pcm_int16.tobytes()
 
 
-@app.websocket("/v1/audio/stream")
+@app.websocket(f"{ROOT_PATH}/v1/audio/stream")
 async def audio_stream(ws: WebSocket):
     """VAD-segmented streaming transcription over a WebSocket.
 
@@ -237,6 +309,15 @@ async def audio_stream(ws: WebSocket):
 
     The client signals end-of-stream with a text frame ``{"event": "stop"}``.
     """
+    if EXPECTED_API_KEY:
+        scheme, _, token = ws.headers.get("authorization", "").partition(" ")
+        if scheme.lower() != "bearer" or not secrets.compare_digest(
+            token, EXPECTED_API_KEY
+        ):
+            # Reject before accept() so a bad/missing key never completes the
+            # WS handshake (rather than accepting and sending an error frame).
+            await ws.close(code=1008)
+            return
     await ws.accept()
     try:
         session = await asyncio.to_thread(parakeet_stream_engine.new_session)

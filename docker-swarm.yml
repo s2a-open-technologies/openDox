@@ -186,6 +186,16 @@ services:
     image: ${OPENDOX_REGISTRY:-registry.nutsolution.de}/opendox-parakeet:${OPENDOX_VERSION:?Set OPENDOX_VERSION first. See the header comment in this file.}
     environment:
       PARAKEET_MAX_CONCURRENT_DECODES: ${PARAKEET_MAX_CONCURRENT_DECODES:-2}
+      # Optional URL sub-path (e.g. "/parakeet") for a reverse proxy on a
+      # separate host to expose this service alongside others on one port —
+      # see AGENTS.md "Parakeet server".
+      ROOT_PATH: ${PARAKEET_ROOT_PATH:-}
+      PARAKEET_API_KEY_FILE: /run/secrets/parakeet_api_key
+    ports:
+      - "${PARAKEET_PORT:-5001}:5001"
+    secrets:
+      - source: opendox_parakeet_api_key
+        target: parakeet_api_key
     deploy:
       replicas: 1
       restart_policy:
@@ -234,6 +244,17 @@ services:
       S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key_id
       S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_access_key
       S3_REGION: ${S3_REGION:-garage}
+      # Trust the host's CA bundle (mounted below) for outbound HTTPS to
+      # internal endpoints signed by a private CA (e.g. a self-hosted LLM/
+      # Whisper endpoint behind litellm). Both vars must point at the same
+      # bundle: SSL_CERT_FILE is honored by httpx (LLM client, via
+      # langchain-openai), while REQUESTS_CA_BUNDLE is honored by the plain
+      # `requests` library (ASR openai_compatible backend, chunk/term
+      # correction, EntityGuard sanitizer) — neither library reads the
+      # other's env var, so both are required or only one code path trusts
+      # the private CA.
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
     secrets:
       - source: opendox_sql_pass
         target: sql_pass
@@ -247,6 +268,7 @@ services:
         target: s3_secret_access_key
     volumes:
       - app-chunks:/app/chunks
+      - /etc/ssl/certs:/etc/ssl/certs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
@@ -273,6 +295,8 @@ secrets:
   opendox_encryption_key:
     external: true
   opendox_whisper_api_key:
+    external: true
+  opendox_parakeet_api_key:
     external: true
   opendox_s3_access_key_id:
     external: true

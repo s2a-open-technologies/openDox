@@ -59,6 +59,7 @@ create_secret opendox_secret_key       "${SECRET_KEY:-$(generate_hex 32)}"
 create_secret opendox_encryption_key   "${ENCRYPTION_KEY:-$(generate_fernet_key)}"
 create_secret opendox_sql_pass         "${SQL_PASS:-$(generate_hex 24)}"
 create_secret opendox_whisper_api_key  "${WHISPER_API_KEY:-$(generate_hex 24)}"
+create_secret opendox_parakeet_api_key "${PARAKEET_API_KEY:-$(generate_hex 24)}"
 
 # S3-compatible object storage (persisted audio downloads). Key ID must match
 # Garage's required format: "GK" + 24 hex chars.

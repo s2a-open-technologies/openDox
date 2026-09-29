@@ -12,7 +12,7 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
-## [0.8.1] — 2026-09-29
+## [0.8.2] — 2026-09-29
 
 ### Added
 
@@ -189,7 +189,7 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.8.1...HEAD
-[0.8.1]: https://github.com/daemolition/openDox/compare/v0.8.0...v0.8.1
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.2
 [0.8.0]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.0
 [0.1.0]: https://github.com/daemolition/openDox/releases/tag/v0.1.0

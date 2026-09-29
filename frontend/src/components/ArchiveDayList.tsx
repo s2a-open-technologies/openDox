@@ -21,6 +21,7 @@
 import { CalendarDays, FileAudio, MoreHorizontal, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateLabel, formatRecordTime, groupRecordingsByDate } from "@/lib/archive";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -55,11 +56,11 @@ const ArchiveDayList = ({
 
   if (!dayGroup) {
     return (
-      <div className="flex flex-col items-center justify-center h-full space-y-4 text-center px-4">
+      <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-background">
         <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
           <CalendarDays className="w-6 h-6 text-muted-foreground" />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 mt-4">
           <h2 className="text-xl font-semibold">Archiv</h2>
           <p className="text-sm text-muted-foreground max-w-sm">
             Wählen Sie links ein Datum aus, um die archivierten Transkriptionen dieses Tages zu sehen.
@@ -70,29 +71,30 @@ const ArchiveDayList = ({
   }
 
   return (
-    <div className="max-w-3xl w-full mx-auto px-4 py-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBackToDates}
-          title="Zurück zur Datumsauswahl"
-          className="shrink-0"
-        >
-          <CalendarDays className="w-5 h-5" />
-        </Button>
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold truncate">
-            {formatDateLabel(dayGroup.key)}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {dayGroup.count === 1 ? "1 Transkription" : `${dayGroup.count} Transkriptionen`}
-          </p>
+    <div className="h-full w-full overflow-auto p-8 bg-background">
+      <Card className="w-full overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/50 dark:bg-zinc-900/50">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBackToDates}
+            title="Zurück zur Datumsauswahl"
+            className="shrink-0"
+          >
+            <CalendarDays className="w-5 h-5" />
+          </Button>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold truncate">
+              {formatDateLabel(dayGroup.key)}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {dayGroup.count === 1 ? "1 Transkription" : `${dayGroup.count} Transkriptionen`}
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-1">
-        {dayGroup.recordings.map((recording) => (
+        <div className="p-2">
+          {dayGroup.recordings.map((recording) => (
           <div
             key={recording.id}
             className="group relative w-full rounded-lg transition-all duration-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -141,7 +143,8 @@ const ArchiveDayList = ({
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      </Card>
     </div>
   );
 };

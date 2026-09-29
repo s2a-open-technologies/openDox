@@ -85,7 +85,7 @@ describe("AudioConfig", () => {
       "128k"
     );
     expect((screen.getByLabelText("Sample-Rate (Hz)") as HTMLSelectElement).value).toBe("44100");
-    expect(screen.getByRole("switch")).toHaveAttribute("data-state", "checked");
+    expect(screen.getByLabelText("Audio speichern")).toHaveAttribute("data-state", "checked");
   });
 
   it("hides the bitrate select for formats without a bitrate (e.g. wav)", async () => {
@@ -146,7 +146,7 @@ describe("AudioConfig", () => {
     await waitFor(() =>
       expect((screen.getByLabelText("Dateiformat") as HTMLSelectElement).value).toBe("mp3")
     );
-    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByLabelText("Audio speichern")).toBeDisabled();
     expect(screen.getByLabelText("Dateiformat")).toBeDisabled();
     expect(screen.getByLabelText("Sample-Rate (Hz)")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();

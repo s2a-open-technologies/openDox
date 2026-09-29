@@ -32,3 +32,9 @@ globalThis.ResizeObserver = ResizeObserverMock;
 (window as unknown as Record<string, unknown>).__ROOT_PATH__ = "";
 
 import "@/api";
+
+// Reset the mocked system clock between test files so setSystemTime() in one
+// file can't leak "frozen new Date()" into another file's expectations.
+afterEach(() => {
+  vi.useRealTimers();
+});

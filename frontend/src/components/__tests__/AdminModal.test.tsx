@@ -47,6 +47,9 @@ vi.mock("@/components/settings/SystemSettings", () => ({ default: stub("system-s
 vi.mock("@/components/settings/CategorySettings", () => ({ default: stub("category-settings") }));
 vi.mock("@/components/settings/BackupSettings", () => ({ default: stub("backup-settings") }));
 vi.mock("@/components/settings/AudioConfig", () => ({ AudioConfig: stub("audio-config") }));
+vi.mock("@/components/settings/AutoArchiveConfig", () => ({
+  AutoArchiveConfig: stub("auto-archive-config"),
+}));
 vi.mock("@/components/settings/FailedTranscriptions", () => ({
   FailedTranscriptions: stub("failed-transcriptions"),
 }));
@@ -89,7 +92,7 @@ describe("AdminModal", () => {
   it("shows all admin nav items and defaults to the Dienste tab for an admin", () => {
     renderAdminModal("admin");
 
-    for (const label of ["Dienste", "Audio", "Benutzer", "Authentifizierung", "Backup", "Kategorien", "System"]) {
+    for (const label of ["Dienste", "Archivierung", "Benutzer", "Authentifizierung", "Backup", "Kategorien", "System"]) {
       expect(screen.getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
     }
     expect(screen.getByTestId("whisper-config")).toBeInTheDocument();
@@ -122,13 +125,14 @@ describe("AdminModal", () => {
     expect(screen.getByTestId("category-settings")).toBeInTheDocument();
   });
 
-  it("switches to the Audio tab and renders AudioConfig + FailedTranscriptions", async () => {
+  it("switches to the Archivierung tab and renders AudioConfig + AutoArchiveConfig + FailedTranscriptions", async () => {
     const user = userEvent.setup();
     renderAdminModal("admin");
 
-    await user.click(screen.getByRole("button", { name: /Audio/ }));
+    await user.click(screen.getByRole("button", { name: /Archivierung/ }));
 
     expect(screen.getByTestId("audio-config")).toBeInTheDocument();
+    expect(screen.getByTestId("auto-archive-config")).toBeInTheDocument();
     expect(screen.getByTestId("failed-transcriptions")).toBeInTheDocument();
     expect(screen.queryByTestId("whisper-config")).not.toBeInTheDocument();
   });

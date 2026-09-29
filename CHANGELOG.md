@@ -5,9 +5,71 @@ All notable changes to openDox are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versions are bumped via `python scripts/bump_version.py` (patches/minor/major)
-and tagged in git (`--commit` flag).
+and tagged in git (`--commit` flag), which also moves this file's
+`[Unreleased]` section under the new version heading. Pushing the resulting
+`vX.Y.Z` tag triggers `.github/workflows/release.yml`, which attaches that
+section as the GitHub Release notes.
 
 ## [Unreleased]
+
+## [0.8.1] — 2026-09-29
+
+### Added
+
+- **Auto-Archivierung von Transkriptionen** — admin-konfigurierbar als
+  **eigene Card** unter Admin-UI → Audio (zwischen Audio-Download und
+  "Fehlgeschlagene Transkriptionen", `AutoArchiveConfig.tsx`): Schalter
+  plus **frei wählbare Frist in Tagen** (Input-Feld, ganze Zahl 1–3650
+  mit Inline-Fehlerhinweis und gesperrtem Speichern-Button bei
+  ungültigem Wert; Server-Validierung auf `PUT /settings/audio-settings/`
+  mit 422 als Rückfallebene). Standard 90, ab Werk aus.
+  - **Funktionsweise**: Zeitgesteuertes Pendant zum "Archivieren"-Eintrag im
+    Hamburger-Menü — der Hintergrunddienst setzt `Record.archived = True`
+    für jede Aufnahme, deren Uhrzeit-Timestamp älter als die Frist ist. Die
+    Aufnahme verschwindet aus **Aktuell** und taucht im **Archiv**-Tab
+    (Datumsgruppierung) wieder auf; Inhalte bleiben unangetastet.
+  - **Scheduler**: Neuer Lifespan-Loop in `run.py` (alle 6 h), der
+    `auto_archive_service.auto_archive_old_records()` aufruft. Settings
+    werden pro Tick neu gelesen — Umschalten/Frist-Änderung greift ohne
+    Neustart.
+  - **Robustheit**: pro Datensatz eigene DB-Session (ein Fehler blockiert
+    den Restlauf nicht, nur Warn-Log), unparsbare Timestamps werden
+    übersprungen, bereits archivierte Datensätze bleiben unangetastet —
+    manuelles Wiederherstellen bleibt dauerhaft wirksam.
+  - **Schema/Daten**: neue DB-Migration `b4d2f8a71c90` (Spalten mit
+    Server-Defaults) auf `AudioSettingsModel`; die neuen Felder laufen
+    automatisch über das bestehende Settings-Backup/Restore
+    (Audio-Sektion) mit.
+  - **Tests**: 10 neue Backend-Tests
+    (`tests/services/test_auto_archive_service.py` — Parsing, Schwellwerte,
+    Fehlerisolierung), 6 neue Frontend-Tests für die eigene
+    `AutoArchiveConfig`-Card (Laden, freie Tages-Eingabe + Range-Gate,
+    Persist-on-Save, Speicherfehler, readOnly) + aktualisierte
+    `AdminModal`-Stub-Erwartung.
+
+### Fixed
+
+- **Admin-UI: "Audio"-Reiter umbenannt** in **"Archivierung"** (Navi-Label +
+  Inhalts-Überschrift, Archiv-Icon statt Download-Icon) — der Reiter enthält
+  Audio-Download, Auto-Archivierung und fehlgeschlagene Transkriptionen;
+  "Audio" war mittlerweile irreführend. Reiter-Struktur/intern
+  (`case 'audio'`) unverändert, nur Label/Icon/Überschrift.
+- **Archiv-Übersicht: Layout** — Die Tagesliste stand ohne Karte direkt auf
+  dem grauen Dashboard-Hintergrund (`bg-muted/30`). Beide Zustände
+  (Tagesliste + "Wählen Sie links ein Datum"-Prompt) liegen jetzt auf
+  weißem `bg-background` wie TranscriptView, die Tagesliste in einer
+  vollbreiten `Card` (Header mit Zurück-Button/Datumslabel/Anzahl auf
+  `bg-muted/50`, Zeilen darunter) — gleicher Card-Stil wie
+  Recorder/Transkript-Ansicht.
+- **Archiv-CI: 4 zeitabhängige Tests repariert** (3 × `Sidebar.test.tsx`,
+  1 × `ArchiveDayList.test.tsx`) — rot seit dem Tag nach dem Feature-Commit:
+  der `Date.now()`-Spy, den die Tests nutzten, wirkt nicht auf
+  `new Date()` in `formatDateLabel()` (`lib/archive.ts`) — die „Heute"/
+  „Gestern"-Erwartungen hielten nur am Commit-Tag 2026-09-23. Jetzt frieren
+  die Tests die Uhr mit `vi.setSystemTime()` ein (echte Timer — Fake-Timer
+  hängen Radix/userEvent-Interaktionen in jsdom auf) plus globaler
+  `vi.unstubAllGlobals()`-Reset in `src/test/setup.ts`, damit die
+  eingefrorene Uhr nicht in andere Test-Files leakt.
 
 ## [0.8.0] — 2026-09-28
 
@@ -127,5 +189,7 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/daemolition/openDox/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.0
 [0.1.0]: https://github.com/daemolition/openDox/releases/tag/v0.1.0

@@ -48,8 +48,14 @@ const recordings: Recording[] = [
 ];
 
 describe("ArchiveDayList", () => {
+  // "Today" fixed to 2026-09-23 so the "Heute" label for 23.09.2026 is
+  // deterministic. vi.setSystemTime() also rewrites new Date()'s clock
+  // (unlike a Date.now() spy) while real timers keep userEvent working.
+  const NOW = new Date(2026, 8, 23, 12, 0, 0);
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.setSystemTime(NOW);
   });
 
   it("shows the date-prompt empty state when no date is selected", () => {

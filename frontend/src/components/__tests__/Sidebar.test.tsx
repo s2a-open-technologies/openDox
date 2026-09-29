@@ -40,9 +40,10 @@ class ResizeObserverMock {
 }
 
 // "Today" fixed to 2026-09-23 so "Heute"/"Gestern" labels are deterministic.
-// Fake timers would hang userEvent interactions, so Date.now() is stubbed instead.
+// vi.setSystemTime() also rewrites new Date()'s clock (unlike a Date.now()
+// spy) while real timers keep userEvent interactions working — fake timers
+// hang Radix/userEvent pointer sequences in jsdom.
 const NOW = new Date(2026, 8, 23, 12, 0, 0);
-const nowSpy = vi.spyOn(Date, "now").mockReturnValue(NOW.getTime());
 
 const recordings: Recording[] = [
   {
@@ -68,17 +69,9 @@ const recordings: Recording[] = [
 ];
 
 describe("Sidebar", () => {
-  beforeAll(() => {
-    nowSpy.mockReturnValue(NOW.getTime());
-  });
-
-  afterAll(() => {
-    nowSpy.mockRestore();
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
-    nowSpy.mockReturnValue(NOW.getTime());
+    vi.setSystemTime(NOW);
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
   });
 

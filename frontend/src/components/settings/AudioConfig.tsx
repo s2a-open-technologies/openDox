@@ -96,6 +96,7 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
       <CardContent className="space-y-6">
         <div className="flex items-center gap-3">
           <Switch
+            id="audio-enabled"
             checked={config.audio_download_enabled}
             disabled={readOnly}
             onCheckedChange={(checked) => updateField('audio_download_enabled', checked)}

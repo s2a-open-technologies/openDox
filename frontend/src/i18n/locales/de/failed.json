@@ -1,0 +1,10 @@
+{
+  "title": "Fehlgeschlagene Transkriptionen",
+  "description": "Die Original-Aufnahme wird bei einem Fehler aufbewahrt statt gelöscht — hier kann die Verarbeitung erneut angestoßen werden.",
+  "retrying": "Transkription wird erneut versucht",
+  "retryFailed": "Erneuter Versuch fehlgeschlagen",
+  "recording": "Aufnahme #{{id}}",
+  "unknownError": "Unbekannter Fehler",
+  "retry": "Erneut versuchen",
+  "empty": "Keine fehlgeschlagenen Transkriptionen"
+}

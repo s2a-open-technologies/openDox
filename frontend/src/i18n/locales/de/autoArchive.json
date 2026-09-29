@@ -1,0 +1,10 @@
+{
+  "title": "Auto-Archivierung",
+  "description": "Archiviert Aufnahmen automatisch nach Ablauf der Frist (bezogen auf die Uhrzeit der Aufnahme) — dieselbe Wirkung wie „Archivieren“ im Zeilenmenü. Archivierte Aufnahmen verschwinden aus „Aktuell“ und sind über den Archiv-Tab jederzeit wiederherstellbar.",
+  "enabled": "Automatisch archivieren",
+  "days": "Frist in Tagen",
+  "daysInvalid": "Bitte eine ganze Zahl zwischen 1 und 3650 eingeben.",
+  "daysInvalidToast": "Frist muss eine ganze Zahl zwischen 1 und 3650 sein",
+  "hint": "Prüflauf alle 6 Stunden; geänderte Werte greifen ohne Neustart. Aufnahmen, die manuell aus dem Archiv zurückgeholt wurden, bleiben unberührt, bis das Fristende erneut erreicht ist.",
+  "saved": "Auto-Archivierung gespeichert"
+}

@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +31,7 @@ interface PersonalGlossaryResponse {
 }
 
 const PersonalDictionary = () => {
+    const { t } = useTranslation(['dictionary', 'common']);
     const { authFetch } = useAuth();
     const [glossary, setGlossary] = useState('');
     const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ const PersonalDictionary = () => {
         authFetch('/api/v1/settings/my-dictionary/')
             .then(async res => {
                 if (!res.ok) {
-                    throw new Error('Laden fehlgeschlagen');
+                    throw new Error('Loading failed');
                 }
                 const data: PersonalGlossaryResponse = await res.json();
                 setGlossary(data.personal_glossary ?? '');
@@ -47,7 +49,7 @@ const PersonalDictionary = () => {
             })
             .catch(error => {
                 console.error(error);
-                toast.error('Wörterbuch konnte nicht geladen werden');
+                toast.error(t('loadFailed'));
             });
     }, []);
 
@@ -60,12 +62,12 @@ const PersonalDictionary = () => {
                 body: JSON.stringify({ personal_glossary: glossary || null }),
             });
             if (res.ok) {
-                toast.success('Wörterbuch gespeichert');
+                toast.success(t('saved'));
             } else {
-                toast.error('Speichern fehlgeschlagen');
+                toast.error(t('common:saveFailed'));
             }
         } catch {
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         } finally {
             setLoading(false);
         }
@@ -74,26 +76,24 @@ const PersonalDictionary = () => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Eigene Begriffe</CardTitle>
+                <CardTitle>{t('title')}</CardTitle>
                 <CardDescription>
-                    Werden bei jeder Ihrer Aufnahmen automatisch phonetisch korrigiert — nur für
-                    Sie sichtbar, auch nicht für Administratoren.
+                    {t('description')}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <Textarea
                     value={glossary}
                     onChange={e => setGlossary(e.target.value)}
-                    placeholder="Sertralin, Metformin, Ibuprofen ..."
+                    placeholder={t('placeholder')}
                     className="min-h-[120px]"
                     disabled={!loaded}
                 />
                 <p className="text-xs text-muted-foreground">
-                    Komma-, Semikolon- oder zeilengetrennte Begriffe. Wird bei der finalen
-                    Transkription mit dem Glossar der gewählten Kategorie zusammengeführt.
+                    {t('hint')}
                 </p>
                 <Button onClick={save} disabled={loading || !loaded}>
-                    {loading ? 'Speichern...' : 'Speichern'}
+                    {loading ? t('common:saving') : t('common:save')}
                 </Button>
             </CardContent>
         </Card>

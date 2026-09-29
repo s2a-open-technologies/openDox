@@ -1,0 +1,22 @@
+{
+  "roles": {
+    "admin": "Administrator",
+    "moderator": "Moderator",
+    "demo_viewer": "Demo viewer (read-only)",
+    "user": "User"
+  },
+  "online": "Online",
+  "logout": "Log out",
+  "save": "Save",
+  "saving": "Saving...",
+  "saveFailed": "Saving failed",
+  "connectionError": "Connection error",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "edit": "Edit",
+  "loading": "Loading...",
+  "notFound": {
+    "title": "Oops! Page not found",
+    "home": "Return to home"
+  }
+}

@@ -24,6 +24,7 @@ import userEvent from "@testing-library/user-event";
 import DisclaimerGate from "@/components/DisclaimerGate";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(),
@@ -118,5 +119,24 @@ describe("DisclaimerGate", () => {
     expect(screen.getByRole("button", { name: "Bestätige..." })).toBeDisabled();
 
     resolveAccept(true);
+  });
+
+  it("shows the full disclaimer in English and still requires the confirmation checkbox", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      const user = userEvent.setup();
+      render(<DisclaimerGate />);
+
+      expect(screen.getByText("Not a medical device")).toBeInTheDocument();
+      expect(screen.getByText(/must be reviewed by qualified professionals/)).toBeInTheDocument();
+      expect(screen.getByText("DISCLAIMER.md").tagName).toBe("CODE");
+      expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+
+      await user.click(screen.getByRole("checkbox"));
+
+      expect(screen.getByRole("button", { name: "Confirm" })).toBeEnabled();
+    } finally {
+      await i18n.changeLanguage("de");
+    }
   });
 });

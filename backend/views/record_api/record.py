@@ -43,6 +43,7 @@ from backend.components.models.record_model import (
 )
 from backend.components.models.task_model import Task
 from backend.components.models.user_model import User
+from backend.components.modules.api_errors import api_error
 from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
 from backend.components.modules.text_dedup import merge_overlapping_text
@@ -265,10 +266,13 @@ async def upload_audio(
     ext = _ext_from_filename(file.filename)
     content_type = (file.content_type or "").lower()
     if ext not in ALLOWED_AUDIO_EXTS and not content_type.startswith("audio/"):
-        raise HTTPException(
-            status_code=415,
-            detail=f"Unsupported file type '{ext}'. Allowed: "
+        raise api_error(
+            415,
+            "unsupported_file_type",
+            f"Unsupported file type '{ext}'. Allowed: "
             f"{', '.join(sorted(ALLOWED_AUDIO_EXTS))}",
+            ext=ext,
+            allowed=", ".join(sorted(ALLOWED_AUDIO_EXTS)),
         )
 
     session_id = str(uuid.uuid4())
@@ -914,7 +918,7 @@ async def update_record(
         record.summarize = data.summarize
     if data.category_id is not None:
         if not db.get(Categories, data.category_id):
-            raise HTTPException(status_code=404, detail="Kategorie nicht gefunden")
+            raise api_error(404, "category_not_found", "Kategorie nicht gefunden")
         record.category_id = data.category_id
 
     db.add(record)
@@ -1080,9 +1084,10 @@ async def retry_failed_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     if task.status != "error" or not task.retry_audio_path:
-        raise HTTPException(
-            status_code=409,
-            detail="Task hat keine zum Wiederholen vorgemerkte Audiodatei",
+        raise api_error(
+            409,
+            "task_no_retry_audio",
+            "Task hat keine zum Wiederholen vorgemerkte Audiodatei",
         )
 
     archived_key: str | None = None
@@ -1092,8 +1097,10 @@ async def retry_failed_task(
         # can run through the normal file_path-based transcription pipeline.
         encrypted = audio_storage.download_bytes(task.retry_audio_path)
         if encrypted is None:
-            raise HTTPException(
-                status_code=410, detail="Archivierte Audiodatei nicht mehr vorhanden"
+            raise api_error(
+                410,
+                "archived_audio_gone",
+                "Archivierte Audiodatei nicht mehr vorhanden",
             )
         ext = os.path.basename(task.retry_audio_path).split(".")[-2]
         os.makedirs("chunks/failed", exist_ok=True)
@@ -1103,15 +1110,17 @@ async def retry_failed_task(
         archived_key = task.retry_audio_path
     else:
         if not os.path.exists(task.retry_audio_path):
-            raise HTTPException(
-                status_code=410, detail="Aufbewahrte Audiodatei nicht mehr vorhanden"
+            raise api_error(
+                410,
+                "retained_audio_gone",
+                "Aufbewahrte Audiodatei nicht mehr vorhanden",
             )
         retry_path = task.retry_audio_path
 
     record = db.exec(select(Record).where(Record.task_id == task_id)).one_or_none()
     if not record:
-        raise HTTPException(
-            status_code=404, detail="Zugehörige Aufnahme nicht gefunden"
+        raise api_error(
+            404, "record_for_task_missing", "Zugehörige Aufnahme nicht gefunden"
         )
 
     task.status = "pending"
@@ -1344,14 +1353,18 @@ async def download_audio(
     _require_owner(current_user, record.user_id)
 
     if not record.file:
-        raise HTTPException(
-            status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
+        raise api_error(
+            404,
+            "no_audio_for_record",
+            "Keine Audiodatei für diese Aufnahme vorhanden",
         )
 
     encrypted = audio_storage.download_bytes(record.file)
     if encrypted is None:
-        raise HTTPException(
-            status_code=404, detail="Keine Audiodatei für diese Aufnahme vorhanden"
+        raise api_error(
+            404,
+            "no_audio_for_record",
+            "Keine Audiodatei für diese Aufnahme vorhanden",
         )
 
     # record.file is "records/{id}.{ext}.enc" — the middle segment is the format.

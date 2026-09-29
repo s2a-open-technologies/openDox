@@ -1,0 +1,23 @@
+{
+  "title": "LDAP Konfiguration",
+  "description": "Verbinden Sie Ihre Benutzerverwaltung",
+  "host": "Server Host",
+  "port": "Port",
+  "useSsl": "SSL (LDAPS) verwenden",
+  "uploadCert": "Zertifikat hochladen",
+  "uploading": "Lädt...",
+  "upload": "Upload",
+  "baseDn": "Base DN",
+  "userDn": "User DN Pattern (uid or sAMAccountName)",
+  "searchFilter": "Suchfilter (optional)",
+  "searchFilterHint": "LDAP-Filter, um Login auf bestimmte Gruppen einzuschränken. Wird mit der User-Suche per AND verknüpft.",
+  "allowedGroups": "Erlaubte Gruppen (Komma-getrennt)",
+  "allowedGroupsHint": "Nur Gruppennamen, kein DN — die App baut den DN selbst (cn=Name,Base DN). Leer lassen = alle erfolgreich authentifizierten LDAP-User dürfen sich anmelden.",
+  "adminGroups": "Admin-Gruppen (Komma-getrennt)",
+  "moderatorGroups": "Moderator-Gruppen (Komma-getrennt)",
+  "moderatorGroupsHint": "Bei Mitgliedschaft in Admin- und Moderator-Gruppe gewinnt Admin.",
+  "bindUserDn": "Bind User DN",
+  "bindUserPassword": "Bind User Password",
+  "testConnection": "Verbindung testen",
+  "saved": "LDAP-Einstellungen gespeichert"
+}

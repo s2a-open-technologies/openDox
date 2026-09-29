@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import i18n from "@/i18n";
+
 export const UNKNOWN_DATE_KEY = "unknown";
 
 export interface ArchiveDateGroup<T> {
@@ -56,21 +58,38 @@ const startOfDay = (date: Date): number =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
 export const formatDateLabel = (key: string): string => {
-  if (key === UNKNOWN_DATE_KEY) return "Unbekanntes Datum";
+  if (key === UNKNOWN_DATE_KEY) return i18n.t("record:archive.unknownDate");
   const [year, month, day] = key.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   const diffDays = Math.round(
     (startOfDay(new Date()) - startOfDay(date)) / 86_400_000
   );
-  if (diffDays === 0) return "Heute";
-  if (diffDays === 1) return "Gestern";
-  return `${pad2(day)}.${pad2(month)}.${year}`;
+  if (diffDays === 0) return i18n.t("record:archive.today");
+  if (diffDays === 1) return i18n.t("record:archive.yesterday");
+  return date.toLocaleDateString(i18n.language, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 };
 
 export const formatRecordTime = (timestamp: string): string => {
   const date = parseRecordTimestamp(timestamp);
   if (!date) return "";
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+};
+
+/** Date + time (no seconds) in the current UI language; unparseable input is returned as-is. */
+export const formatRecordTimestamp = (timestamp: string): string => {
+  const date = parseRecordTimestamp(timestamp);
+  if (!date) return timestamp;
+  return date.toLocaleString(i18n.language, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 export const groupRecordingsByDate = <T extends { timestamp: string }>(

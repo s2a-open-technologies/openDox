@@ -24,6 +24,7 @@ import userEvent from "@testing-library/user-event";
 import BackupSettings from "@/components/settings/BackupSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(),
@@ -180,6 +181,20 @@ describe("BackupSettings", () => {
       container.querySelector('input[type="file"]') as HTMLInputElement
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: /Datei auswählen/ })).toBeDisabled();
+  });
+
+  it("renders in English when the UI language is English", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      renderWithAuthFetch(vi.fn());
+
+      expect(screen.getByRole("button", { name: /Download backup/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Choose file/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Restore backup/ })).toBeInTheDocument();
+      expect(screen.queryByText(/herunterladen/)).not.toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("de");
+    }
   });
 });
 

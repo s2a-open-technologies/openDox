@@ -23,14 +23,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import UserDropdown from "@/components/UserDropdown";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/contexts/ThemeContext";
+import i18n from "@/i18n";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(),
-}));
-
-vi.mock("@/contexts/ThemeContext", () => ({
-  useTheme: vi.fn(),
 }));
 
 vi.mock("@/components/AdminModal", () => ({
@@ -38,29 +34,19 @@ vi.mock("@/components/AdminModal", () => ({
     isOpen ? <div data-testid="admin-modal">AdminModal</div> : null,
 }));
 
-vi.mock("@/components/MyCategoriesModal", () => ({
+vi.mock("@/components/ProfileModal", () => ({
   default: ({ isOpen }: { isOpen: boolean; onClose: () => void }) =>
-    isOpen ? <div data-testid="my-categories-modal">MyCategoriesModal</div> : null,
-}));
-
-vi.mock("@/components/MyDictionaryModal", () => ({
-  default: ({ isOpen }: { isOpen: boolean; onClose: () => void }) =>
-    isOpen ? <div data-testid="my-dictionary-modal">MyDictionaryModal</div> : null,
+    isOpen ? <div data-testid="profile-modal">ProfileModal</div> : null,
 }));
 
 const mockedUseAuth = vi.mocked(useAuth);
-const mockedUseTheme = vi.mocked(useTheme);
 
 function setup({
   role,
   logout = vi.fn(),
-  toggleTheme = vi.fn(),
-  theme = "light",
 }: {
   role: "admin" | "moderator" | "demo_viewer" | "user";
   logout?: ReturnType<typeof vi.fn>;
-  toggleTheme?: ReturnType<typeof vi.fn>;
-  theme?: "light" | "dark";
 }) {
   mockedUseAuth.mockReturnValue({
     user: { id: 1, name: "dr.mueller", is_active: true, authenticated: true, role },
@@ -70,8 +56,8 @@ function setup({
     logout,
     authFetch: vi.fn(),
     acceptDisclaimer: vi.fn(),
+    updateUiLanguage: vi.fn(),
   });
-  mockedUseTheme.mockReturnValue({ theme, setTheme: vi.fn(), toggleTheme });
   return render(<UserDropdown />);
 }
 
@@ -95,23 +81,39 @@ describe("UserDropdown", () => {
     expect(await screen.findByText("Administrator")).toBeInTheDocument();
   });
 
-  it("shows 'Administration' for admins and moderators instead of 'Meine Kategorien'", async () => {
+  it("shows the English role label when the UI language is English", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      const user = userEvent.setup();
+      setup({ role: "user" });
+
+      await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
+
+      expect(await screen.findByText("User")).toBeInTheDocument();
+      expect(screen.getByText("Profile")).toBeInTheDocument();
+      expect(screen.getByText("Log out")).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("de");
+    }
+  });
+
+  it("shows 'Profil' and 'Administration' for admins and moderators", async () => {
     const user = userEvent.setup();
     setup({ role: "moderator" });
 
     await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
 
-    expect(await screen.findByText("Administration")).toBeInTheDocument();
-    expect(screen.queryByText("Meine Kategorien")).not.toBeInTheDocument();
+    expect(await screen.findByText("Profil")).toBeInTheDocument();
+    expect(screen.getByText("Administration")).toBeInTheDocument();
   });
 
-  it("shows 'Meine Kategorien' instead of 'Administration' for a plain user", async () => {
+  it("shows 'Profil' but no 'Administration' for a plain user", async () => {
     const user = userEvent.setup();
     setup({ role: "user" });
 
     await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
 
-    expect(await screen.findByText("Meine Kategorien")).toBeInTheDocument();
+    expect(await screen.findByText("Profil")).toBeInTheDocument();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   });
 
@@ -125,37 +127,14 @@ describe("UserDropdown", () => {
     await waitFor(() => expect(screen.getByTestId("admin-modal")).toBeInTheDocument());
   });
 
-  it("opens MyCategoriesModal when 'Meine Kategorien' is clicked", async () => {
+  it("opens the ProfileModal when 'Profil' is clicked", async () => {
     const user = userEvent.setup();
     setup({ role: "user" });
 
     await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
-    await user.click(await screen.findByText("Meine Kategorien"));
+    await user.click(await screen.findByText("Profil"));
 
-    await waitFor(() =>
-      expect(screen.getByTestId("my-categories-modal")).toBeInTheDocument()
-    );
-  });
-
-  it("shows 'Mein Wörterbuch' for every role", async () => {
-    const user = userEvent.setup();
-    setup({ role: "admin" });
-
-    await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
-
-    expect(await screen.findByText("Mein Wörterbuch")).toBeInTheDocument();
-  });
-
-  it("opens MyDictionaryModal when 'Mein Wörterbuch' is clicked", async () => {
-    const user = userEvent.setup();
-    setup({ role: "user" });
-
-    await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
-    await user.click(await screen.findByText("Mein Wörterbuch"));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("my-dictionary-modal")).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByTestId("profile-modal")).toBeInTheDocument());
   });
 
   it("calls logout when 'Abmelden' is clicked", async () => {
@@ -167,26 +146,5 @@ describe("UserDropdown", () => {
     await user.click(await screen.findByText("Abmelden"));
 
     expect(logout).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls toggleTheme and labels the item for the current theme", async () => {
-    const toggleTheme = vi.fn();
-    const user = userEvent.setup();
-    setup({ role: "user", toggleTheme, theme: "light" });
-
-    await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
-    expect(await screen.findByText("Dunkles Design")).toBeInTheDocument();
-    await user.click(screen.getByText("Dunkles Design"));
-
-    expect(toggleTheme).toHaveBeenCalledTimes(1);
-  });
-
-  it("labels the theme item for 'Helles Design' when theme is dark", async () => {
-    const user = userEvent.setup();
-    setup({ role: "user", theme: "dark" });
-
-    await user.click(screen.getByRole("button", { name: /dr.mueller/ }));
-
-    expect(await screen.findByText("Helles Design")).toBeInTheDocument();
   });
 });

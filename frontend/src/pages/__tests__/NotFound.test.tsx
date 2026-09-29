@@ -40,8 +40,8 @@ describe("NotFound", () => {
     );
 
     expect(screen.getByText("404")).toBeInTheDocument();
-    expect(screen.getByText("Oops! Page not found")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Return to Home" });
+    expect(screen.getByText("Ups! Seite nicht gefunden")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Zur Startseite" });
     expect(link).toHaveAttribute("href", "/");
   });
 

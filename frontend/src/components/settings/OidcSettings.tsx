@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ interface OidcSettingsData {
 type OidcSettingsResponse = Partial<OidcSettingsData>;
 
 const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
+    const { t } = useTranslation(['oidc', 'common']);
     const { authFetch } = useAuth();
     const [settings, setSettings] = useState<OidcSettingsData>({
         enabled: false,
@@ -88,12 +90,12 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 body: JSON.stringify(settings),
             });
             if (res.ok) {
-                toast.success('OIDC-Einstellungen gespeichert');
+                toast.success(t('saved'));
             } else {
-                toast.error('Speichern fehlgeschlagen');
+                toast.error(t('common:saveFailed'));
             }
         } catch {
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         } finally {
             setLoading(false);
         }
@@ -102,9 +104,9 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>OpenID Connect (SSO)</CardTitle>
+                <CardTitle>{t('title')}</CardTitle>
                 <CardDescription>
-                    Single Sign-On über einen OIDC-Provider (Keycloak, Authentik, Google, Microsoft, etc.)
+                    {t('description')}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -116,11 +118,11 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             disabled={readOnly}
                             onCheckedChange={(v) => setSettings({ ...settings, enabled: v })}
                         />
-                        <Label htmlFor="oidc-enabled">OIDC aktivieren</Label>
+                        <Label htmlFor="oidc-enabled">{t('enable')}</Label>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Provider URL (Issuer)</Label>
+                        <Label>{t('providerUrl')}</Label>
                         <Input
                             value={settings.provider_url}
                             disabled={readOnly}
@@ -128,13 +130,13 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             placeholder="https://keycloak.example.com/realms/myrealm"
                         />
                         <p className="text-xs text-muted-foreground">
-                            Discovery erfolgt automatisch über /.well-known/openid-configuration
+                            {t('providerUrlHint')}
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Client ID</Label>
+                            <Label>{t('clientId')}</Label>
                             <Input
                                 value={settings.client_id}
                                 disabled={readOnly}
@@ -143,7 +145,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Client Secret</Label>
+                            <Label>{t('clientSecret')}</Label>
                             <Input
                                 type="password"
                                 disabled={readOnly}
@@ -155,7 +157,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Scopes</Label>
+                        <Label>{t('scopes')}</Label>
                         <Input
                             value={settings.scopes}
                             disabled={readOnly}
@@ -165,7 +167,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Username-Claim</Label>
+                        <Label>{t('usernameClaim')}</Label>
                         <Input
                             value={settings.username_claim}
                             disabled={readOnly}
@@ -176,7 +178,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Gruppen-Claim</Label>
+                            <Label>{t('groupClaim')}</Label>
                             <Input
                                 value={settings.group_claim}
                                 disabled={readOnly}
@@ -185,7 +187,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Admin-Gruppen (Komma-getrennt)</Label>
+                            <Label>{t('adminGroups')}</Label>
                             <Input
                                 value={settings.admin_groups}
                                 disabled={readOnly}
@@ -193,11 +195,11 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 placeholder="opendox-admin"
                             />
                             <p className="text-xs text-muted-foreground">
-                                User in diesen Gruppen werden als Admins angelegt
+                                {t('adminGroupsHint')}
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label>Moderator-Gruppen (Komma-getrennt)</Label>
+                            <Label>{t('moderatorGroups')}</Label>
                             <Input
                                 value={settings.moderator_groups}
                                 disabled={readOnly}
@@ -205,13 +207,13 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 placeholder="opendox-moderator"
                             />
                             <p className="text-xs text-muted-foreground">
-                                User in diesen Gruppen werden als Moderatoren angelegt
+                                {t('moderatorGroupsHint')}
                             </p>
                         </div>
                     </div>
 
                     <div className="pt-2">
-                        <Button type="submit" disabled={loading || readOnly}>Speichern</Button>
+                        <Button type="submit" disabled={loading || readOnly}>{t('common:save')}</Button>
                     </div>
                 </form>
             </CardContent>

@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,14 +54,8 @@ interface UserData {
     role: Role;
 }
 
-const roleLabels: Record<Role, string> = {
-    admin: 'Administrator',
-    moderator: 'Moderator',
-    demo_viewer: 'Demo-Viewer (nur lesen)',
-    user: 'Benutzer',
-};
-
 const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
+    const { t } = useTranslation(['users', 'common']);
     const { authFetch } = useAuth();
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(false);
@@ -132,35 +128,35 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
             });
             if (!res.ok) {
                 const err = await res.json();
-                toast.error(err.detail || 'Operation fehlgeschlagen');
+                toast.error(apiErrorMessage(err, t('operationFailed')));
                 return;
             }
 
-            toast.success(editingUser ? 'Benutzer aktualisiert' : 'Benutzer angelegt');
+            toast.success(editingUser ? t('updated') : t('created'));
             setDialogOpen(false);
             await fetchUsers();
         } catch (error) {
             console.error(error);
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         } finally {
             setLoading(false);
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Moechten Sie diesen Benutzer wirklich loeschen?')) return;
+        if (!confirm(t('confirmDelete'))) return;
         try {
             const res = await authFetch(`/api/v1/auth/users/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                toast.success('Benutzer gelöscht');
+                toast.success(t('deleted'));
                 await fetchUsers();
             } else {
                 const err = await res.json();
-                toast.error(err.detail || 'Loeschung fehlgeschlagen');
+                toast.error(apiErrorMessage(err, t('deleteFailed')));
             }
         } catch (error) {
             console.error('Failed to delete user:', error);
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         }
     };
 
@@ -169,12 +165,12 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle>Benutzerliste</CardTitle>
-                        <CardDescription>Verwalten Sie lokale Benutzerkonten</CardDescription>
+                        <CardTitle>{t('listTitle')}</CardTitle>
+                        <CardDescription>{t('listDescription')}</CardDescription>
                     </div>
                     <Button onClick={openCreate} disabled={readOnly} className="flex items-center gap-2">
                         <Plus className="w-4 h-4" />
-                        Benutzer anlegen
+                        {t('create')}
                     </Button>
                 </CardHeader>
                 <CardContent>
@@ -193,10 +189,10 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     </div>
                                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                                         <span className={user.is_active ? 'text-green-600' : 'text-red-500'}>
-                                            {user.is_active ? 'Aktiv' : 'Inaktiv'}
+                                            {user.is_active ? t('active') : t('inactive')}
                                         </span>
                                         <span className={user.role === 'admin' ? 'text-primary' : ''}>
-                                            {roleLabels[user.role]}
+                                            {t(`common:roles.${user.role}`)}
                                         </span>
                                     </div>
                                 </div>
@@ -223,7 +219,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                         ))}
                         {users.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
-                                Keine Benutzer vorhanden
+                                {t('empty')}
                             </div>
                         )}
                     </div>
@@ -234,26 +230,26 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 <DialogContent className="sm:max-w-[450px]">
                     <DialogHeader>
                         <DialogTitle>
-                            {editingUser ? 'Benutzer bearbeiten' : 'Neuen Benutzer anlegen'}
+                            {editingUser ? t('dialog.editTitle') : t('dialog.createTitle')}
                         </DialogTitle>
                         <DialogDescription>
                             {editingUser
-                                ? 'Bearbeiten Sie die Benutzerdaten. Passwort leer lassen um es nicht zu aendern.'
-                                : 'Legen Sie einen neuen lokalen Benutzer an.'}
+                                ? t('dialog.editDescription')
+                                : t('dialog.createDescription')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label>Benutzername</Label>
+                            <Label>{t('dialog.username')}</Label>
                             <Input
                                 value={formData.name}
                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="z.B. dr.mueller"
+                                placeholder={t('dialog.usernamePlaceholder')}
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Passwort {editingUser && '(leer = unveraendert)'}</Label>
+                            <Label>{t('dialog.password')} {editingUser && t('dialog.passwordUnchanged')}</Label>
                             <Input
                                 type="password"
                                 value={formData.password}
@@ -262,7 +258,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="flex items-center justify-between">
-                            <Label htmlFor="is-active">Aktiv</Label>
+                            <Label htmlFor="is-active">{t('dialog.isActive')}</Label>
                             <Switch
                                 id="is-active"
                                 checked={formData.is_active}
@@ -270,7 +266,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Rolle</Label>
+                            <Label>{t('dialog.role')}</Label>
                             <Select
                                 value={formData.role}
                                 onValueChange={(v: Role) => setFormData({ ...formData, role: v })}
@@ -279,19 +275,19 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="admin">Administrator</SelectItem>
-                                    <SelectItem value="moderator">Moderator</SelectItem>
-                                    <SelectItem value="demo_viewer">Demo-Viewer (nur lesen)</SelectItem>
-                                    <SelectItem value="user">Benutzer</SelectItem>
+                                    <SelectItem value="admin">{t('common:roles.admin')}</SelectItem>
+                                    <SelectItem value="moderator">{t('common:roles.moderator')}</SelectItem>
+                                    <SelectItem value="demo_viewer">{t('common:roles.demo_viewer')}</SelectItem>
+                                    <SelectItem value="user">{t('common:roles.user')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>
+                        <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common:cancel')}</Button>
                         <Button onClick={handleSubmit} disabled={loading || readOnly}>
-                            {loading ? 'Speichern...' : (editingUser ? 'Aktualisieren' : 'Anlegen')}
+                            {loading ? t('common:saving') : (editingUser ? t('dialog.update') : t('dialog.add'))}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

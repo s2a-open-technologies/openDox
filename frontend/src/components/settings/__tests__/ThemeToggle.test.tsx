@@ -40,19 +40,19 @@ describe("ThemeToggle", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Light, Dark and System buttons", () => {
+  it("renders Hell, Dunkel and System buttons", () => {
     renderWithTheme("light");
 
-    expect(screen.getByRole("button", { name: /Light/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Dark/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Hell/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Dunkel/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /System/ })).toBeInTheDocument();
   });
 
   it("highlights the currently active theme button", () => {
     renderWithTheme("dark");
 
-    expect(screen.getByRole("button", { name: /Dark/ }).className).toContain("bg-primary");
-    expect(screen.getByRole("button", { name: /Light/ }).className).toContain("border-input");
+    expect(screen.getByRole("button", { name: /Dunkel/ }).className).toContain("bg-primary");
+    expect(screen.getByRole("button", { name: /Hell/ }).className).toContain("border-input");
     expect(screen.getByRole("button", { name: /System/ }).className).toContain("border-input");
   });
 
@@ -61,7 +61,7 @@ describe("ThemeToggle", () => {
     const user = userEvent.setup();
     renderWithTheme("light", setTheme);
 
-    await user.click(screen.getByRole("button", { name: /Dark/ }));
+    await user.click(screen.getByRole("button", { name: /Dunkel/ }));
 
     expect(setTheme).toHaveBeenCalledWith("dark");
   });
@@ -81,7 +81,7 @@ describe("ThemeToggle", () => {
     const user = userEvent.setup();
     renderWithTheme("dark", setTheme);
 
-    await user.click(screen.getByRole("button", { name: /Light/ }));
+    await user.click(screen.getByRole("button", { name: /Hell/ }));
 
     expect(setTheme).toHaveBeenCalledWith("light");
   });

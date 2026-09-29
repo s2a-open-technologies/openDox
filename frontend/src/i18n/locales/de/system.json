@@ -1,0 +1,17 @@
+{
+  "title": "Systemstatus",
+  "lastChecked": "Zuletzt geprüft: {{time}}",
+  "checking": "Prüfe...",
+  "services": "Dienste",
+  "probing": "Prüfung...",
+  "status": {
+    "online": "Online",
+    "offline": "Nicht erreichbar",
+    "disabled": "Deaktiviert"
+  },
+  "serviceNames": {
+    "Datenbank": "Datenbank",
+    "Transkription": "Transkription",
+    "Verschlüsselung": "Verschlüsselung"
+  }
+}

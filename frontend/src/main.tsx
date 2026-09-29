@@ -19,6 +19,7 @@
 */
 
 import "./api";           // patches fetch() to prepend ROOT_PATH for /api/ calls
+import "./i18n";          // initialises i18next (must run before the first render)
 
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";

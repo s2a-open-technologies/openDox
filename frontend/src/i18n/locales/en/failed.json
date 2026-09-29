@@ -1,0 +1,10 @@
+{
+  "title": "Failed transcriptions",
+  "description": "On failure the original recording is kept instead of deleted — processing can be restarted here.",
+  "retrying": "Retrying transcription",
+  "retryFailed": "Retry failed",
+  "recording": "Recording #{{id}}",
+  "unknownError": "Unknown error",
+  "retry": "Retry",
+  "empty": "No failed transcriptions"
+}

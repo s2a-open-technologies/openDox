@@ -33,6 +33,7 @@ from backend.components.models.user_model import (
     UserRead,
     UserUpdate,
 )
+from backend.components.modules.api_errors import api_error
 from backend.components.security.hashing import (
     create_access_token,
     create_refresh_token,
@@ -56,9 +57,8 @@ async def register(user_in: UserCreate, db: SessionDep):
     stmt = select(User).where(User.name == user_in.name)
     existing_user = db.exec(stmt).first()
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="User already exists",
+        raise api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "user_exists", "User already exists"
         )
 
     # Create new user
@@ -221,7 +221,7 @@ async def create_user(
     """Create a new user with role validation (admin only)."""
     existing = db.exec(select(User).where(User.name == user_in.name)).first()
     if existing:
-        raise HTTPException(status_code=422, detail="User already exists")
+        raise api_error(422, "user_exists", "User already exists")
 
     db_user = User(
         name=user_in.name,
@@ -243,7 +243,7 @@ async def get_user(
     """Return a single user by ID (admin or demo_viewer only)."""
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise api_error(404, "user_not_found", "User not found")
     return user
 
 
@@ -257,7 +257,7 @@ async def update_user(
     """Update a user's name, active state, role, or password (admin only)."""
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise api_error(404, "user_not_found", "User not found")
 
     if user_in.name is not None:
         user.name = user_in.name
@@ -283,11 +283,11 @@ async def delete_user(
     """Delete a user by ID, preventing self-deletion (admin only)."""
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise api_error(404, "user_not_found", "User not found")
 
     # Prevent self-deletion
     if user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        raise api_error(400, "cannot_delete_self", "Cannot delete yourself")
 
     db.delete(user)
     db.commit()

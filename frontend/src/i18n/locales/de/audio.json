@@ -1,0 +1,22 @@
+{
+  "title": "Audio-Download",
+  "description": "Audio-Export für Aufnahmen (mono, konfigurierbares Format/Qualität). Gilt nur für neue Aufnahmen.",
+  "enabled": "Audio speichern",
+  "format": "Dateiformat",
+  "formats": {
+    "mp3": "MP3 (verlustbehaftet, kleinste Datei)",
+    "ogg": "OGG/Opus (verlustbehaftet, modern & effizient)",
+    "flac": "FLAC (verlustfrei komprimiert)",
+    "wav": "WAV (unkomprimiert, größte Datei)"
+  },
+  "bitrate": "Bitrate (Qualität/Größe)",
+  "bitrateOption": "{{kbit}} kbit/s (~{{size}} MB/min)",
+  "sampleRate": "Sample-Rate (Hz)",
+  "rates": {
+    "16000": "16000 Hz (native, kleinste Datei)",
+    "22050": "22050 Hz",
+    "44100": "44100 Hz (Standard-Audio, größer)"
+  },
+  "note": "Mono erzwungen. Wenn ffmpeg nicht verfügbar ist, wird kein Audio gespeichert.",
+  "saved": "Audio-Einstellungen gespeichert"
+}

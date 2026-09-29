@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from "react-i18next";
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
@@ -58,6 +59,7 @@ export interface RecorderHandle {
 }
 
 const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }, ref) => {
+  const { t } = useTranslation("record");
   const { authFetch } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -105,12 +107,12 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       })
     });
 
-    if (!response.ok) throw new Error("Fehler beim Erstellen der Aufnahme");
+    if (!response.ok) throw new Error(t("recorder.createFailed"));
 
     const record = await response.json();
     setSessionId(record.session_id);
     sessionIdRef.current = record.session_id;
-    toast.success("Aufnahme gestartet");
+    toast.success(t("recorder.started"));
     if (onRecordingStart) {
       onRecordingStart(record);
     }
@@ -162,7 +164,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
         }
         setIsProcessing(false);
         if (data.status === "finished") {
-          toast.success("Aufnahme wird verarbeitet...");
+          toast.success(t("recorder.processingToast"));
         }
         if (onFinalTranscription) {
           onFinalTranscription(sessionIdRef.current || "", data.task_id);
@@ -172,7 +174,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
 
     ws.onerror = (error) => {
       console.error("WebSocket Fehler:", error);
-      toast.error("WebSocket Fehler");
+      toast.error(t("recorder.wsError"));
     };
 
     ws.onclose = () => {
@@ -199,7 +201,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
           clearTimeout(processingTimeoutRef.current);
           processingTimeoutRef.current = null;
         }
-        toast.error("Verbindung unterbrochen – bitte Aufnahme neu starten");
+        toast.error(t("recorder.connectionLost"));
         if (onFinalTranscription && sessionIdRef.current) {
           onFinalTranscription(sessionIdRef.current, undefined);
         }
@@ -290,7 +292,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       setIsProcessing(false);
     } catch (err) {
       console.error(err);
-      toast.error("Fehler beim Starten der Aufnahme");
+      toast.error(t("recorder.startFailed"));
     }
   };
 
@@ -315,11 +317,11 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       // Safety timeout: reset spinner if backend never responds
       processingTimeoutRef.current = setTimeout(() => {
         setIsProcessing(false);
-        toast.error("Zeitüberschreitung – Aufnahme konnte nicht verarbeitet werden");
+        toast.error(t("recorder.timeout"));
       }, 90_000);
     } else {
       setIsProcessing(false);
-      toast.error("Verbindung bereits unterbrochen");
+      toast.error(t("recorder.alreadyDisconnected"));
     }
   };
 
@@ -368,7 +370,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       // can be resumed later.
       isPausedRef.current = true;
       try { workletRef.current?.disconnect(); } catch { /* already gone */ }
-      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* already gone */ }
+      try { streamRef.current?.getTracks().forEach((track) => track.stop()); } catch { /* already gone */ }
       try { audioContextRef.current?.close(); } catch { /* already gone */ }
       try { socketRef.current?.close(); } catch { /* already gone */ }
     };
@@ -388,7 +390,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
               isRecording ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)] animate-pulse" : "bg-zinc-300 dark:bg-zinc-700"
             )}></div>
             <span className="font-medium text-sm text-foreground/80 tracking-tight">
-              {isPaused ? "Aufnahme pausiert" : isRecording ? "Aufnahme läuft..." : "Aufnahme bereit"}
+              {isPaused ? t("recorder.paused") : isRecording ? t("recorder.running") : t("recorder.ready")}
             </span>
           </div>
 
@@ -411,7 +413,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
           {liveEnabled ? (
             <div className="w-full max-w-3xl mx-auto space-y-2">
               <p className="text-xs text-muted-foreground/70 text-center italic">
-                Live-Vorschau dient nur der groben Übersicht während der Aufnahme — nicht das endgültige Transkriptionsergebnis.
+                {t("recorder.livePreviewNote")}
               </p>
               {stableTranscript || liveTranscript ? (
                 <p
@@ -427,7 +429,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
                 </p>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40 mt-20">
-                  <p className="text-lg font-light">Sprechen Sie, um die Transkription zu starten</p>
+                  <p className="text-lg font-light">{t("recorder.speak")}</p>
                 </div>
               )}
             </div>
@@ -490,7 +492,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
           ) : (
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="text-sm font-medium text-muted-foreground animate-pulse">Verarbeite Aufnahme...</span>
+              <span className="text-sm font-medium text-muted-foreground animate-pulse">{t("recorder.processing")}</span>
             </div>
           )}
         </div>
@@ -499,17 +501,17 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       <Dialog open={isStopDialogOpen} onOpenChange={setIsStopDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Aufnahme beenden</DialogTitle>
+            <DialogTitle>{t("recorder.stopTitle")}</DialogTitle>
             <DialogDescription>
-              Möchten Sie die Aufnahme wirklich beenden und speichern?
+              {t("recorder.stopDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsStopDialogOpen(false)}>
-              Abbrechen
+              {t("recorder.cancel")}
             </Button>
             <Button onClick={confirmStop}>
-              Aufnahme beenden
+              {t("recorder.stopTitle")}
             </Button>
           </DialogFooter>
         </DialogContent>

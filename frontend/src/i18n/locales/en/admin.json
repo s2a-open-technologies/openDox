@@ -1,0 +1,31 @@
+{
+  "nav": {
+    "services": "Services",
+    "archive": "Archiving",
+    "users": "Users",
+    "auth": "Authentication",
+    "backup": "Backup",
+    "categories": "Categories",
+    "system": "System"
+  },
+  "services": {
+    "heading": "Configure API services"
+  },
+  "archive": {
+    "heading": "Archiving"
+  },
+  "users": {
+    "heading": "User management"
+  },
+  "auth": {
+    "heading": "Authentication"
+  },
+  "system": {
+    "heading": "System administration"
+  },
+  "backup": {
+    "heading": "Data backup"
+  },
+  "selectOption": "Select an option from the navigation",
+  "readOnlyBanner": "Read-only mode (demo): all settings are write-protected. Only categories remain editable."
+}

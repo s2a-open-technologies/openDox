@@ -1,0 +1,8 @@
+{
+  "loadFailed": "Wörterbuch konnte nicht geladen werden",
+  "saved": "Wörterbuch gespeichert",
+  "title": "Eigene Begriffe",
+  "description": "Werden bei jeder Ihrer Aufnahmen automatisch phonetisch korrigiert — nur für Sie sichtbar, auch nicht für Administratoren.",
+  "placeholder": "Sertralin, Metformin, Ibuprofen ...",
+  "hint": "Komma-, Semikolon- oder zeilengetrennte Begriffe. Wird bei der finalen Transkription mit dem Glossar der gewählten Kategorie zusammengeführt."
+}

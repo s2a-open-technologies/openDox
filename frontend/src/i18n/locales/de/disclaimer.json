@@ -1,0 +1,14 @@
+{
+  "title": "Kein Medizinprodukt",
+  "gate": {
+    "p1": "openDox ist kein zugelassenes Medizinprodukt gemäß Medizinproduktegesetz (MPG) oder vergleichbaren Regularien (z. B. EU-MDR, FDA). Es dient ausschließlich der Unterstützung bei der Dokumentation.",
+    "p2": "Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden, bevor sie verwendet oder in eine Patientenakte übernommen werden. openDox ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.",
+    "p3": "Wer diese Anwendung betreibt, trägt die Verantwortung dafür, dass der Einsatz mit den in der eigenen Jurisdiktion geltenden Vorschriften vereinbar ist. Details siehe <code>DISCLAIMER.md</code> im Projekt-Repository.",
+    "confirm": "Ich habe den Hinweis gelesen und verstanden und bestätige, dass ich für die regelkonforme Nutzung dieser Anwendung verantwortlich bin.",
+    "submit": "Bestätigen",
+    "submitting": "Bestätige...",
+    "failed": "Bestätigung fehlgeschlagen – bitte erneut versuchen"
+  },
+  "view": "Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation. Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden. Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.",
+  "noticeTitle": "Wichtiger Hinweis"
+}

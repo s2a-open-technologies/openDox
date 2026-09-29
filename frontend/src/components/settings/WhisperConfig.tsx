@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,7 @@ type WhisperSettingsResponse = Partial<WhisperSettings>;
 type TestResult = { ok: boolean; message: string } | null;
 
 const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
+    const { t } = useTranslation(['whisper', 'common']);
     const { authFetch } = useAuth();
     const [liveTest, setLiveTest] = useState<{ status: 'idle' | 'testing' | 'done'; result: TestResult }>({
         status: 'idle',
@@ -157,12 +160,12 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                 body: JSON.stringify(config)
             });
             if (res.ok) {
-                toast.success('Einstellungen gespeichert');
+                toast.success(t('saved'));
             } else {
-                toast.error('Speichern fehlgeschlagen');
+                toast.error(t('common:saveFailed'));
             }
         } catch {
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         }
     };
 
@@ -173,50 +176,49 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             const res = await authFetch(`/api/v1/settings/asr-test/?backend=${which}`);
             const data = await res.json();
             if (data.ok) {
-                const model = data.model ? ` · Modell: ${data.model}` : '';
-                setter({ status: 'done', result: { ok: true, message: `Erreichbar${model}` } });
+                setter({ status: 'done', result: { ok: true, message: data.model ? t('test.reachableModel', { model: data.model }) : t('test.reachable') } });
             } else {
-                setter({ status: 'done', result: { ok: false, message: data.error || 'Nicht erreichbar' } });
+                setter({ status: 'done', result: { ok: false, message: apiErrorMessage(data, t('test.unreachable')) } });
             }
         } catch {
-            setter({ status: 'done', result: { ok: false, message: 'Anfrage fehlgeschlagen' } });
+            setter({ status: 'done', result: { ok: false, message: t('test.requestFailed') } });
         }
     };
 
     return (
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">Transkriptionsserver Konfiguration</h3>
+            <h3 className="text-lg font-medium">{t('title')}</h3>
             
             <Tabs defaultValue="general" className="w-full">
                 <TabsList className={`grid w-full ${config.live_backend === 'api' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
-                    <TabsTrigger value="general">Allgemein</TabsTrigger>
-                    <TabsTrigger value="live">Live</TabsTrigger>
-                    <TabsTrigger value="final">Final</TabsTrigger>
+                    <TabsTrigger value="general">{t('tabs.general')}</TabsTrigger>
+                    <TabsTrigger value="live">{t('tabs.live')}</TabsTrigger>
+                    <TabsTrigger value="final">{t('tabs.final')}</TabsTrigger>
                     {config.live_backend === 'api' && (
-                        <TabsTrigger value="quality">Qualität</TabsTrigger>
+                        <TabsTrigger value="quality">{t('tabs.quality')}</TabsTrigger>
                     )}
                 </TabsList>
 
                 <TabsContent value="general">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Allgemeine Einstellungen</CardTitle>
-                            <CardDescription>Sprache</CardDescription>
+                            <CardTitle>{t('general.title')}</CardTitle>
+                            <CardDescription>{t('general.description')}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Sprache</Label>
+                                <Label>{t('general.language')}</Label>
                                 <Select value={config.language} disabled={readOnly} onValueChange={(v) => updateField('language', v)}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Wählen..." />
+                                        <SelectValue placeholder={t('choose')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                    <SelectItem value="de">Deutsch</SelectItem>
-                                    <SelectItem value="en">Englisch</SelectItem>
-                                    <SelectItem value="fr">Französisch</SelectItem>
-                                    <SelectItem value="es">Spanisch</SelectItem>
-                                    <SelectItem value="it">Italienisch</SelectItem>
-                                    <SelectItem value="auto">Automatisch (Spracherkennung)</SelectItem>
+                                    <SelectItem value="de">{t('languages.de')}</SelectItem>
+                                    <SelectItem value="en">{t('languages.en')}</SelectItem>
+                                    <SelectItem value="fr">{t('languages.fr')}</SelectItem>
+                                    <SelectItem value="es">{t('languages.es')}</SelectItem>
+                                    <SelectItem value="it">{t('languages.it')}</SelectItem>
+                                    <SelectItem value="auto">{t('languages.auto')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -227,20 +229,20 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                 <TabsContent value="live">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Live-Transkription</CardTitle>
-                            <CardDescription>Echtzeit-Transkription während der Aufnahme</CardDescription>
+                            <CardTitle>{t('live.title')}</CardTitle>
+                            <CardDescription>{t('live.description')}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="live-enabled">Live-Transkription aktiv</Label>
+                                <Label htmlFor="live-enabled">{t('live.enabled')}</Label>
                                 <Select value={config.live_backend} disabled={readOnly} onValueChange={(v) => updateField('live_backend', v)}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Wählen..." />
+                                        <SelectValue placeholder={t('choose')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="parakeet">Parakeet (empfohlen)</SelectItem>
+                                        <SelectItem value="parakeet">{t('live.backends.parakeet')}</SelectItem>
                                         <SelectItem value="api">Whisper API</SelectItem>
-                                        <SelectItem value="disabled">Deaktiviert</SelectItem>
+                                        <SelectItem value="disabled">{t('live.backends.disabled')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -249,14 +251,11 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 <>
                                     {config.live_backend === 'parakeet' && (
                                         <p className="text-sm text-muted-foreground">
-                                            Parakeet läuft mit Silero-VAD-gesteuertem Streaming: Text
-                                            wächst beim Sprechen und friert bei Sprechpausen ein.
-                                            Chunk-Länge, Überlappung und Left-Context werden vom
-                                            Server gesteuert und sind hier nicht relevant.
+                                            {t('live.parakeetHint')}
                                         </p>
                                     )}
                                     <div className="space-y-2">
-                                        <Label>API Endpoint</Label>
+                                        <Label>{t('apiEndpoint')}</Label>
                                         <Input
                                             placeholder={config.live_backend === 'parakeet' ? 'http://parakeet:5001/v1' : 'http://localhost:9000'}
                                             disabled={readOnly}
@@ -265,17 +264,17 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>API Key (optional)</Label>
+                                        <Label>{t('apiKeyOptional')}</Label>
                                         <Input
                                             type="password"
-                                            placeholder="Bearer Token"
+                                            placeholder={t('bearerToken')}
                                             disabled={readOnly}
                                             value={config.live_api_key}
                                             onChange={(e) => updateField('live_api_key', e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Modell</Label>
+                                        <Label>{t('model')}</Label>
                                         <Input
                                             placeholder="nemo-parakeet-tdt-0.6b-v3"
                                             disabled={readOnly}
@@ -286,7 +285,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     {config.live_backend !== 'parakeet' && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div className="space-y-2">
-                                                <Label>Chunk-Länge (Sek.)</Label>
+                                                <Label>{t('live.chunkLength')}</Label>
                                                 <Input
                                                     type="number" min={1} max={10}
                                                     disabled={readOnly}
@@ -295,7 +294,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Überlappung (Sek.)</Label>
+                                                <Label>{t('live.overlap')}</Label>
                                                 <Input
                                                     type="number" min={0} max={2} step={0.5}
                                                     disabled={readOnly}
@@ -315,7 +314,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     className="gap-2"
                                 >
                                     {liveTest.status === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    Verbindung testen
+                                    {t('testConnection')}
                                 </Button>
                             </div>
                             {liveTest.result && (
@@ -337,12 +336,12 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                 <TabsContent value="final">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Finale Transkription</CardTitle>
-                            <CardDescription>Qualitativ hochwertige Transkription nach der Aufnahme</CardDescription>
+                            <CardTitle>{t('final.title')}</CardTitle>
+                            <CardDescription>{t('final.description')}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label>API Endpoint</Label>
+                                <Label>{t('apiEndpoint')}</Label>
                                 <Input 
                                     placeholder="http://localhost:9000" 
                                     disabled={readOnly}
@@ -351,17 +350,17 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>API Key (optional)</Label>
+                                <Label>{t('apiKeyOptional')}</Label>
                                 <Input 
                                     type="password" 
-                                    placeholder="Bearer Token" 
+                                    placeholder={t('bearerToken')} 
                                     disabled={readOnly}
                                     value={config.final_api_key} 
                                     onChange={(e) => updateField('final_api_key', e.target.value)} 
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Modell</Label>
+                                <Label>{t('model')}</Label>
                                 <Input 
                                     placeholder="large-v3-turbo" 
                                     disabled={readOnly}
@@ -371,7 +370,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             </div>
                             <div className="flex items-center justify-between">
                                 <Label htmlFor="term-correction-enabled">
-                                    Fachbegriff-Korrektur (Phonetik/Fuzzy)
+                                    {t('final.termCorrection')}
                                 </Label>
                                 <Switch
                                     id="term-correction-enabled"
@@ -382,13 +381,9 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             </div>
                             {config.term_correction_enabled && (
                                 <div className="space-y-2">
-                                    <Label>Schwellenwert (0-100)</Label>
+                                    <Label>{t('final.threshold')}</Label>
                                     <p className="text-sm text-muted-foreground">
-                                        Vergleicht den finalen Text gegen das
-                                        Vokabular aus dem Kategorie-Feld
-                                        "Whisper-Prompt" (Kölner Phonetik +
-                                        Fuzzy-Matching) und ersetzt Treffer ab
-                                        diesem Score.
+                                        {t('final.thresholdHint')}
                                     </p>
                                     <Input
                                         type="number" min={0} max={100} step={1}
@@ -406,7 +401,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     className="gap-2"
                                 >
                                     {finalTest.status === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    Verbindung testen
+                                    {t('testConnection')}
                                 </Button>
                             </div>
                             {finalTest.result && (
@@ -428,15 +423,14 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                 <TabsContent value="quality">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Qualität & Anti-Halluzination</CardTitle>
+                            <CardTitle>{t('quality.title')}</CardTitle>
                             <CardDescription>
-                                Verhindert erfundene Füllwörter bei Stille. Werden an den
-                                Whisper-Server übergeben.
+                                {t('quality.description')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="vad-filter">VAD-Filter (Stille entfernen)</Label>
+                                <Label htmlFor="vad-filter">{t('quality.vadFilter')}</Label>
                                 <Switch
                                     id="vad-filter"
                                     checked={config.vad_filter}
@@ -445,7 +439,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="cond-prev">Auf vorherigen Text bedingen</Label>
+                                <Label htmlFor="cond-prev">{t('quality.condPrev')}</Label>
                                 <Switch
                                     id="cond-prev"
                                     checked={config.condition_on_previous_text}
@@ -454,7 +448,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>VAD min. Stille (ms)</Label>
+                                <Label>{t('quality.vadMinSilence')}</Label>
                                 <Input
                                     type="number" min={0} max={5000} step={50}
                                     disabled={readOnly}
@@ -463,7 +457,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Temperatur (0 = deterministisch)</Label>
+                                <Label>{t('quality.temperature')}</Label>
                                 <Input
                                     type="number" min={0} max={1} step={0.1}
                                     disabled={readOnly}
@@ -472,7 +466,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>No-Speech-Schwelle</Label>
+                                <Label>{t('quality.noSpeech')}</Label>
                                 <Input
                                     type="number" min={0} max={1} step={0.05}
                                     disabled={readOnly}
@@ -481,7 +475,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Compression-Ratio-Schwelle</Label>
+                                <Label>{t('quality.compressionRatio')}</Label>
                                 <Input
                                     type="number" min={0} max={10} step={0.1}
                                     disabled={readOnly}
@@ -490,7 +484,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Log-Prob-Schwelle</Label>
+                                <Label>{t('quality.logProb')}</Label>
                                 <Input
                                     type="number" min={-10} max={0} step={0.1}
                                     disabled={readOnly}
@@ -499,10 +493,10 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Halluzinations-Stille-Schwelle (Sek., optional)</Label>
+                                <Label>{t('quality.hallucinationSilence')}</Label>
                                 <Input
                                     type="number" min={0} max={60} step={0.5}
-                                    placeholder="aus"
+                                    placeholder={t('quality.off')}
                                     disabled={readOnly}
                                     value={config.hallucination_silence_threshold ?? ''}
                                     onChange={(e) => updateField('hallucination_silence_threshold', e.target.value === '' ? null : parseFloat(e.target.value))}
@@ -510,7 +504,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Beam-Size Live</Label>
+                                    <Label>{t('quality.beamLive')}</Label>
                                     <Input
                                         type="number" min={1} max={10}
                                         disabled={readOnly}
@@ -519,7 +513,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Beam-Size Final</Label>
+                                    <Label>{t('quality.beamFinal')}</Label>
                                     <Input
                                         type="number" min={1} max={10}
                                         disabled={readOnly}
@@ -533,7 +527,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                 </TabsContent>
             </Tabs>
 
-            <Button onClick={saveConfig} disabled={readOnly} className="w-full">Einstellungen speichern</Button>
+            <Button onClick={saveConfig} disabled={readOnly} className="w-full">{t('save')}</Button>
         </div>
     );
 };

@@ -19,6 +19,7 @@
 */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -46,6 +47,7 @@ interface AdminModalProps {
 }
 
 const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
+  const { t } = useTranslation('admin');
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isDemoViewer = user?.role === 'demo_viewer';
@@ -58,14 +60,14 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
   // Moderatoren sehen nur Kategorien + System-Status; Admins/Demo-Viewer sehen alles.
   const navItems = [
     ...(canViewAdmin ? [
-      { id: 'services', label: 'Dienste', icon: Server },
-      { id: 'audio', label: 'Archivierung', icon: Archive },
-      { id: 'users', label: 'Benutzer', icon: Users },
-      { id: 'auth', label: 'Authentifizierung', icon: GlobeLock },
-      { id: 'backup', label: 'Backup', icon: HardDrive },
+      { id: 'services', label: t('nav.services'), icon: Server },
+      { id: 'audio', label: t('nav.archive'), icon: Archive },
+      { id: 'users', label: t('nav.users'), icon: Users },
+      { id: 'auth', label: t('nav.auth'), icon: GlobeLock },
+      { id: 'backup', label: t('nav.backup'), icon: HardDrive },
     ] : []),
-    { id: 'categories', label: 'Kategorien', icon: BookOpenCheck },
-    { id: 'system', label: 'System', icon: Settings },
+    { id: 'categories', label: t('nav.categories'), icon: BookOpenCheck },
+    { id: 'system', label: t('nav.system'), icon: Settings },
   ];
 
   const renderContent = () => {
@@ -79,7 +81,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <fieldset key="services" className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <Server className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-medium">API-Dienste konfigurieren</h3>
+              <h3 className="text-lg font-medium">{t('services.heading')}</h3>
             </div>
             
             <Tabs defaultValue="whisper" className="w-full">
@@ -109,7 +111,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <fieldset className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <Archive className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-medium">Archivierung</h3>
+              <h3 className="text-lg font-medium">{t('archive.heading')}</h3>
             </div>
             <AudioConfig readOnly={readOnly} />
             <AutoArchiveConfig readOnly={readOnly} />
@@ -119,7 +121,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
       case 'users':
         return (
           <fieldset className="space-y-4">
-            <h3 className="text-lg font-medium">Benutzerverwaltung</h3>
+            <h3 className="text-lg font-medium">{t('users.heading')}</h3>
             <UserSettings readOnly={readOnly} />
           </fieldset>
         );
@@ -128,7 +130,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <fieldset key="auth" className="space-y-6">
             <div className="flex items-center gap-2 mb-2">
               <GlobeLock className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-medium">Authentifizierung</h3>
+              <h3 className="text-lg font-medium">{t('auth.heading')}</h3>
             </div>
             <Tabs defaultValue="ldap" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
@@ -147,14 +149,14 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
       case 'system':
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Systemverwaltung</h3>
+            <h3 className="text-lg font-medium">{t('system.heading')}</h3>
             <SystemSettings />
           </div>
         );
       case 'backup':
         return (
           <fieldset className="space-y-4">
-            <h3 className="text-lg font-medium">Datensicherung</h3>
+            <h3 className="text-lg font-medium">{t('backup.heading')}</h3>
             <BackupSettings readOnly={readOnly} />
           </fieldset>
         );
@@ -165,7 +167,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           </div>
         );
       default:
-        return <div>Wählen Sie eine Option aus der Navigation</div>;
+        return <div>{t('selectOption')}</div>;
     }
   };
 
@@ -202,8 +204,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <div className="flex-1 p-4 md:p-6 overflow-auto min-h-0">
             {readOnly && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                Nur-Lese-Modus (Demo): Alle Einstellungen sind schreibgeschützt.
-                Einzig Kategorien bleiben bearbeitbar.
+                {t('readOnlyBanner')}
               </div>
             )}
             {renderContent()}

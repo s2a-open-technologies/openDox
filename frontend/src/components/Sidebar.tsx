@@ -18,10 +18,11 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
-import { groupRecordingsByDate } from "@/lib/archive";
+import { formatRecordTimestamp, groupRecordingsByDate } from "@/lib/archive";
 import { FileAudio, MoreHorizontal, Archive, Trash2, RotateCcw, Library, Radio, Upload, CalendarDays } from "lucide-react";
 import UserDropdown from "@/components/UserDropdown";
 import {
@@ -70,6 +71,7 @@ const Sidebar = ({
   mobileOpen = false,
   onMobileOpenChange,
 }: SidebarProps) => {
+  const { t } = useTranslation("record");
   // Closing the drawer after selecting a recording is mobile-only UX; harmless no-op on desktop.
   const handleSelectRecording = (recording: Recording) => {
     onSelectRecording(recording);
@@ -91,7 +93,7 @@ const Sidebar = ({
           variant={!showArchived ? "secondary" : "ghost"}
           className={cn("flex-1", !showArchived && "bg-zinc-100 dark:bg-zinc-800 font-medium")}
           onClick={() => onToggleArchived?.(false)}
-          title="Aktuell"
+          title={t("sidebar.current")}
         >
           <Library className="w-4 h-4" />
         </Button>
@@ -99,7 +101,7 @@ const Sidebar = ({
           variant={showArchived ? "secondary" : "ghost"}
           className={cn("flex-1", showArchived && "bg-zinc-100 dark:bg-zinc-800 font-medium")}
           onClick={() => onToggleArchived?.(true)}
-          title="Archiv"
+          title={t("sidebar.archive")}
         >
           <Archive className="w-4 h-4" />
         </Button>
@@ -108,7 +110,7 @@ const Sidebar = ({
             variant="ghost"
             className="flex-1"
             onClick={() => onUploadClick?.()}
-            title="Audio hochladen"
+            title={t("sidebar.upload")}
           >
             <Upload className="w-4 h-4" />
           </Button>
@@ -121,7 +123,7 @@ const Sidebar = ({
             {dateGroups.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground">
                 <FileAudio className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm">Keine archivierten Aufnahmen</p>
+                <p className="text-sm">{t("sidebar.noArchived")}</p>
               </div>
             ) : (
               dateGroups.map((group) => {
@@ -153,7 +155,7 @@ const Sidebar = ({
                         {group.label}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {group.count === 1 ? "1 Transkription" : `${group.count} Transkriptionen`}
+                        {t("archive.count", { count: group.count })}
                       </p>
                     </div>
                   </button>
@@ -166,7 +168,7 @@ const Sidebar = ({
             {recordings.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground">
                 <FileAudio className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm">Keine Aufnahmen</p>
+                <p className="text-sm">{t("sidebar.none")}</p>
               </div>
             ) : (
             recordings.map((recording) => {
@@ -208,11 +210,11 @@ const Sidebar = ({
                         </p>
                         <div className="flex items-center gap-2">
                           <p className="text-xs text-muted-foreground mt-1">
-                            {recording.timestamp}
+                            {formatRecordTimestamp(recording.timestamp)}
                           </p>
                           {isActive && (
                             <span className="text-[10px] font-medium text-red-500 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 rounded-full mt-0.5">
-                              Aktiv
+                              {t("sidebar.active")}
                             </span>
                           )}
                         </div>
@@ -232,12 +234,12 @@ const Sidebar = ({
                           {showArchived ? (
                             <DropdownMenuItem onClick={() => onUnarchiveRecording?.(recording.id)}>
                               <RotateCcw className="w-4 h-4 mr-2" />
-                              Wiederherstellen
+                              {t("archive.restore")}
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem onClick={() => onArchiveRecording?.(recording.id)}>
                               <Archive className="w-4 h-4 mr-2" />
-                              Archivieren
+                              {t("sidebar.archiveAction")}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
@@ -246,7 +248,7 @@ const Sidebar = ({
                             onClick={() => onDeleteRecording?.(recording.id)}
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
-                            Löschen
+                            {t("archive.delete")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

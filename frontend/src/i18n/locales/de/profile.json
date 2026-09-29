@@ -1,0 +1,33 @@
+{
+  "menu": "Profil",
+  "administration": "Administration",
+  "title": "Profil",
+  "tabs": {
+    "language": "Sprache",
+    "dictionary": "Mein Wörterbuch",
+    "categories": "Meine Kategorien",
+    "appearance": "Design"
+  },
+  "language": {
+    "heading": "Sprache der Benutzeroberfläche",
+    "description": "Wählen Sie die Sprache, in der openDox für Sie angezeigt wird. Die Einstellung gilt auf allen Ihren Geräten.",
+    "label": "Sprache",
+    "saved": "Sprache gespeichert",
+    "saveFailed": "Sprache konnte nicht gespeichert werden"
+  },
+  "dictionary": {
+    "heading": "Mein Wörterbuch",
+    "description": "Ihr persönliches Korrektur-Wörterbuch, das bei jeder Ihrer Aufnahmen angewendet wird, unabhängig von der gewählten Kategorie."
+  },
+  "categories": {
+    "heading": "Meine Kategorien",
+    "description": "Eigene Kategorien für Ihre Aufnahmen anlegen und verwalten. Diese sind nur für Sie sichtbar, zusätzlich zu den global bereitgestellten Kategorien."
+  },
+  "appearance": {
+    "heading": "Design",
+    "description": "Hell, Dunkel oder passend zum Betriebssystem.",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  }
+}

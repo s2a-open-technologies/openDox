@@ -1,0 +1,58 @@
+{
+  "confirmDelete": "Möchten Sie diese Aufnahme wirklich unwiderruflich löschen?",
+  "deleteFailedShort": "Fehler beim Löschen",
+  "deleted": "Aufnahme gelöscht",
+  "deleteFailed": "Fehler beim Löschen der Aufnahme",
+  "archiveFailedShort": "Fehler beim Archivieren",
+  "archived": "Aufnahme archiviert",
+  "restoreFailed": "Fehler beim Wiederherstellen",
+  "restored": "Aufnahme wiederhergestellt",
+  "defaultTitle": "Aufnahme {{n}}",
+  "uncategorized": "Unkategorisiert",
+  "fetchFailed": "Fehler beim Abrufen der Aufnahme",
+  "loadFailed": "Fehler beim Laden der Aufnahme",
+  "saved": "Aufnahme gespeichert",
+  "saveFailed": "Fehler beim Speichern",
+  "categoryChanged": "Kategorie geändert",
+  "categoryChangeFailed": "Fehler beim Ändern der Kategorie",
+  "upload": {
+    "failed": "Upload fehlgeschlagen",
+    "defaultTitle": "Upload {{date}}",
+    "success": "Upload erfolgreich – Transkription läuft.",
+    "title": "Audio hochladen",
+    "description": "Laden Sie eine fertige Audiodatei hoch. Sie durchläuft automatisch die Transkriptions- und Zusammenfassungspipeline.",
+    "titleOptional": "Titel (optional)",
+    "titlePlaceholder": "z.B. Anamnese Patient Müller",
+    "file": "Audiodatei",
+    "selected": "Ausgewählt: {{name}}",
+    "uploading": "Wird hochgeladen...",
+    "submit": "Hochladen"
+  },
+  "openMenu": "Menü öffnen",
+  "cancelConfirm": "Aufnahme wirklich abbrechen? Diese kann nicht wiederhergestellt werden.",
+  "cancelFailed": "Fehler beim Abbrechen der Aufnahme",
+  "cancel": "Abbrechen",
+  "toOverview": "Zur Übersicht",
+  "unfinished": {
+    "title": "Unfertige Aufnahme",
+    "description": "Eine Aufnahme wurde unterbrochen und kann fortgesetzt werden.",
+    "resume": "Fortsetzen",
+    "discardConfirm": "Aufnahme wirklich verwerfen?",
+    "discard": "Verwerfen"
+  },
+  "welcome": {
+    "title": "Willkommen bei openDox",
+    "description": "Wählen Sie eine Aufnahme aus oder starten Sie eine neue, um loszulegen."
+  },
+  "new": {
+    "start": "Neue Aufnahme starten",
+    "title": "Neue Aufnahme",
+    "description": "Geben Sie der Aufnahme einen Namen und eine Kategorie, um sie später leichter zu finden.",
+    "titleLabel": "Titel",
+    "titlePlaceholder": "z.B. Patienten-Anamnese",
+    "submit": "Aufnahme starten"
+  },
+  "category": "Kategorie",
+  "categoryPlaceholder": "Kategorie auswählen...",
+  "categoriesHint": "Legen Sie zuerst eine Kategorie unter Einstellungen an."
+}

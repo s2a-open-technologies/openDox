@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { Trans, useTranslation } from "react-i18next";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -28,6 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const DisclaimerGate = () => {
+  const { t } = useTranslation(["disclaimer", "common"]);
   const { acceptDisclaimer, logout } = useAuth();
   const [confirmed, setConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,7 +39,7 @@ const DisclaimerGate = () => {
     const ok = await acceptDisclaimer();
     setIsSubmitting(false);
     if (!ok) {
-      toast.error("Bestätigung fehlgeschlagen – bitte erneut versuchen");
+      toast.error(t("gate.failed"));
     }
   };
 
@@ -50,23 +52,12 @@ const DisclaimerGate = () => {
 
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Kein Medizinprodukt</AlertTitle>
+          <AlertTitle>{t("title")}</AlertTitle>
           <AlertDescription className="text-sm leading-relaxed space-y-2">
+            <p>{t("gate.p1")}</p>
+            <p>{t("gate.p2")}</p>
             <p>
-              openDox ist kein zugelassenes Medizinprodukt gemäß Medizinproduktegesetz (MPG)
-              oder vergleichbaren Regularien (z. B. EU-MDR, FDA). Es dient ausschließlich der
-              Unterstützung bei der Dokumentation.
-            </p>
-            <p>
-              Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von
-              qualifiziertem Fachpersonal überprüft werden, bevor sie verwendet oder in eine
-              Patientenakte übernommen werden. openDox ersetzt keine ärztliche Diagnose,
-              Beratung oder Therapieempfehlung.
-            </p>
-            <p>
-              Wer diese Anwendung betreibt, trägt die Verantwortung dafür, dass der Einsatz mit
-              den in der eigenen Jurisdiktion geltenden Vorschriften vereinbar ist. Details siehe{" "}
-              <code>DISCLAIMER.md</code> im Projekt-Repository.
+              <Trans t={t} i18nKey="gate.p3" components={{ code: <code /> }} />
             </p>
           </AlertDescription>
         </Alert>
@@ -79,17 +70,16 @@ const DisclaimerGate = () => {
             className="mt-0.5"
           />
           <label htmlFor="disclaimer-confirm" className="text-sm text-muted-foreground cursor-pointer">
-            Ich habe den Hinweis gelesen und verstanden und bestätige, dass ich für die
-            regelkonforme Nutzung dieser Anwendung verantwortlich bin.
+            {t("gate.confirm")}
           </label>
         </div>
 
         <div className="flex items-center justify-between gap-3">
           <Button variant="ghost" onClick={logout}>
-            Abmelden
+            {t("common:logout")}
           </Button>
           <Button onClick={handleAccept} disabled={!confirmed || isSubmitting}>
-            {isSubmitting ? "Bestätige..." : "Bestätigen"}
+            {isSubmitting ? t("gate.submitting") : t("gate.submit")}
           </Button>
         </div>
       </div>

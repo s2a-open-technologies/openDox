@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from "react-i18next";
 import { CalendarDays, FileAudio, MoreHorizontal, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateLabel, formatRecordTime, groupRecordingsByDate } from "@/lib/archive";
@@ -49,6 +50,7 @@ const ArchiveDayList = ({
   onDeleteRecording,
   onBackToDates,
 }: ArchiveDayListProps) => {
+  const { t } = useTranslation("record");
   const groups = groupRecordingsByDate(recordings);
   const dayGroup = selectedDate
     ? groups.find((group) => group.key === selectedDate)
@@ -61,9 +63,9 @@ const ArchiveDayList = ({
           <CalendarDays className="w-6 h-6 text-muted-foreground" />
         </div>
         <div className="space-y-1 mt-4">
-          <h2 className="text-xl font-semibold">Archiv</h2>
+          <h2 className="text-xl font-semibold">{t("archive.title")}</h2>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Wählen Sie links ein Datum aus, um die archivierten Transkriptionen dieses Tages zu sehen.
+            {t("archive.selectDate")}
           </p>
         </div>
       </div>
@@ -78,7 +80,7 @@ const ArchiveDayList = ({
             variant="ghost"
             size="icon"
             onClick={onBackToDates}
-            title="Zurück zur Datumsauswahl"
+            title={t("archive.backToDates")}
             className="shrink-0"
           >
             <CalendarDays className="w-5 h-5" />
@@ -88,7 +90,7 @@ const ArchiveDayList = ({
               {formatDateLabel(dayGroup.key)}
             </h2>
             <p className="text-xs text-muted-foreground">
-              {dayGroup.count === 1 ? "1 Transkription" : `${dayGroup.count} Transkriptionen`}
+              {t("archive.count", { count: dayGroup.count })}
             </p>
           </div>
         </div>
@@ -128,7 +130,7 @@ const ArchiveDayList = ({
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => onUnarchiveRecording?.(recording.id)}>
                     <RotateCcw className="w-4 h-4 mr-2" />
-                    Wiederherstellen
+                    {t("archive.restore")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -136,7 +138,7 @@ const ArchiveDayList = ({
                     onClick={() => onDeleteRecording?.(recording.id)}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Löschen
+                    {t("archive.delete")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

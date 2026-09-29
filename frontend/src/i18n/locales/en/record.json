@@ -1,0 +1,49 @@
+{
+  "new": {
+    "title": "New recording",
+    "textTitle": "Recording text",
+    "placeholder": "Your transcript will appear here.",
+    "recording": "Recording... Click to stop.",
+    "idle": "Click the microphone to start."
+  },
+  "archive": {
+    "title": "Archive",
+    "selectDate": "Select a date on the left to see the archived transcriptions of that day.",
+    "backToDates": "Back to date selection",
+    "count_one": "{{count}} transcription",
+    "count_other": "{{count}} transcriptions",
+    "restore": "Restore",
+    "delete": "Delete",
+    "unknownDate": "Unknown date",
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
+  "sidebar": {
+    "current": "Current",
+    "archive": "Archive",
+    "upload": "Upload audio",
+    "noArchived": "No archived recordings",
+    "none": "No recordings",
+    "active": "Active",
+    "archiveAction": "Archive"
+  },
+  "recorder": {
+    "started": "Recording started",
+    "createFailed": "Error creating the recording",
+    "processingToast": "Recording is being processed...",
+    "wsError": "WebSocket error",
+    "connectionLost": "Connection lost – please restart the recording",
+    "startFailed": "Error starting the recording",
+    "timeout": "Timeout – the recording could not be processed",
+    "alreadyDisconnected": "Connection already lost",
+    "paused": "Recording paused",
+    "running": "Recording...",
+    "ready": "Ready to record",
+    "livePreviewNote": "The live preview is only a rough overview during recording — it is not the final transcription result.",
+    "speak": "Speak to start the transcription",
+    "processing": "Processing recording...",
+    "stopTitle": "Stop recording",
+    "stopDescription": "Do you really want to stop and save the recording?",
+    "cancel": "Cancel"
+  }
+}

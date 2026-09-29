@@ -1,0 +1,48 @@
+{
+  "listTitle": "Category list",
+  "listDescription": "Manage your existing categories",
+  "badgeGlobal": "Global",
+  "badgeOwn": "Own category",
+  "llmLabel": "LLM: {{model}}",
+  "empty": "No categories",
+  "form": {
+    "editTitle": "Edit category",
+    "createTitle": "Create new category",
+    "editDescription": "Edit the selected category",
+    "createDescription": "Add a new category",
+    "name": "Category name",
+    "description": "Description",
+    "systemPrompt": "System prompt (LLM)",
+    "systemPromptPlaceholder": "Instructions for the summary, e.g. format, structure, focus...",
+    "whisperPrompt": "Transcription hint (Whisper)",
+    "whisperPromptPlaceholder": "Cardiology, echocardiography, sinus bradycardia, Dr. Miller, ECG, heart failure ...",
+    "whisperPromptHint": "Short style/pronunciation hint for Whisper. Whisper only considers the last ~224 tokens of it — use the correction glossary below for long lists of technical terms. Optional.",
+    "glossary": "Correction glossary",
+    "glossaryPlaceholder": "Sertraline, metformin, ibuprofen ...",
+    "glossaryHint": "Terms that are automatically corrected phonetically after the final transcription (independent of the transcription hint above, no length limit). Same format: comma-, semicolon- or line-separated."
+  },
+  "llm": {
+    "useOwn": "Use own LLM",
+    "useOwnHint": "Overrides the global LLM settings for this category",
+    "model": "Model",
+    "modelPlaceholder": "e.g. deepseek-r1:14b",
+    "endpoint": "API endpoint",
+    "apiKey": "API key",
+    "optional": "Optional",
+    "temperature": "Temperature",
+    "maxTokens": "Max tokens",
+    "topP": "Top P",
+    "frequencyPenalty": "Frequency penalty",
+    "globalDefault": "Default from global settings",
+    "enableThinking": "Enable thinking"
+  },
+  "updated": "Category updated",
+  "created": "Category created",
+  "confirmDelete": "Do you really want to delete this category?",
+  "deleted": "Category deleted",
+  "deleteFailed": "Deletion failed",
+  "submit": {
+    "update": "Update",
+    "create": "Create"
+  }
+}

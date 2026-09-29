@@ -1,0 +1,31 @@
+{
+  "nav": {
+    "services": "Dienste",
+    "archive": "Archivierung",
+    "users": "Benutzer",
+    "auth": "Authentifizierung",
+    "backup": "Backup",
+    "categories": "Kategorien",
+    "system": "System"
+  },
+  "services": {
+    "heading": "API-Dienste konfigurieren"
+  },
+  "archive": {
+    "heading": "Archivierung"
+  },
+  "users": {
+    "heading": "Benutzerverwaltung"
+  },
+  "auth": {
+    "heading": "Authentifizierung"
+  },
+  "system": {
+    "heading": "Systemverwaltung"
+  },
+  "backup": {
+    "heading": "Datensicherung"
+  },
+  "selectOption": "Wählen Sie eine Option aus der Navigation",
+  "readOnlyBanner": "Nur-Lese-Modus (Demo): Alle Einstellungen sind schreibgeschützt. Einzig Kategorien bleiben bearbeitbar."
+}

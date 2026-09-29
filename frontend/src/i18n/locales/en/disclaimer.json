@@ -1,0 +1,14 @@
+{
+  "title": "Not a medical device",
+  "gate": {
+    "p1": "openDox is not an approved medical device under the German Medical Devices Act (MPG) or comparable regulations (e.g. EU MDR, FDA). It is intended solely to support documentation.",
+    "p2": "All machine-generated transcriptions and summaries must be reviewed by qualified professionals before they are used or transferred into a patient record. openDox does not replace medical diagnosis, advice or treatment recommendations.",
+    "p3": "Whoever operates this application is responsible for ensuring that its use complies with the regulations applicable in their own jurisdiction. See <code>DISCLAIMER.md</code> in the project repository for details.",
+    "confirm": "I have read and understood this notice and confirm that I am responsible for using this application in compliance with the applicable rules.",
+    "submit": "Confirm",
+    "submitting": "Confirming...",
+    "failed": "Confirmation failed – please try again"
+  },
+  "view": "This tool is not a medical device under the German Medical Devices Act (MPG). It is intended solely to support documentation. All machine-generated transcriptions and summaries must be reviewed by qualified professionals. It does not replace medical diagnosis, advice or treatment recommendations.",
+  "noticeTitle": "Important notice"
+}

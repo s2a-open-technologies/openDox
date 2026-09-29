@@ -1,0 +1,17 @@
+{
+  "title": "OpenID Connect (SSO)",
+  "description": "Single sign-on via an OIDC provider (Keycloak, Authentik, Google, Microsoft, etc.)",
+  "enable": "Enable OIDC",
+  "providerUrl": "Provider URL (issuer)",
+  "providerUrlHint": "Discovery happens automatically via /.well-known/openid-configuration",
+  "clientId": "Client ID",
+  "clientSecret": "Client secret",
+  "scopes": "Scopes",
+  "usernameClaim": "Username claim",
+  "groupClaim": "Group claim",
+  "adminGroups": "Admin groups (comma-separated)",
+  "adminGroupsHint": "Users in these groups are created as admins",
+  "moderatorGroups": "Moderator groups (comma-separated)",
+  "moderatorGroupsHint": "Users in these groups are created as moderators",
+  "saved": "OIDC settings saved"
+}

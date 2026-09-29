@@ -1,0 +1,70 @@
+{
+  "title": "Transcription server configuration",
+  "tabs": {
+    "general": "General",
+    "live": "Live",
+    "final": "Final",
+    "quality": "Quality"
+  },
+  "general": {
+    "title": "General settings",
+    "description": "Language",
+    "language": "Language"
+  },
+  "choose": "Choose...",
+  "languages": {
+    "de": "German",
+    "en": "English",
+    "fr": "French",
+    "es": "Spanish",
+    "it": "Italian",
+    "auto": "Automatic (language detection)"
+  },
+  "live": {
+    "title": "Live transcription",
+    "description": "Real-time transcription during recording",
+    "enabled": "Live transcription active",
+    "backends": {
+      "parakeet": "Parakeet (recommended)",
+      "disabled": "Disabled"
+    },
+    "parakeetHint": "Parakeet uses Silero-VAD-driven streaming: text grows while speaking and freezes at pauses. Chunk length, overlap and left context are controlled by the server and are not relevant here.",
+    "chunkLength": "Chunk length (sec.)",
+    "overlap": "Overlap (sec.)"
+  },
+  "apiEndpoint": "API endpoint",
+  "apiKeyOptional": "API key (optional)",
+  "bearerToken": "Bearer token",
+  "model": "Model",
+  "testConnection": "Test connection",
+  "test": {
+    "reachable": "Reachable",
+    "reachableModel": "Reachable · model: {{model}}",
+    "unreachable": "Unreachable",
+    "requestFailed": "Request failed"
+  },
+  "final": {
+    "title": "Final transcription",
+    "description": "High-quality transcription after recording",
+    "termCorrection": "Technical term correction (phonetic/fuzzy)",
+    "threshold": "Threshold (0-100)",
+    "thresholdHint": "Compares the final text against the vocabulary from the category field \"Correction glossary\" (Cologne phonetics + fuzzy matching) and replaces matches from this score."
+  },
+  "quality": {
+    "title": "Quality & anti-hallucination",
+    "description": "Prevents invented filler words during silence. Passed on to the Whisper server.",
+    "vadFilter": "VAD filter (remove silence)",
+    "condPrev": "Condition on previous text",
+    "vadMinSilence": "VAD min. silence (ms)",
+    "temperature": "Temperature (0 = deterministic)",
+    "noSpeech": "No-speech threshold",
+    "compressionRatio": "Compression ratio threshold",
+    "logProb": "Log-prob threshold",
+    "hallucinationSilence": "Hallucination silence threshold (sec., optional)",
+    "off": "off",
+    "beamLive": "Beam size live",
+    "beamFinal": "Beam size final"
+  },
+  "save": "Save settings",
+  "saved": "Settings saved"
+}

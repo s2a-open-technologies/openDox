@@ -1,0 +1,22 @@
+{
+  "roles": {
+    "admin": "Administrator",
+    "moderator": "Moderator",
+    "demo_viewer": "Demo-Viewer (nur lesen)",
+    "user": "Benutzer"
+  },
+  "online": "Online",
+  "logout": "Abmelden",
+  "save": "Speichern",
+  "saving": "Speichern...",
+  "saveFailed": "Speichern fehlgeschlagen",
+  "connectionError": "Verbindungsfehler",
+  "cancel": "Abbrechen",
+  "delete": "Löschen",
+  "edit": "Bearbeiten",
+  "loading": "Lädt...",
+  "notFound": {
+    "title": "Ups! Seite nicht gefunden",
+    "home": "Zur Startseite"
+  }
+}

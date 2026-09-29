@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +68,7 @@ const emptyForm = (): CategorySettingsData => ({
 });
 
 const CategorySettings = () => {
+    const { t } = useTranslation(['categories', 'common']);
     const { user, authFetch } = useAuth();
     const isPrivileged = user?.role === 'admin' || user?.role === 'moderator' || user?.role === 'demo_viewer';
     const [categories, setCategories] = useState<CategorySettingsData[]>([]);
@@ -124,16 +127,16 @@ const CategorySettings = () => {
             });
 
             if (res.ok) {
-                toast.success(isEditing ? 'Kategorie aktualisiert' : 'Kategorie erstellt');
+                toast.success(isEditing ? t('updated') : t('created'));
                 await fetchCategories();
                 resetForm();
             } else {
                 const err = await res.json().catch(() => ({}));
-                toast.error(err.detail || 'Speichern fehlgeschlagen');
+                toast.error(apiErrorMessage(err, t('common:saveFailed')));
             }
         } catch (error) {
             console.error(error);
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         } finally {
             setLoading(false);
         }
@@ -145,7 +148,7 @@ const CategorySettings = () => {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Möchten Sie diese Kategorie wirklich löschen?')) return;
+        if (!confirm(t('confirmDelete'))) return;
 
         try {
             const res = await authFetch(`/api/v1/settings/categories/${id}`, {
@@ -153,17 +156,17 @@ const CategorySettings = () => {
             });
 
             if (res.ok) {
-                toast.success('Kategorie gelöscht');
+                toast.success(t('deleted'));
                 await fetchCategories();
                 if (settings.id === id) {
                     resetForm();
                 }
             } else {
-                toast.error('Löschen fehlgeschlagen');
+                toast.error(t('deleteFailed'));
             }
         } catch (error) {
             console.error('Failed to delete category:', error);
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         }
     };
 
@@ -176,8 +179,8 @@ const CategorySettings = () => {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Kategorien Liste</CardTitle>
-                    <CardDescription>Verwalten Sie Ihre vorhandenen Kategorien</CardDescription>
+                    <CardTitle>{t('listTitle')}</CardTitle>
+                    <CardDescription>{t('listDescription')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -190,13 +193,13 @@ const CategorySettings = () => {
                                     <div className="flex items-center gap-2">
                                         <div className="font-medium">{category.name}</div>
                                         <span className="text-[10px] uppercase tracking-wide rounded-full border px-2 py-0.5 text-muted-foreground">
-                                            {category.user_id == null ? 'Global' : 'Eigene Kategorie'}
+                                            {category.user_id == null ? t('badgeGlobal') : t('badgeOwn')}
                                         </span>
                                     </div>
                                     <div className="text-sm text-muted-foreground">{category.description}</div>
                                     {category.llm_override_enabled && category.llm_model && (
                                         <div className="text-xs text-blue-500">
-                                            LLM: {category.llm_model}
+                                            {t('llmLabel', { model: category.llm_model })}
                                         </div>
                                     )}
                                 </div>
@@ -223,7 +226,7 @@ const CategorySettings = () => {
                         ))}
                         {categories.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
-                                Keine Kategorien vorhanden
+                                {t('empty')}
                             </div>
                         )}
                     </div>
@@ -231,69 +234,65 @@ const CategorySettings = () => {
             </Card>
             <Card>
                 <CardHeader>
-                    <CardTitle>{isEditing ? 'Kategorie bearbeiten' : 'Neue Kategorie erstellen'}</CardTitle>
+                    <CardTitle>{isEditing ? t('form.editTitle') : t('form.createTitle')}</CardTitle>
                     <CardDescription>
-                        {isEditing ? 'Bearbeiten Sie die ausgewählte Kategorie' : 'Fügen Sie eine neue Kategorie hinzu'}
+                        {isEditing ? t('form.editDescription') : t('form.createDescription')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Kategorie Name</Label>
+                                <Label>{t('form.name')}</Label>
                                 <Input
                                     value={settings.name}
                                     onChange={e => setSettings({ ...settings, name: e.target.value })}
-                                    placeholder="Kategorie Name"
+                                    placeholder={t('form.name')}
                                     required
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Beschreibung</Label>
+                                <Label>{t('form.description')}</Label>
                                 <Input
                                     value={settings.description}
                                     onChange={e => setSettings({ ...settings, description: e.target.value })}
-                                    placeholder="Beschreibung"
+                                    placeholder={t('form.description')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label>System Prompt (LLM)</Label>
+                            <Label>{t('form.systemPrompt')}</Label>
                             <Textarea
                                 value={settings.system_prompt}
                                 onChange={e => setSettings({ ...settings, system_prompt: e.target.value })}
-                                placeholder="Anweisungen für die Zusammenfassung, z.B. Format, Struktur, Fokus..."
+                                placeholder={t('form.systemPromptPlaceholder')}
                                 className="min-h-[100px]"
                                 required
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Transkriptions-Hint (Whisper)</Label>
+                            <Label>{t('form.whisperPrompt')}</Label>
                             <Textarea
                                 value={settings.whisper_prompt ?? ''}
                                 onChange={e => setSettings({ ...settings, whisper_prompt: e.target.value || null })}
-                                placeholder="Kardiologie, Echokardiographie, Sinusbradykardie, Dr. Müller, EKG, Herzinsuffizienz ..."
+                                placeholder={t('form.whisperPromptPlaceholder')}
                                 className="min-h-[80px]"
                             />
                             <p className="text-xs text-muted-foreground">
-                                Kurzer Stil-/Aussprache-Hinweis für Whisper. Whisper berücksichtigt davon nur die
-                                letzten ~224 Tokens — für lange Fachbegriffslisten das Korrektur-Glossar unten
-                                verwenden. Optional.
+                                {t('form.whisperPromptHint')}
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label>Korrektur-Glossar</Label>
+                            <Label>{t('form.glossary')}</Label>
                             <Textarea
                                 value={settings.glossary ?? ''}
                                 onChange={e => setSettings({ ...settings, glossary: e.target.value || null })}
-                                placeholder="Sertralin, Metformin, Ibuprofen ..."
+                                placeholder={t('form.glossaryPlaceholder')}
                                 className="min-h-[80px]"
                             />
                             <p className="text-xs text-muted-foreground">
-                                Begriffe, die nach der finalen Transkription automatisch phonetisch korrigiert werden
-                                (unabhängig vom Transkriptions-Hint oben, ohne Längenbegrenzung). Gleiches Format:
-                                Komma-, Semikolon- oder zeilengetrennt.
+                                {t('form.glossaryHint')}
                             </p>
                         </div>
 
@@ -301,9 +300,9 @@ const CategorySettings = () => {
                         <div className="border rounded-lg p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <Label className="text-base">Eigenes LLM verwenden</Label>
+                                    <Label className="text-base">{t('llm.useOwn')}</Label>
                                     <p className="text-sm text-muted-foreground">
-                                        Überschreibt die globalen LLM-Einstellungen für diese Kategorie
+                                        {t('llm.useOwnHint')}
                                     </p>
                                 </div>
                                 <Switch
@@ -318,16 +317,16 @@ const CategorySettings = () => {
                                 <div className="space-y-4 pt-2 border-t">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Modell</Label>
+                                            <Label>{t('llm.model')}</Label>
                                             <Input
                                                 value={settings.llm_model ?? ''}
                                                 onChange={e => setSettings({ ...settings, llm_model: e.target.value || null })}
-                                                placeholder="z.B. deepseek-r1:14b"
+                                                placeholder={t('llm.modelPlaceholder')}
                                                 required
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>API Endpunkt</Label>
+                                            <Label>{t('llm.endpoint')}</Label>
                                             <Input
                                                 value={settings.llm_api_endpoint ?? ''}
                                                 onChange={e => setSettings({ ...settings, llm_api_endpoint: e.target.value || null })}
@@ -336,17 +335,17 @@ const CategorySettings = () => {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>API Key</Label>
+                                        <Label>{t('llm.apiKey')}</Label>
                                         <Input
                                             value={settings.llm_api_key ?? ''}
                                             onChange={e => setSettings({ ...settings, llm_api_key: e.target.value || null })}
-                                            placeholder="Optional"
+                                            placeholder={t('llm.optional')}
                                             type="password"
                                         />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Temperature</Label>
+                                            <Label>{t('llm.temperature')}</Label>
                                             <Input
                                                 type="number"
                                                 min={0}
@@ -357,11 +356,11 @@ const CategorySettings = () => {
                                                     ...settings,
                                                     llm_temperature: e.target.value ? parseFloat(e.target.value) : null,
                                                 })}
-                                                placeholder="Standard aus globalen Einstellungen"
+                                                placeholder={t('llm.globalDefault')}
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Max Tokens</Label>
+                                            <Label>{t('llm.maxTokens')}</Label>
                                             <Input
                                                 type="number"
                                                 min={128}
@@ -372,13 +371,13 @@ const CategorySettings = () => {
                                                     ...settings,
                                                     llm_max_tokens: e.target.value ? parseInt(e.target.value) : null,
                                                 })}
-                                                placeholder="Standard aus globalen Einstellungen"
+                                                placeholder={t('llm.globalDefault')}
                                             />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Top P</Label>
+                                            <Label>{t('llm.topP')}</Label>
                                             <Input
                                                 type="number"
                                                 min={0}
@@ -389,11 +388,11 @@ const CategorySettings = () => {
                                                     ...settings,
                                                     llm_top_p: e.target.value ? parseFloat(e.target.value) : null,
                                                 })}
-                                                placeholder="Standard aus globalen Einstellungen"
+                                                placeholder={t('llm.globalDefault')}
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Frequency Penalty</Label>
+                                            <Label>{t('llm.frequencyPenalty')}</Label>
                                             <Input
                                                 type="number"
                                                 min={-2}
@@ -404,7 +403,7 @@ const CategorySettings = () => {
                                                     ...settings,
                                                     llm_frequency_penalty: e.target.value ? parseFloat(e.target.value) : null,
                                                 })}
-                                                placeholder="Standard aus globalen Einstellungen"
+                                                placeholder={t('llm.globalDefault')}
                                             />
                                         </div>
                                     </div>
@@ -418,7 +417,7 @@ const CategorySettings = () => {
                                                 }
                                             />
                                             <Label htmlFor={`cat-enable-thinking-${settings.id ?? 'new'}`}>
-                                                Thinking aktivieren
+                                                {t('llm.enableThinking')}
                                             </Label>
                                         </div>
                                     </div>
@@ -429,11 +428,11 @@ const CategorySettings = () => {
 
                         <div className="flex gap-2">
                             <Button type="submit" disabled={loading}>
-                                {loading ? 'Speichern...' : (isEditing ? 'Aktualisieren' : 'Erstellen')}
+                                {loading ? t('common:saving') : (isEditing ? t('submit.update') : t('submit.create'))}
                             </Button>
                             {isEditing && (
                                 <Button type="button" variant="outline" onClick={resetForm}>
-                                    Abbrechen
+                                    {t('common:cancel')}
                                 </Button>
                             )}
                         </div>

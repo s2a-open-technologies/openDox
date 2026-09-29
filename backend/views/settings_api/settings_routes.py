@@ -45,10 +45,14 @@ from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.user_model import (
+    UI_LANGUAGES,
     PersonalGlossaryRead,
     PersonalGlossaryUpdate,
+    UiLanguageRead,
+    UiLanguageUpdate,
     User,
 )
+from backend.components.modules.api_errors import api_error
 from backend.components.modules.env import env_or_file
 from backend.components.services import audio_storage
 from backend.components.services.asr_backends import DisabledBackend
@@ -72,10 +76,7 @@ from backend.views.settings_api import settings_bp
 def _require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Guard: only admins may write settings (except categories)."""
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Admin role required",
-        )
+        raise api_error(403, "admin_required", "Admin role required")
     return current_user
 
 
@@ -215,7 +216,7 @@ async def test_llm_connection(
     """
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings or not settings.llm_api_endpoint:
-        raise HTTPException(status_code=400, detail="Kein LLM-Endpoint konfiguriert")
+        raise api_error(400, "llm_endpoint_missing", "Kein LLM-Endpoint konfiguriert")
     llm_api_endpoint: str = settings.llm_api_endpoint
 
     def _probe_chat() -> str:
@@ -280,7 +281,11 @@ async def test_asr_connection(
     asr_backend = get_live_backend() if backend == "live" else get_final_backend()
 
     if isinstance(asr_backend, DisabledBackend):
-        return {"ok": False, "error": "Backend ist deaktiviert oder nicht konfiguriert"}
+        return {
+            "ok": False,
+            "code": "asr_backend_disabled",
+            "error": "Backend ist deaktiviert oder nicht konfiguriert",
+        }
 
     ok = await asyncio.to_thread(asr_backend.health_check)
     if ok:
@@ -289,7 +294,11 @@ async def test_asr_connection(
         if model:
             result["model"] = model
         return result
-    return {"ok": False, "error": "Endpoint nicht erreichbar"}
+    return {
+        "ok": False,
+        "code": "asr_endpoint_unreachable",
+        "error": "Endpoint nicht erreichbar",
+    }
 
 
 # Services Health Endpoint
@@ -471,11 +480,11 @@ async def upload_ldap_cert(
     try:
         cert_text = raw.decode("utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=400, detail="Zertifikat muss eine PEM-Textdatei sein"
+        raise api_error(
+            400, "certificate_not_pem", "Zertifikat muss eine PEM-Textdatei sein"
         )
     if not cert_text.strip():
-        raise HTTPException(status_code=400, detail="Zertifikatsdatei ist leer")
+        raise api_error(400, "certificate_empty", "Zertifikatsdatei ist leer")
 
     display_name = os.path.basename(file.filename or "certificate.pem")
 
@@ -560,13 +569,13 @@ async def read_category(
     """Return a single category if the current user may see it."""
     category = db.get(Categories, category_id)
     if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise api_error(404, "category_not_found", "Category not found")
     if (
         current_user.role != "admin"
         and category.user_id is not None
         and category.user_id != current_user.id
     ):
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise api_error(404, "category_not_found", "Category not found")
     return category
 
 
@@ -580,19 +589,19 @@ async def update_category(
     """Update a category with ownership and LLM-override checks."""
     db_category = db.get(Categories, category_id)
     if not db_category:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise api_error(404, "category_not_found", "Category not found")
 
     is_owner = (
         db_category.user_id is not None and db_category.user_id == current_user.id
     )
     if db_category.user_id is None:
         if current_user.role not in ("admin", "moderator", "demo_viewer"):
-            raise HTTPException(
-                status_code=403, detail="Moderator or admin role required"
+            raise api_error(
+                403, "moderator_required", "Moderator or admin role required"
             )
     elif not is_owner and current_user.role != "admin":
-        raise HTTPException(
-            status_code=403, detail="Not authorized to edit this category"
+        raise api_error(
+            403, "category_edit_forbidden", "Not authorized to edit this category"
         )
 
     category_data = category.model_dump(exclude_unset=True)
@@ -620,17 +629,17 @@ async def delete_category(
     """Delete a category with ownership checks."""
     category = db.get(Categories, category_id)
     if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise api_error(404, "category_not_found", "Category not found")
 
     is_owner = category.user_id is not None and category.user_id == current_user.id
     if category.user_id is None:
         if current_user.role not in ("admin", "moderator", "demo_viewer"):
-            raise HTTPException(
-                status_code=403, detail="Moderator or admin role required"
+            raise api_error(
+                403, "moderator_required", "Moderator or admin role required"
             )
     elif not is_owner and current_user.role != "admin":
-        raise HTTPException(
-            status_code=403, detail="Not authorized to delete this category"
+        raise api_error(
+            403, "category_delete_forbidden", "Not authorized to delete this category"
         )
 
     db.delete(category)
@@ -666,6 +675,31 @@ async def update_my_dictionary(
     db.commit()
     db.refresh(current_user)
     return PersonalGlossaryRead(personal_glossary=current_user.personal_glossary)
+
+
+# UI language Endpoint — the caller's own preferred interface language only.
+
+
+@settings_bp.get("/my-language/", response_model=UiLanguageRead)
+async def get_my_language(current_user: User = Depends(get_current_user)):
+    """Return the current user's UI language."""
+    return UiLanguageRead(ui_language=current_user.ui_language)
+
+
+@settings_bp.put("/my-language/", response_model=UiLanguageRead)
+async def update_my_language(
+    payload: UiLanguageUpdate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Update the current user's UI language."""
+    if payload.ui_language not in UI_LANGUAGES:
+        raise HTTPException(status_code=422, detail="Unsupported UI language")
+    current_user.ui_language = payload.ui_language
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return UiLanguageRead(ui_language=current_user.ui_language)
 
 
 # Languages Endpoints
@@ -790,7 +824,7 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     """
     settings = data.get("settings")
     if not isinstance(settings, dict):
-        raise HTTPException(status_code=400, detail="Ungültiges Backup-Format")
+        raise api_error(400, "backup_invalid_format", "Ungültiges Backup-Format")
 
     # --- Singleton settings (upsert first row) ---
     for model_cls, key in [
@@ -878,7 +912,9 @@ async def import_backup(
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise HTTPException(status_code=400, detail=f"Kein gültiges JSON: {exc}")
+        raise api_error(
+            400, "backup_invalid_json", f"Kein gültiges JSON: {exc}", error=str(exc)
+        )
     _import_all_settings(db, data)
     return {"ok": True, "restored": list(data.get("settings", {}).keys())}
 
@@ -956,26 +992,29 @@ async def update_audio_settings(
         settings_in.audio_format is not None
         and settings_in.audio_format not in _ALLOWED_AUDIO_FORMATS
     ):
-        raise HTTPException(
-            status_code=422,
-            detail=f"audio_format muss einer von {sorted(_ALLOWED_AUDIO_FORMATS)} sein",
+        raise api_error(
+            422,
+            "audio_format_invalid",
+            f"audio_format muss einer von {sorted(_ALLOWED_AUDIO_FORMATS)} sein",
+            allowed=", ".join(sorted(_ALLOWED_AUDIO_FORMATS)),
         )
     if (
         settings_in.audio_bitrate is not None
         and settings_in.audio_bitrate not in _ALLOWED_AUDIO_BITRATES
     ):
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"audio_bitrate muss einer von {sorted(_ALLOWED_AUDIO_BITRATES)} sein"
-            ),
+        raise api_error(
+            422,
+            "audio_bitrate_invalid",
+            f"audio_bitrate muss einer von {sorted(_ALLOWED_AUDIO_BITRATES)} sein",
+            allowed=", ".join(sorted(_ALLOWED_AUDIO_BITRATES)),
         )
     if settings_in.auto_archive_days is not None and not (
         1 <= settings_in.auto_archive_days <= 3650
     ):
-        raise HTTPException(
-            status_code=422,
-            detail="auto_archive_days muss zwischen 1 und 3650 liegen",
+        raise api_error(
+            422,
+            "auto_archive_days_invalid",
+            "auto_archive_days muss zwischen 1 und 3650 liegen",
         )
 
     settings = db.exec(select(AudioSettingsModel)).first()

@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +36,7 @@ interface FailedTask {
 }
 
 export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean }) {
+  const { t, i18n } = useTranslation(['failed', 'common']);
   const { authFetch } = useAuth();
   const [tasks, setTasks] = useState<FailedTask[]>([]);
   const [retryingId, setRetryingId] = useState<number | null>(null);
@@ -58,15 +61,15 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
     try {
       const res = await authFetch(`/api/v1/records/tasks/${taskId}/retry`, { method: 'POST' });
       if (res.ok) {
-        toast.success('Transkription wird erneut versucht');
-        setTasks((prev) => prev.filter((t) => t.task_id !== taskId));
+        toast.success(t('retrying'));
+        setTasks((prev) => prev.filter((task) => task.task_id !== taskId));
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.detail || 'Erneuter Versuch fehlgeschlagen');
+        toast.error(apiErrorMessage(err, t('retryFailed')));
       }
     } catch (error) {
       console.error('Failed to retry task:', error);
-      toast.error('Verbindungsfehler');
+      toast.error(t('common:connectionError'));
     } finally {
       setRetryingId(null);
     }
@@ -75,10 +78,9 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Fehlgeschlagene Transkriptionen</CardTitle>
+        <CardTitle>{t('title')}</CardTitle>
         <CardDescription>
-          Die Original-Aufnahme wird bei einem Fehler aufbewahrt statt gelöscht — hier kann die
-          Verarbeitung erneut angestoßen werden.
+          {t('description')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -89,12 +91,12 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
               className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
             >
               <div className="space-y-1">
-                <div className="font-medium">{task.title || `Aufnahme #${task.record_id}`}</div>
+                <div className="font-medium">{task.title || t('recording', { id: task.record_id })}</div>
                 <div className="text-sm text-muted-foreground">
-                  {task.error || 'Unbekannter Fehler'}
+                  {task.error || t('unknownError')}
                 </div>
                 <div className="text-xs text-muted-foreground/70">
-                  {new Date(task.updated_at).toLocaleString('de-DE')}
+                  {new Date(task.updated_at).toLocaleString(i18n.language)}
                 </div>
               </div>
               <Button
@@ -105,13 +107,13 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
                 onClick={() => retry(task.task_id)}
               >
                 <RotateCcw className="h-4 w-4" />
-                Erneut versuchen
+                {t('retry')}
               </Button>
             </div>
           ))}
           {tasks.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
-              Keine fehlgeschlagenen Transkriptionen
+              {t('empty')}
             </div>
           )}
         </div>

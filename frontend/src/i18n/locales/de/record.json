@@ -1,0 +1,49 @@
+{
+  "new": {
+    "title": "Neue Aufnahme",
+    "textTitle": "Aufnahmetext",
+    "placeholder": "Hier erscheint Ihr Transkript.",
+    "recording": "Aufnahme läuft... Klicken Sie zum Beenden.",
+    "idle": "Klicken Sie auf das Mikrofon, um zu starten."
+  },
+  "archive": {
+    "title": "Archiv",
+    "selectDate": "Wählen Sie links ein Datum aus, um die archivierten Transkriptionen dieses Tages zu sehen.",
+    "backToDates": "Zurück zur Datumsauswahl",
+    "count_one": "{{count}} Transkription",
+    "count_other": "{{count}} Transkriptionen",
+    "restore": "Wiederherstellen",
+    "delete": "Löschen",
+    "unknownDate": "Unbekanntes Datum",
+    "today": "Heute",
+    "yesterday": "Gestern"
+  },
+  "sidebar": {
+    "current": "Aktuell",
+    "archive": "Archiv",
+    "upload": "Audio hochladen",
+    "noArchived": "Keine archivierten Aufnahmen",
+    "none": "Keine Aufnahmen",
+    "active": "Aktiv",
+    "archiveAction": "Archivieren"
+  },
+  "recorder": {
+    "started": "Aufnahme gestartet",
+    "createFailed": "Fehler beim Erstellen der Aufnahme",
+    "processingToast": "Aufnahme wird verarbeitet...",
+    "wsError": "WebSocket Fehler",
+    "connectionLost": "Verbindung unterbrochen – bitte Aufnahme neu starten",
+    "startFailed": "Fehler beim Starten der Aufnahme",
+    "timeout": "Zeitüberschreitung – Aufnahme konnte nicht verarbeitet werden",
+    "alreadyDisconnected": "Verbindung bereits unterbrochen",
+    "paused": "Aufnahme pausiert",
+    "running": "Aufnahme läuft...",
+    "ready": "Aufnahme bereit",
+    "livePreviewNote": "Live-Vorschau dient nur der groben Übersicht während der Aufnahme — nicht das endgültige Transkriptionsergebnis.",
+    "speak": "Sprechen Sie, um die Transkription zu starten",
+    "processing": "Verarbeite Aufnahme...",
+    "stopTitle": "Aufnahme beenden",
+    "stopDescription": "Möchten Sie die Aufnahme wirklich beenden und speichern?",
+    "cancel": "Abbrechen"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Auto-archiving",
+  "description": "Automatically archives recordings once the period has elapsed (measured from the recording time) — same effect as “Archive” in the row menu. Archived recordings disappear from “Current” and can be restored at any time from the Archive tab.",
+  "enabled": "Archive automatically",
+  "days": "Period in days",
+  "daysInvalid": "Please enter a whole number between 1 and 3650.",
+  "daysInvalidToast": "Period must be a whole number between 1 and 3650",
+  "hint": "Checked every 6 hours; changed values take effect without a restart. Recordings manually restored from the archive are left alone until the period ends again.",
+  "saved": "Auto-archiving saved"
+}

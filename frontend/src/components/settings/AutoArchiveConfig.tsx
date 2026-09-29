@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Switch } from "@/components/ui/switch";
@@ -35,6 +37,7 @@ interface AutoArchiveSettings {
 type AutoArchiveSettingsResponse = Partial<AutoArchiveSettings>;
 
 export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) {
+  const { t } = useTranslation(["autoArchive", "common"]);
   const { authFetch } = useAuth();
   const [config, setConfig] = useState<AutoArchiveSettings>({
     auto_archive_enabled: false,
@@ -66,7 +69,7 @@ export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) 
 
   const saveConfig = async () => {
     if (daysInvalid) {
-      toast.error('Frist muss eine ganze Zahl zwischen 1 und 3650 sein');
+      toast.error(t('daysInvalidToast'));
       return;
     }
     setLoading(true);
@@ -77,13 +80,13 @@ export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) 
         body: JSON.stringify(config),
       });
       if (res.ok) {
-        toast.success('Auto-Archivierung gespeichert');
+        toast.success(t('saved'));
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.detail || 'Speichern fehlgeschlagen');
+        toast.error(apiErrorMessage(err, t('common:saveFailed')));
       }
     } catch {
-      toast.error('Verbindungsfehler');
+      toast.error(t('common:connectionError'));
     } finally {
       setLoading(false);
     }
@@ -92,12 +95,9 @@ export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Auto-Archivierung</CardTitle>
+        <CardTitle>{t('title')}</CardTitle>
         <CardDescription>
-          Archiviert Aufnahmen automatisch nach Ablauf der Frist (bezogen auf
-          die Uhrzeit der Aufnahme) — dieselbe Wirkung wie „Archivieren“ im
-          Zeilenmenü. Archivierte Aufnahmen verschwinden aus „Aktuell“ und sind
-          über den Archiv-Tab jederzeit wiederherstellbar.
+          {t('description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -110,10 +110,10 @@ export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) 
               setConfig((prev) => ({ ...prev, auto_archive_enabled: checked }))
             }
           />
-          <Label htmlFor="auto-archive-enabled">Automatisch archivieren</Label>
+          <Label htmlFor="auto-archive-enabled">{t('enabled')}</Label>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="auto-archive-days">Frist in Tagen</Label>
+          <Label htmlFor="auto-archive-days">{t('days')}</Label>
           <Input
             id="auto-archive-days"
             type="number"
@@ -134,13 +134,11 @@ export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) 
           />
           {daysInvalid && (
             <p className="text-xs text-destructive">
-              Bitte eine ganze Zahl zwischen 1 und 3650 eingeben.
+              {t('daysInvalid')}
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Prüflauf alle 6 Stunden; geänderte Werte greifen ohne Neustart.
-            Aufnahmen, die manuell aus dem Archiv zurückgeholt wurden, bleiben
-            unberührt, bis das Fristende erneut erreicht ist.
+            {t('hint')}
           </p>
         </div>
         <div className="pt-4 flex justify-end">
@@ -148,7 +146,7 @@ export function AutoArchiveConfig({ readOnly = false }: { readOnly?: boolean }) 
             onClick={saveConfig}
             disabled={loading || readOnly || daysInvalid}
           >
-            {loading ? 'Speichern...' : 'Speichern'}
+            {loading ? t('common:saving') : t('common:save')}
           </Button>
         </div>
       </CardContent>

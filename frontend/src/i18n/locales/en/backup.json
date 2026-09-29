@@ -1,0 +1,19 @@
+{
+  "export": {
+    "title": "Export",
+    "description": "Save all settings as a JSON file (Whisper, LLM, LDAP, categories, languages, terminology)",
+    "button": "Download backup",
+    "success": "Backup downloaded",
+    "failed": "Export failed"
+  },
+  "restore": {
+    "title": "Restore",
+    "description": "Import settings from a backup file. Overwrites all current values.",
+    "remove": "Remove",
+    "chooseFile": "Choose file",
+    "button": "Restore backup",
+    "noFile": "Please choose a file first",
+    "success": "Restored: {{items}}",
+    "failed": "Restore failed"
+  }
+}

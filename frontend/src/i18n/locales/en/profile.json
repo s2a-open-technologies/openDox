@@ -1,0 +1,33 @@
+{
+  "menu": "Profile",
+  "administration": "Administration",
+  "title": "Profile",
+  "tabs": {
+    "language": "Language",
+    "dictionary": "My dictionary",
+    "categories": "My categories",
+    "appearance": "Appearance"
+  },
+  "language": {
+    "heading": "Interface language",
+    "description": "Choose the language openDox is displayed in for you. The setting applies on all your devices.",
+    "label": "Language",
+    "saved": "Language saved",
+    "saveFailed": "Could not save language"
+  },
+  "dictionary": {
+    "heading": "My dictionary",
+    "description": "Your personal correction dictionary, applied to every one of your recordings regardless of the selected category."
+  },
+  "categories": {
+    "heading": "My categories",
+    "description": "Create and manage your own categories for your recordings. They are only visible to you, in addition to the globally provided categories."
+  },
+  "appearance": {
+    "heading": "Appearance",
+    "description": "Light, dark, or matching your operating system.",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  }
+}

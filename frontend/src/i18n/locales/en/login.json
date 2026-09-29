@@ -1,0 +1,11 @@
+{
+  "welcome": "Welcome back",
+  "subtitle": "Sign in to manage your recordings",
+  "username": "Username",
+  "password": "Password",
+  "submit": "Sign in",
+  "or": "or",
+  "sso": "Sign in with single sign-on",
+  "success": "Signed in successfully",
+  "failed": "Sign-in failed"
+}

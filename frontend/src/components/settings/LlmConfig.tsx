@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +48,7 @@ interface LlmSettings {
 type LlmSettingsResponse = Partial<LlmSettings>;
 
 const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
+    const { t } = useTranslation(['llm', 'common']);
     const { authFetch } = useAuth();
     const [testStatus, setTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
     const [testing, setTesting] = useState(false);
@@ -99,12 +102,12 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                 body: JSON.stringify(config),
             });
             if (res.ok) {
-                toast.success('Einstellungen gespeichert');
+                toast.success(t('saved'));
             } else {
-                toast.error('Speichern fehlgeschlagen');
+                toast.error(t('common:saveFailed'));
             }
         } catch {
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         }
     };
 
@@ -115,13 +118,13 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             const res = await authFetch('/api/v1/settings/llm-test/');
             const data = await res.json();
             if (data.ok) {
-                const reply = data.reply ? `„${data.reply}"` : 'keine Antwort erhalten';
-                setTestStatus({ ok: true, message: `Verbunden · Antwort: ${reply}` });
+                const reply = data.reply ? t('test.reply', { reply: data.reply }) : t('test.noReply');
+                setTestStatus({ ok: true, message: t('test.connected', { reply }) });
             } else {
-                setTestStatus({ ok: false, message: data.error || 'Unbekannter Fehler' });
+                setTestStatus({ ok: false, message: apiErrorMessage(data, t('test.unknownError')) });
             }
         } catch {
-            setTestStatus({ ok: false, message: 'Anfrage fehlgeschlagen' });
+            setTestStatus({ ok: false, message: t('test.requestFailed') });
         } finally {
             setTesting(false);
         }
@@ -131,14 +134,14 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         <div className="space-y-4">
             <Card>
                 <CardHeader>
-                    <CardTitle>LLM / Ollama Konfiguration</CardTitle>
+                    <CardTitle>{t('title')}</CardTitle>
                     <CardDescription>
-                        Konfiguration für Textgenerierung und Zusammenfassung
+                        {t('description')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label>API Endpoint</Label>
+                        <Label>{t('apiEndpoint')}</Label>
                         <Input 
                             placeholder="http://localhost:11434/v1" 
                             disabled={readOnly}
@@ -146,12 +149,12 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             onChange={(e) => updateField('llm_api_endpoint', e.target.value)} 
                         />
                         <p className="text-xs text-muted-foreground">
-                            Ollama, vLLM, oder jeder OpenAI-kompatible Endpoint
+                            {t('apiEndpointHint')}
                         </p>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>API Key (optional)</Label>
+                        <Label>{t('apiKeyOptional')}</Label>
                         <Input 
                             type="password" 
                             placeholder="sk-..." 
@@ -162,7 +165,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Modell</Label>
+                        <Label>{t('model')}</Label>
                         <Input 
                             placeholder="medgemma-4b-it:Q4_K_M" 
                             disabled={readOnly}
@@ -172,21 +175,21 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Korrektions-Modell (optional)</Label>
+                        <Label>{t('correctionModel')}</Label>
                         <Input
-                            placeholder="leer = gleich wie Zusammenfassungs-Modell"
+                            placeholder={t('correctionModelPlaceholder')}
                             disabled={readOnly}
                             value={config.correction_model}
                             onChange={(e) => updateField('correction_model', e.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Kleines schnelles Modell für Live-Ansicht-Korrektur bei Verwendung von Whisper für Near-Live, z.B. qwen2.5:0.5b
+                            {t('correctionModelHint')}
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Temperatur (0.0 - 1.0)</Label>
+                            <Label>{t('temperature')}</Label>
                             <Input 
                                 type="number" 
                                 min={0} 
@@ -198,7 +201,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Max Tokens</Label>
+                            <Label>{t('maxTokens')}</Label>
                             <Input
                                 type="number"
                                 min={128}
@@ -210,7 +213,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Top P (0.0 - 1.0)</Label>
+                            <Label>{t('topP')}</Label>
                             <Input
                                 type="number"
                                 min={0}
@@ -222,7 +225,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Frequency Penalty (-2.0 - 2.0)</Label>
+                            <Label>{t('frequencyPenalty')}</Label>
                             <Input
                                 type="number"
                                 min={-2}
@@ -243,11 +246,10 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 disabled={readOnly}
                                 onCheckedChange={(v) => updateField('llm_enable_thinking', v)}
                             />
-                            <Label htmlFor="llm-enable-thinking">Thinking aktivieren</Label>
+                            <Label htmlFor="llm-enable-thinking">{t('enableThinking')}</Label>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Standardmäßig deaktiviert: Reasoning-Modelle (z.B. MedGemma, Qwen3, DeepSeek-R1)
-                            können bei Zusammenfassungen sonst extrem lange brauchen oder hängen bleiben.
+                            {t('enableThinkingHint')}
                         </p>
                     </div>
                 </CardContent>
@@ -255,9 +257,9 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>PII-Sanitizer</CardTitle>
+                    <CardTitle>{t('sanitizer.title')}</CardTitle>
                     <CardDescription>
-                        Anonymisiert sensible Daten im Transkript bevor sie an das LLM gesendet werden
+                        {t('sanitizer.description')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -268,13 +270,13 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             disabled={readOnly}
                             onCheckedChange={(v) => updateField('sanitizer_enabled', v)}
                         />
-                        <Label htmlFor="sanitizer-enabled">Sanitizer aktivieren</Label>
+                        <Label htmlFor="sanitizer-enabled">{t('sanitizer.enable')}</Label>
                     </div>
 
                     {config.sanitizer_enabled && (
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Sanitizer Endpoint (vollständige URL)</Label>
+                                <Label>{t('sanitizer.endpoint')}</Label>
                                 <Input
                                     placeholder="http://entityguard:9500/api/v1/sanitize"
                                     disabled={readOnly}
@@ -283,10 +285,10 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>API Key (optional)</Label>
+                                <Label>{t('apiKeyOptional')}</Label>
                                 <Input
                                     type="password"
-                                    placeholder="Bearer Token"
+                                    placeholder={t('sanitizer.apiKeyPlaceholder')}
                                     disabled={readOnly}
                                     value={config.sanitizer_api_key}
                                     onChange={(e) => updateField('sanitizer_api_key', e.target.value)}
@@ -298,10 +300,10 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             </Card>
 
             <div className="flex gap-2">
-                <Button onClick={saveConfig} disabled={readOnly} className="flex-1">Einstellungen speichern</Button>
+                <Button onClick={saveConfig} disabled={readOnly} className="flex-1">{t('save')}</Button>
                 <Button onClick={testConnection} variant="outline" disabled={testing || readOnly} className="gap-2">
                     {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Verbindung testen
+                    {t('testConnection')}
                 </Button>
             </div>
 

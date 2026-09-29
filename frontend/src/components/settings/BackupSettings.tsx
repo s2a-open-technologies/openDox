@@ -18,14 +18,17 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
 import { useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Upload, Loader2, FileJson } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
+    const { t } = useTranslation('backup');
     const { authFetch } = useAuth();
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [exporting, setExporting] = useState(false);
@@ -37,7 +40,7 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
         try {
             const res = await authFetch('/api/v1/settings/backup/');
             if (!res.ok) {
-                throw new Error('Export fehlgeschlagen');
+                throw new Error(t('export.failed'));
             }
             const blob = await res.blob();
             const disposition = res.headers.get('content-disposition') || '';
@@ -51,9 +54,9 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            toast.success('Backup heruntergeladen');
+            toast.success(t('export.success'));
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Export fehlgeschlagen');
+            toast.error(err instanceof Error ? err.message : t('export.failed'));
         } finally {
             setExporting(false);
         }
@@ -66,7 +69,7 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
 
     const handleImport = async () => {
         if (!selectedFile) {
-            toast.error('Bitte zuerst eine Datei auswählen');
+            toast.error(t('restore.noFile'));
             return;
         }
         setImporting(true);
@@ -79,16 +82,16 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || 'Wiederherstellung fehlgeschlagen');
+                throw new Error(apiErrorMessage(err, t('restore.failed')));
             }
             const data = await res.json();
-            toast.success(`Wiederhergestellt: ${(data.restored || []).join(', ')}`);
+            toast.success(t('restore.success', { items: (data.restored || []).join(', ') }));
             setSelectedFile(null);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Wiederherstellung fehlgeschlagen');
+            toast.error(err instanceof Error ? err.message : t('restore.failed'));
         } finally {
             setImporting(false);
         }
@@ -98,24 +101,24 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
         <div className="space-y-4">
             <Card>
                 <CardHeader>
-                    <CardTitle>Export</CardTitle>
+                    <CardTitle>{t('export.title')}</CardTitle>
                     <CardDescription>
-                        Alle Einstellungen als JSON-Datei sichern (Whisper, LLM, LDAP, Kategorien, Sprachen, Terminologie)
+                        {t('export.description')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Button onClick={handleExport} disabled={exporting || readOnly} className="gap-2">
                         {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                        Backup herunterladen
+                        {t('export.button')}
                     </Button>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Wiederherstellung</CardTitle>
+                    <CardTitle>{t('restore.title')}</CardTitle>
                     <CardDescription>
-                        Einstellungen aus einer Backup-Datei einspielen. Überschreibt alle aktuellen Werte.
+                        {t('restore.description')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -146,7 +149,7 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     if (fileInputRef.current) fileInputRef.current.value = '';
                                 }}
                             >
-                                Entfernen
+                                {t('restore.remove')}
                             </Button>
                         </div>
                     ) : (
@@ -158,7 +161,7 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             onClick={() => fileInputRef.current?.click()}
                         >
                             <Upload className="w-4 h-4" />
-                            Datei auswählen
+                            {t('restore.chooseFile')}
                         </Button>
                     )}
                     <Button
@@ -167,7 +170,7 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                         className="gap-2"
                     >
                         {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                        Backup einspielen
+                        {t('restore.button')}
                     </Button>
                 </CardContent>
             </Card>

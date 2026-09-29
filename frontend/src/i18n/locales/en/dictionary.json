@@ -1,0 +1,8 @@
+{
+  "loadFailed": "Dictionary could not be loaded",
+  "saved": "Dictionary saved",
+  "title": "Own terms",
+  "description": "Are automatically corrected phonetically in each of your recordings — visible only to you, not even to administrators.",
+  "placeholder": "Sertraline, metformin, ibuprofen ...",
+  "hint": "Comma-, semicolon- or line-separated terms. Merged with the glossary of the selected category during the final transcription."
+}

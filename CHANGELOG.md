@@ -12,6 +12,35 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Mehrsprachige Oberfläche (Deutsch/English)** — komplette UI über
+  `i18next`/`react-i18next`; Übersetzungen als JSON unter
+  `frontend/src/i18n/locales/<lang>/`, weitere Sprachen brauchen nur einen
+  neuen Ordner (siehe AGENTS.md → "i18n"). Ein Test stellt sicher, dass alle
+  Sprachen dieselben Schlüssel und Platzhalter haben.
+- **Profil-Dialog** (`ProfileModal.tsx`) statt Einzel-Einträgen im Nutzermenü:
+  Sprache, Mein Wörterbuch, Meine Kategorien und Design (Hell/Dunkel).
+- **UI-Sprache pro Nutzer** — `User.ui_language` (Migration
+  `d7a1c3e95b26`), `GET`/`PUT /api/v1/settings/my-language/`, zusätzlich in
+  `/auth/me`.
+- **Übersetzbare API-Fehler** — häufige Fehlermeldungen des Backends liefern
+  jetzt `detail: {code, message, params}` (`api_error()`); das Frontend
+  übersetzt sie über `errors.json`.
+
+### Changed
+
+- Nutzermenü: "Profil" und (für Admin/Moderator/Demo-Viewer) "Administration"
+  ersetzen die Einträge "Design wechseln", "Meine Kategorien" und "Mein
+  Wörterbuch". `MyCategoriesModal`/`MyDictionaryModal` entfallen.
+- Zeitstempel in der Aufnahmeliste werden je nach Sprache formatiert
+  (ohne Sekunden).
+- Hinweistext zum Schwellenwert der Fachbegriff-Korrektur nennt jetzt das
+  Feld "Korrektur-Glossar" statt "Whisper-Prompt".
+- Fehlerantworten mit `detail` sind bei den umgestellten Fällen ein Objekt
+  statt eines Strings (API-Clients, die `detail` als Text lesen, nutzen
+  `detail.message`).
+
 ## [0.8.2] — 2026-09-29
 
 ### Added

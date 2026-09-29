@@ -31,6 +31,11 @@ from backend.components.security.field_encryption import EncryptedString
 # einzig Kategorien bleiben für diese Rolle bearbeitbar.
 ROLES = ("admin", "moderator", "demo_viewer", "user")
 
+# UI languages the frontend ships translations for (frontend/src/i18n). Add a
+# code here together with its locale folder. Not to be confused with the
+# transcription language (WhisperSettingsModel.language).
+UI_LANGUAGES = ("de", "en")
+
 
 class User(SQLModel, table=True):
     """User model for authentication and role management."""
@@ -41,6 +46,9 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     role: str = Field(default="user", index=True)
     disclaimer_accepted_at: Optional[datetime] = Field(default=None)
+    # Preferred UI language (one of UI_LANGUAGES); None = not chosen yet, the
+    # frontend then falls back to the browser language.
+    ui_language: Optional[str] = Field(default=None)
     # Free-text glossary (same comma/semicolon/newline format as
     # Categories.glossary), private to the owner — merged with the
     # selected recording's category glossary at term-correction time. Never
@@ -78,6 +86,7 @@ class UserRead(UserBase):
     is_active: bool
     role: str
     disclaimer_accepted_at: Optional[datetime] = None
+    ui_language: Optional[str] = None
 
 
 class UserLogin(SQLModel):
@@ -111,3 +120,15 @@ class PersonalGlossaryUpdate(SQLModel):
     """Schema for updating the current user's personal glossary."""
 
     personal_glossary: Optional[str] = None
+
+
+class UiLanguageRead(SQLModel):
+    """Schema for reading the current user's UI language."""
+
+    ui_language: Optional[str] = None
+
+
+class UiLanguageUpdate(SQLModel):
+    """Schema for updating the current user's UI language."""
+
+    ui_language: str

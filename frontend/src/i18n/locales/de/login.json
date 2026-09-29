@@ -1,0 +1,11 @@
+{
+  "welcome": "Willkommen zurück",
+  "subtitle": "Melden Sie sich an, um Ihre Aufnahmen zu verwalten",
+  "username": "Username",
+  "password": "Passwort",
+  "submit": "Anmelden",
+  "or": "oder",
+  "sso": "Mit Single Sign-On anmelden",
+  "success": "Erfolgreich angemeldet",
+  "failed": "Anmeldung fehlgeschlagen"
+}

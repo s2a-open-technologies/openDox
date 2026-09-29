@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Switch } from "@/components/ui/switch";
@@ -38,6 +39,7 @@ type AudioSettingsResponse = Partial<AudioSettings>;
 const BITRATE_FORMATS = new Set(["mp3", "ogg"]);
 
 export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
+  const { t, i18n } = useTranslation(["audio", "common"]);
   const { authFetch } = useAuth();
   const [config, setConfig] = useState<AudioSettings>({
     audio_download_enabled: true,
@@ -74,12 +76,12 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
         body: JSON.stringify(config),
       });
       if (res.ok) {
-        toast.success('Audio-Einstellungen gespeichert');
+        toast.success(t('saved'));
       } else {
-        toast.error('Speichern fehlgeschlagen');
+        toast.error(t('common:saveFailed'));
       }
     } catch {
-      toast.error('Verbindungsfehler');
+      toast.error(t('common:connectionError'));
     } finally {
       setLoading(false);
     }
@@ -88,9 +90,9 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Audio-Download</CardTitle>
+        <CardTitle>{t('title')}</CardTitle>
         <CardDescription>
-          Audio-Export für Aufnahmen (mono, konfigurierbares Format/Qualität). Gilt nur für neue Aufnahmen.
+          {t('description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -101,10 +103,10 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
             disabled={readOnly}
             onCheckedChange={(checked) => updateField('audio_download_enabled', checked)}
           />
-          <Label htmlFor="audio-enabled">Audio speichern</Label>
+          <Label htmlFor="audio-enabled">{t('enabled')}</Label>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="audio-format">Dateiformat</Label>
+          <Label htmlFor="audio-format">{t('format')}</Label>
           <select
             id="audio-format"
             value={config.audio_format}
@@ -112,15 +114,15 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
             onChange={(e) => updateField('audio_format', e.target.value)}
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
-            <option value="mp3">MP3 (verlustbehaftet, kleinste Datei)</option>
-            <option value="ogg">OGG/Opus (verlustbehaftet, modern & effizient)</option>
-            <option value="flac">FLAC (verlustfrei komprimiert)</option>
-            <option value="wav">WAV (unkomprimiert, größte Datei)</option>
+            <option value="mp3">{t('formats.mp3')}</option>
+            <option value="ogg">{t('formats.ogg')}</option>
+            <option value="flac">{t('formats.flac')}</option>
+            <option value="wav">{t('formats.wav')}</option>
           </select>
         </div>
         {BITRATE_FORMATS.has(config.audio_format) && (
           <div className="space-y-2">
-            <Label htmlFor="audio-bitrate">Bitrate (Qualität/Größe)</Label>
+            <Label htmlFor="audio-bitrate">{t('bitrate')}</Label>
             <select
               id="audio-bitrate"
               value={config.audio_bitrate}
@@ -128,20 +130,20 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
               onChange={(e) => updateField('audio_bitrate', e.target.value)}
               className="w-full px-3 py-2 border rounded-md bg-background"
             >
-              <option value="32k">32 kbit/s (~0,4 MB/min)</option>
-              <option value="48k">48 kbit/s (~0,6 MB/min)</option>
-              <option value="64k">64 kbit/s (~0,8 MB/min)</option>
-              <option value="96k">96 kbit/s (~1,2 MB/min)</option>
-              <option value="128k">128 kbit/s (~1,5 MB/min)</option>
-              <option value="160k">160 kbit/s (~1,9 MB/min)</option>
-              <option value="192k">192 kbit/s (~2,3 MB/min)</option>
-              <option value="256k">256 kbit/s (~3,0 MB/min)</option>
-              <option value="320k">320 kbit/s (~3,8 MB/min)</option>
+              <option value="32k">{t('bitrateOption', { kbit: 32, size: (0.4).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="48k">{t('bitrateOption', { kbit: 48, size: (0.6).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="64k">{t('bitrateOption', { kbit: 64, size: (0.8).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="96k">{t('bitrateOption', { kbit: 96, size: (1.2).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="128k">{t('bitrateOption', { kbit: 128, size: (1.5).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="160k">{t('bitrateOption', { kbit: 160, size: (1.9).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="192k">{t('bitrateOption', { kbit: 192, size: (2.3).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="256k">{t('bitrateOption', { kbit: 256, size: (3.0).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
+              <option value="320k">{t('bitrateOption', { kbit: 320, size: (3.8).toLocaleString(i18n.language, { minimumFractionDigits: 1 }) })}</option>
             </select>
           </div>
         )}
         <div className="space-y-2">
-          <Label htmlFor="audio-sample-rate">Sample-Rate (Hz)</Label>
+          <Label htmlFor="audio-sample-rate">{t('sampleRate')}</Label>
           <select
             id="audio-sample-rate"
             value={config.audio_sample_rate.toString()}
@@ -149,17 +151,17 @@ export function AudioConfig({ readOnly = false }: { readOnly?: boolean }) {
             onChange={(e) => updateField('audio_sample_rate', parseInt(e.target.value))}
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
-            <option value="16000">16000 Hz (native, kleinste Datei)</option>
-            <option value="22050">22050 Hz</option>
-            <option value="44100">44100 Hz (Standard-Audio, größer)</option>
+            <option value="16000">{t('rates.16000')}</option>
+            <option value="22050">{t('rates.22050')}</option>
+            <option value="44100">{t('rates.44100')}</option>
           </select>
         </div>
         <p className="text-xs text-muted-foreground">
-          Mono erzwungen. Wenn ffmpeg nicht verfügbar ist, wird kein Audio gespeichert.
+          {t('note')}
         </p>
         <div className="pt-4 flex justify-end">
           <Button onClick={saveConfig} disabled={loading || readOnly}>
-            {loading ? 'Speichern...' : 'Speichern'}
+            {loading ? t('common:saving') : t('common:save')}
           </Button>
         </div>
       </CardContent>

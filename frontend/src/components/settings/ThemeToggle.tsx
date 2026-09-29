@@ -21,9 +21,11 @@
 import { Moon, Sun, Laptop } from "lucide-react"
 import { useTheme } from "@/contexts/ThemeContext"
 import { Button } from "@/components/ui/button"
+import { useTranslation } from "react-i18next"
 
 export function ThemeToggle() {
     const { theme, setTheme } = useTheme()
+    const { t } = useTranslation('profile')
 
     return (
         <div className="flex gap-2">
@@ -34,7 +36,7 @@ export function ThemeToggle() {
                 className="gap-2"
             >
                 <Sun className="h-4 w-4" />
-                Light
+                {t('appearance.light')}
             </Button>
             <Button
                 variant={theme === 'dark' ? 'default' : 'outline'}
@@ -43,7 +45,7 @@ export function ThemeToggle() {
                 className="gap-2"
             >
                 <Moon className="h-4 w-4" />
-                Dark
+                {t('appearance.dark')}
             </Button>
             <Button
                 variant={theme === 'system' ? 'default' : 'outline'}
@@ -52,7 +54,7 @@ export function ThemeToggle() {
                 className="gap-2"
             >
                 <Laptop className="h-4 w-4" />
-                System
+                {t('appearance.system')}
             </Button>
         </div>
     )

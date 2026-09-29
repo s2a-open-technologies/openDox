@@ -1,0 +1,28 @@
+{
+  "listTitle": "Benutzerliste",
+  "listDescription": "Verwalten Sie lokale Benutzerkonten",
+  "create": "Benutzer anlegen",
+  "active": "Aktiv",
+  "inactive": "Inaktiv",
+  "empty": "Keine Benutzer vorhanden",
+  "dialog": {
+    "editTitle": "Benutzer bearbeiten",
+    "createTitle": "Neuen Benutzer anlegen",
+    "editDescription": "Bearbeiten Sie die Benutzerdaten. Passwort leer lassen um es nicht zu aendern.",
+    "createDescription": "Legen Sie einen neuen lokalen Benutzer an.",
+    "username": "Benutzername",
+    "usernamePlaceholder": "z.B. dr.mueller",
+    "password": "Passwort",
+    "passwordUnchanged": "(leer = unveraendert)",
+    "isActive": "Aktiv",
+    "role": "Rolle",
+    "update": "Aktualisieren",
+    "add": "Anlegen"
+  },
+  "operationFailed": "Operation fehlgeschlagen",
+  "updated": "Benutzer aktualisiert",
+  "created": "Benutzer angelegt",
+  "confirmDelete": "Moechten Sie diesen Benutzer wirklich loeschen?",
+  "deleted": "Benutzer gelöscht",
+  "deleteFailed": "Loeschung fehlgeschlagen"
+}

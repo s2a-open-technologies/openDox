@@ -33,6 +33,11 @@ globalThis.ResizeObserver = ResizeObserverMock;
 
 import "@/api";
 
+// Synchronously initialised i18next (German by default) so components using
+// useTranslation() work in tests without a provider.
+import i18n from "@/i18n";
+i18n.changeLanguage("de");
+
 // Reset the mocked system clock between test files so setSystemTime() in one
 // file can't leak "frozen new Date()" into another file's expectations.
 afterEach(() => {

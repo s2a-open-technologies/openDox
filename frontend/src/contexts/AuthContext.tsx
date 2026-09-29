@@ -20,6 +20,7 @@
 
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { BASE_PATH } from '../api';
+import { applyUiLanguage, isSupportedLanguage, type UiLanguage } from '@/i18n';
 
 // Typen definieren
 type User = {
@@ -29,6 +30,7 @@ type User = {
   authenticated: boolean;
   role: 'admin' | 'moderator' | 'demo_viewer' | 'user';
   disclaimer_accepted_at?: string | null;
+  ui_language?: string | null;
 };
 
 type AuthContextType = {
@@ -39,6 +41,7 @@ type AuthContextType = {
   logout: () => Promise<void>;
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   acceptDisclaimer: () => Promise<boolean>;
+  updateUiLanguage: (code: UiLanguage) => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,7 +85,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           authenticated: true,
           role: data.role,
           disclaimer_accepted_at: data.disclaimer_accepted_at ?? null,
+          ui_language: data.ui_language ?? null,
         });
+        // The stored per-user language wins over the pre-login fallback.
+        if (isSupportedLanguage(data.ui_language)) {
+          await applyUiLanguage(data.ui_language);
+        }
         setIsAuthenticated(true);
       } else {
         setUser(null);
@@ -175,6 +183,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // UI-Sprache serverseitig speichern, dann lokal anwenden
+  const updateUiLanguage = async (code: UiLanguage): Promise<boolean> => {
+    try {
+      const res = await authFetch("/api/v1/settings/my-language/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ui_language: code }),
+      });
+      if (!res.ok) return false;
+      setUser((prev) => (prev ? { ...prev, ui_language: code } : prev));
+      await applyUiLanguage(code);
+      return true;
+    } catch (error) {
+      console.error("Error saving UI language:", error);
+      return false;
+    }
+  };
+
   // Beim Laden des Kontexts versuchen, den Benutzerstatus wiederherzustellen
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -193,6 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout,
     authFetch,
     acceptDisclaimer,
+    updateUiLanguage,
   };
 
   return (

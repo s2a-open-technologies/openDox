@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,7 @@ interface LdapSettingsData {
 type LdapSettingsResponse = Partial<LdapSettingsData>;
 
 const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
+    const { t } = useTranslation(['ldap', 'common']);
     const { authFetch } = useAuth();
     const [settings, setSettings] = useState<LdapSettingsData>({
         server_host: '',
@@ -101,12 +103,12 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 body: JSON.stringify(settings),
             });
             if (res.ok) {
-                toast.success('LDAP-Einstellungen gespeichert');
+                toast.success(t('saved'));
             } else {
-                toast.error('Speichern fehlgeschlagen');
+                toast.error(t('common:saveFailed'));
             }
         } catch {
-            toast.error('Verbindungsfehler');
+            toast.error(t('common:connectionError'));
         } finally {
             setLoading(false);
         }
@@ -164,14 +166,14 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>LDAP Konfiguration</CardTitle>
-                <CardDescription>Verbinden Sie Ihre Benutzerverwaltung</CardDescription>
+                <CardTitle>{t('title')}</CardTitle>
+                <CardDescription>{t('description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Server Host</Label>
+                            <Label>{t('host')}</Label>
                             <Input
                                 value={settings.server_host}
                                 disabled={readOnly}
@@ -180,7 +182,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Port</Label>
+                            <Label>{t('port')}</Label>
                             <Input
                                 type="number"
                                 value={settings.server_port}
@@ -197,12 +199,12 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             disabled={readOnly}
                             onCheckedChange={handleSSLChange}
                         />
-                        <Label htmlFor="use-ssl">SSL (LDAPS) verwenden</Label>
+                        <Label htmlFor="use-ssl">{t('useSsl')}</Label>
                     </div>
 
                     {settings.use_ssl && (
                         <div className="space-y-2 p-4 border rounded-md bg-muted/30">
-                            <Label>Zertifikat hochladen</Label>
+                            <Label>{t('uploadCert')}</Label>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="file"
@@ -218,7 +220,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     onClick={handleCertUpload}
                                     disabled={!certFile || certUploading || readOnly}
                                 >
-                                    {certUploading ? 'Lädt...' : <><Upload className="w-4 h-4 mr-1" /> Upload</>}
+                                    {certUploading ? t('uploading') : <><Upload className="w-4 h-4 mr-1" /> {t('upload')}</>}
                                 </Button>
                             </div>
                             {settings.cert_filename && (
@@ -232,7 +234,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     )}
 
                     <div className="space-y-2">
-                        <Label>Base DN</Label>
+                        <Label>{t('baseDn')}</Label>
                         <Input
                             value={settings.base_dn}
                             disabled={readOnly}
@@ -242,7 +244,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>User DN Pattern (uid or sAMAccountName)</Label>
+                        <Label>{t('userDn')}</Label>
                         <Input
                             value={settings.user_dn}
                             disabled={readOnly}
@@ -252,7 +254,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Suchfilter (optional)</Label>
+                        <Label>{t('searchFilter')}</Label>
                         <Input
                             value={settings.search_filter}
                             disabled={readOnly}
@@ -260,12 +262,12 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             placeholder="(memberOf=cn=opendox,ou=groups,dc=example,dc=com)"
                         />
                         <p className="text-xs text-muted-foreground">
-                            LDAP-Filter, um Login auf bestimmte Gruppen einzuschränken. Wird mit der User-Suche per AND verknüpft.
+                            {t('searchFilterHint')}
                         </p>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Erlaubte Gruppen (Komma-getrennt)</Label>
+                        <Label>{t('allowedGroups')}</Label>
                         <Input
                             value={settings.allowed_groups}
                             disabled={readOnly}
@@ -273,12 +275,12 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             placeholder="opendox-user"
                         />
                         <p className="text-xs text-muted-foreground">
-                            Nur Gruppennamen, kein DN — die App baut den DN selbst (cn=Name,Base DN). Leer lassen = alle erfolgreich authentifizierten LDAP-User dürfen sich anmelden.
+                            {t('allowedGroupsHint')}
                         </p>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Admin-Gruppen (Komma-getrennt)</Label>
+                        <Label>{t('adminGroups')}</Label>
                         <Input
                             value={settings.admin_groups}
                             disabled={readOnly}
@@ -288,7 +290,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Moderator-Gruppen (Komma-getrennt)</Label>
+                        <Label>{t('moderatorGroups')}</Label>
                         <Input
                             value={settings.moderator_groups}
                             disabled={readOnly}
@@ -296,12 +298,12 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             placeholder="opendox-moderatoren"
                         />
                         <p className="text-xs text-muted-foreground">
-                            Bei Mitgliedschaft in Admin- und Moderator-Gruppe gewinnt Admin.
+                            {t('moderatorGroupsHint')}
                         </p>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Bind User DN</Label>
+                        <Label>{t('bindUserDn')}</Label>
                         <Input
                             value={settings.bind_user_dn}
                             disabled={readOnly}
@@ -311,7 +313,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Bind User Password</Label>
+                        <Label>{t('bindUserPassword')}</Label>
                         <Input
                             type="password"
                             value={settings.bind_user_password}
@@ -321,8 +323,8 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </div>
 
                     <div className="flex space-x-2 pt-4">
-                        <Button type="submit" disabled={loading || readOnly}>Speichern</Button>
-                        <Button type="button" variant="outline" onClick={handleTest} disabled={loading || readOnly}>Verbindung testen</Button>
+                        <Button type="submit" disabled={loading || readOnly}>{t('common:save')}</Button>
+                        <Button type="button" variant="outline" onClick={handleTest} disabled={loading || readOnly}>{t('testConnection')}</Button>
                     </div>
                 </form>
             </CardContent>

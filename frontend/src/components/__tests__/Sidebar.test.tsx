@@ -92,7 +92,7 @@ describe("Sidebar", () => {
 
     expect(screen.getAllByText("Aufnahme Kardiologie").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Aufnahme Neurologie").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("22.09.2026 10:00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("22.09.2026, 10:00").length).toBeGreaterThan(0);
   });
 
   it("calls onSelectRecording and closes the mobile drawer when a recording is clicked", async () => {

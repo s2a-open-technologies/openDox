@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +29,7 @@ import { Mic, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 const Login = () => {
+  const { t } = useTranslation("login");
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
   const [oidcEnabled, setOidcEnabled] = useState(false);
@@ -66,12 +68,12 @@ const Login = () => {
     try {
       const success = await login(user, password);
       if (success) {
-        toast.success("Erfolgreich angemeldet");
+        toast.success(t("success"));
       } else {
-        toast.error("Anmeldung fehlgeschlagen");
+        toast.error(t("failed"));
       }
     } catch (error) {
-      toast.error("Anmeldung fehlgeschlagen");
+      toast.error(t("failed"));
     }
   };
 
@@ -88,9 +90,9 @@ const Login = () => {
           <div className="mx-auto w-12 h-12 bg-primary rounded-full flex items-center justify-center">
             <Mic className="w-6 h-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">Willkommen zurück</CardTitle>
+          <CardTitle className="text-2xl">{t("welcome")}</CardTitle>
           <CardDescription>
-            Melden Sie sich an, um Ihre Aufnahmen zu verwalten
+            {t("subtitle")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -98,7 +100,7 @@ const Login = () => {
             <div className="space-y-2">
               <Input
                 type="text"
-                placeholder="Username"
+                placeholder={t("username")}
                 value={user}
                 onChange={(e) => setUser(e.target.value)}
                 required
@@ -107,14 +109,14 @@ const Login = () => {
             <div className="space-y-2">
               <Input
                 type="password"
-                placeholder="Passwort"
+                placeholder={t("password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
             <Button type="submit" className="w-full">
-              Anmelden
+              {t("submit")}
             </Button>
 
             {oidcEnabled && (
@@ -124,7 +126,7 @@ const Login = () => {
                     <span className="w-full border-t" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">oder</span>
+                    <span className="bg-card px-2 text-muted-foreground">{t("or")}</span>
                   </div>
                 </div>
                 <Button
@@ -134,7 +136,7 @@ const Login = () => {
                   onClick={handleOidcLogin}
                 >
                   <KeyRound className="w-4 h-4" />
-                  Mit Single Sign-On anmelden
+                  {t("sso")}
                 </Button>
               </>
             )}

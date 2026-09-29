@@ -22,6 +22,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Activity } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 type ServiceStatus = 'online' | 'offline' | 'disabled';
 
@@ -37,12 +38,13 @@ const statusDotClass: Record<ServiceStatus, string> = {
 };
 
 const statusLabel: Record<ServiceStatus, string> = {
-    online: 'Online',
-    offline: 'Nicht erreichbar',
-    disabled: 'Deaktiviert',
+    online: 'status.online',
+    offline: 'status.offline',
+    disabled: 'status.disabled',
 };
 
 const SystemSettings = () => {
+    const { t, i18n } = useTranslation('system');
     const { authFetch } = useAuth();
     const [services, setServices] = useState<ServiceHealth[]>([]);
     const [lastChecked, setLastChecked] = useState<Date | null>(null);
@@ -78,7 +80,7 @@ const SystemSettings = () => {
             <Card>
                 <CardHeader>
                     <CardTitle>
-                        Systemstatus
+                        {t('title')}
                         {version && (
                             <span className="ml-2 text-sm font-normal text-muted-foreground">
                                 v{version}
@@ -86,7 +88,7 @@ const SystemSettings = () => {
                         )}
                     </CardTitle>
                     <CardDescription>
-                        {lastChecked ? `Zuletzt geprüft: ${lastChecked.toLocaleTimeString()}` : 'Prüfe...'}
+                        {lastChecked ? t('lastChecked', { time: lastChecked.toLocaleTimeString(i18n.language) }) : t('checking')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -96,11 +98,11 @@ const SystemSettings = () => {
                                 <div className="p-2 bg-muted rounded-full">
                                     <Activity className="w-6 h-6 text-foreground" />
                                 </div>
-                                <h4 className="font-medium">Dienste</h4>
+                                <h4 className="font-medium">{t('services')}</h4>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                                <span className="font-medium">Prüfung...</span>
+                                <span className="font-medium">{t('probing')}</span>
                             </div>
                         </div>
                     )}
@@ -113,11 +115,11 @@ const SystemSettings = () => {
                                 <div className="p-2 bg-muted rounded-full">
                                     <Activity className="w-6 h-6 text-foreground" />
                                 </div>
-                                <h4 className="font-medium">{service.name}</h4>
+                                <h4 className="font-medium">{t(`serviceNames.${service.name}`, { defaultValue: service.name })}</h4>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className={`w-3 h-3 rounded-full ${statusDotClass[service.status]}`} />
-                                <span className="font-medium">{statusLabel[service.status]}</span>
+                                <span className="font-medium">{t(statusLabel[service.status])}</span>
                             </div>
                         </div>
                     ))}

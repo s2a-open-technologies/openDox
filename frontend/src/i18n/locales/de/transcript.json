@@ -1,0 +1,47 @@
+{
+  "empty": {
+    "title": "Keine Aufnahme ausgewählt",
+    "description": "Wählen Sie eine Aufnahme aus der Seitenleiste aus, um das Transkript anzuzeigen.",
+    "start": "Neue Aufnahme starten"
+  },
+  "status": {
+    "finished": "Fertig",
+    "error": "Fehler"
+  },
+  "processing": {
+    "llm": "KI erstellt Zusammenfassung...",
+    "transcribing": "Transkription läuft..."
+  },
+  "copy": "Kopieren",
+  "summary": {
+    "regenerated": "Zusammenfassung neu generiert",
+    "updatedFor": "Zusammenfassung für „{{title}}\" aktualisiert",
+    "regenerateFailed": "Fehler beim Generieren der Zusammenfassung",
+    "regenerate": "Zusammenfassung neu generieren",
+    "copyLabel": "Zusammenfassung kopieren",
+    "none": "Noch keine Zusammenfassung verfügbar",
+    "title": "Zusammenfassung"
+  },
+  "download": {
+    "failed": "Download fehlgeschlagen"
+  },
+  "categoryPlaceholder": "Kategorie auswählen...",
+  "audio": "Audio",
+  "save": "Speichern",
+  "saving": "Speichere...",
+  "newRecording": "Neue Aufnahme",
+  "unsaved": "Ungespeicherte Änderungen vorhanden",
+  "title": "Transkript",
+  "confirmFirst": "Bitte zuerst Bestätigungshaken setzen",
+  "placeholder": "Transkript...",
+  "markdownPreview": "Markdown-Vorschau",
+  "edit": "Bearbeiten",
+  "preview": "Vorschau",
+  "confirmLabel": "Ich habe den Text sorgfältig überprüft und ggf. korrigiert. Ich übernehme die Verantwortung für den kopierten Inhalt.",
+  "dialog": {
+    "title": "Verantwortung übernehmen",
+    "description": "Mit der Bestätigung übernehmen Sie die Verantwortung für den kopierten Inhalt und bestätigen die korrekte Übergabe an eine Fachkraft. Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "title": "LLM / Ollama Konfiguration",
+  "description": "Konfiguration für Textgenerierung und Zusammenfassung",
+  "apiEndpoint": "API Endpoint",
+  "apiEndpointHint": "Ollama, vLLM, oder jeder OpenAI-kompatible Endpoint",
+  "apiKeyOptional": "API Key (optional)",
+  "model": "Modell",
+  "correctionModel": "Korrektions-Modell (optional)",
+  "correctionModelPlaceholder": "leer = gleich wie Zusammenfassungs-Modell",
+  "correctionModelHint": "Kleines schnelles Modell für Live-Ansicht-Korrektur bei Verwendung von Whisper für Near-Live, z.B. qwen2.5:0.5b",
+  "temperature": "Temperatur (0.0 - 1.0)",
+  "maxTokens": "Max Tokens",
+  "topP": "Top P (0.0 - 1.0)",
+  "frequencyPenalty": "Frequency Penalty (-2.0 - 2.0)",
+  "enableThinking": "Thinking aktivieren",
+  "enableThinkingHint": "Standardmäßig deaktiviert: Reasoning-Modelle (z.B. MedGemma, Qwen3, DeepSeek-R1) können bei Zusammenfassungen sonst extrem lange brauchen oder hängen bleiben.",
+  "sanitizer": {
+    "title": "PII-Sanitizer",
+    "description": "Anonymisiert sensible Daten im Transkript bevor sie an das LLM gesendet werden",
+    "enable": "Sanitizer aktivieren",
+    "endpoint": "Sanitizer Endpoint (vollständige URL)",
+    "apiKeyPlaceholder": "Bearer Token"
+  },
+  "save": "Einstellungen speichern",
+  "testConnection": "Verbindung testen",
+  "saved": "Einstellungen gespeichert",
+  "test": {
+    "connected": "Verbunden · Antwort: {{reply}}",
+    "reply": "„{{reply}}\"",
+    "noReply": "keine Antwort erhalten",
+    "unknownError": "Unbekannter Fehler",
+    "requestFailed": "Anfrage fehlgeschlagen"
+  }
+}

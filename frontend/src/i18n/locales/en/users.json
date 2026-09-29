@@ -1,0 +1,28 @@
+{
+  "listTitle": "User list",
+  "listDescription": "Manage local user accounts",
+  "create": "Add user",
+  "active": "Active",
+  "inactive": "Inactive",
+  "empty": "No users",
+  "dialog": {
+    "editTitle": "Edit user",
+    "createTitle": "Add new user",
+    "editDescription": "Edit the user data. Leave the password empty to keep it unchanged.",
+    "createDescription": "Create a new local user.",
+    "username": "Username",
+    "usernamePlaceholder": "e.g. dr.mueller",
+    "password": "Password",
+    "passwordUnchanged": "(empty = unchanged)",
+    "isActive": "Active",
+    "role": "Role",
+    "update": "Update",
+    "add": "Create"
+  },
+  "operationFailed": "Operation failed",
+  "updated": "User updated",
+  "created": "User created",
+  "confirmDelete": "Do you really want to delete this user?",
+  "deleted": "User deleted",
+  "deleteFailed": "Deletion failed"
+}

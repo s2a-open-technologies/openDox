@@ -18,6 +18,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { apiErrorMessage } from '@/lib/apiError';
+import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import Recorder, { RecorderHandle, RecordingStartData } from "@/components/Recorder";
@@ -81,6 +83,7 @@ interface RecordData {
 }
 
 const Dashboard = () => {
+  const { t, i18n } = useTranslation(["dashboard", "disclaimer"]);
   const { user, authFetch } = useAuth();
   const recorderRef = useRef<RecorderHandle>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
@@ -190,15 +193,15 @@ const Dashboard = () => {
     const rec = recordings.find(r => r.id === id);
     if (!rec?.dbId) return;
     try {
-      if (!confirm("Möchten Sie diese Aufnahme wirklich unwiderruflich löschen?")) return;
+      if (!confirm(t("confirmDelete"))) return;
       const response = await authFetch(`/api/v1/records/record/${rec.dbId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Fehler beim Löschen");
-      toast.success("Aufnahme gelöscht");
+      if (!response.ok) throw new Error(t("deleteFailedShort"));
+      toast.success(t("deleted"));
       if (selectedRecording?.id === id) setSelectedRecording(null);
       fetchRecords();
     } catch (error) {
       console.error(error);
-      toast.error("Fehler beim Löschen der Aufnahme");
+      toast.error(t("deleteFailed"));
     }
   };
 
@@ -207,13 +210,13 @@ const Dashboard = () => {
     if (!rec?.dbId) return;
     try {
       const response = await authFetch(`/api/v1/records/record/${rec.dbId}/archive`, { method: "PUT" });
-      if (!response.ok) throw new Error("Fehler beim Archivieren");
-      toast.success("Aufnahme archiviert");
+      if (!response.ok) throw new Error(t("archiveFailedShort"));
+      toast.success(t("archived"));
       if (selectedRecording?.id === id) setSelectedRecording(null);
       fetchRecords();
     } catch (error) {
       console.error(error);
-      toast.error("Fehler beim Archivieren");
+      toast.error(t("archiveFailedShort"));
     }
   };
 
@@ -222,13 +225,13 @@ const Dashboard = () => {
     if (!rec?.dbId) return;
     try {
       const response = await authFetch(`/api/v1/records/record/${rec.dbId}/unarchive`, { method: "PUT" });
-      if (!response.ok) throw new Error("Fehler beim Wiederherstellen");
-      toast.success("Aufnahme wiederhergestellt");
+      if (!response.ok) throw new Error(t("restoreFailed"));
+      toast.success(t("restored"));
       if (selectedRecording?.id === id) setSelectedRecording(null);
       fetchRecords();
     } catch (error) {
       console.error(error);
-      toast.error("Fehler beim Wiederherstellen");
+      toast.error(t("restoreFailed"));
     }
   };
 
@@ -239,9 +242,9 @@ const Dashboard = () => {
     const tempRecording: Recording = {
       id: recordingData.session_id,
       dbId: recordingData.id,
-      title: newTitle || recordingData.title || `Aufnahme ${recordings.length + 1}`,
+      title: newTitle || recordingData.title || t("defaultTitle", { n: recordings.length + 1 }),
       categoryId: categoryId ? parseInt(categoryId) : null,
-      categoryName: cat?.name || newCategoryName || "Unkategorisiert",
+      categoryName: cat?.name || newCategoryName || t("uncategorized"),
       timestamp: new Date().toLocaleString("de-DE"),
       content: "",
       summarize: "",
@@ -275,7 +278,7 @@ const Dashboard = () => {
         dbId: data.id,
         title: data.title,
         categoryId: data.category_id,
-        categoryName: categories.find(c => c.id === data.category_id)?.name || "Unkategorisiert",
+        categoryName: categories.find(c => c.id === data.category_id)?.name || t("uncategorized"),
         timestamp: data.timestamp,
         content: data.content || "",
         summarize: data.summarize || "",
@@ -287,7 +290,7 @@ const Dashboard = () => {
       setSelectedRecording(finalRecording);
     } catch (err) {
       console.error(err);
-      toast.error("Fehler beim Abrufen der Aufnahme");
+      toast.error(t("fetchFailed"));
     }
   };
 
@@ -316,7 +319,7 @@ const Dashboard = () => {
         dbId: data.id,
         title: data.title,
         categoryId: data.category_id,
-        categoryName: categories.find(c => c.id === data.category_id)?.name || "Unkategorisiert",
+        categoryName: categories.find(c => c.id === data.category_id)?.name || t("uncategorized"),
         timestamp: data.timestamp,
         content: data.content || "",
         summarize: data.summarize || "",
@@ -325,7 +328,7 @@ const Dashboard = () => {
       });
     } catch (err) {
       console.error(err);
-      toast.error("Fehler beim Laden der Aufnahme");
+      toast.error(t("loadFailed"));
     }
   };
 
@@ -339,14 +342,14 @@ const Dashboard = () => {
         body: JSON.stringify({ content, summarize }),
       });
       if (!res.ok) throw new Error("Failed to save");
-      toast.success("Aufnahme gespeichert");
+      toast.success(t("saved"));
       setRecordings(prev => prev.map(r => r.id === id ? { ...r, content, summarize } : r));
       if (selectedRecording?.id === id) {
         setSelectedRecording(prev => prev ? { ...prev, content, summarize } : null);
       }
     } catch (err) {
       console.error(err);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("saveFailed"));
     }
   };
 
@@ -360,15 +363,15 @@ const Dashboard = () => {
         body: JSON.stringify({ category_id: newCategoryId }),
       });
       if (!res.ok) throw new Error("Failed to change category");
-      const categoryName = categories.find(c => c.id === newCategoryId)?.name || "Unkategorisiert";
-      toast.success("Kategorie geändert");
+      const categoryName = categories.find(c => c.id === newCategoryId)?.name || t("uncategorized");
+      toast.success(t("categoryChanged"));
       setRecordings(prev => prev.map(r => r.id === id ? { ...r, categoryId: newCategoryId, categoryName } : r));
       if (selectedRecording?.id === id) {
         setSelectedRecording(prev => prev ? { ...prev, categoryId: newCategoryId, categoryName } : null);
       }
     } catch (err) {
       console.error(err);
-      toast.error("Fehler beim Ändern der Kategorie");
+      toast.error(t("categoryChangeFailed"));
     }
   };
 
@@ -386,8 +389,8 @@ const Dashboard = () => {
       }
       setUnfinishedSessionId(null);
     }
-    if (!newTitle.trim()) setNewTitle(`Aufnahme ${recordings.length + 1}`);
-    if (!newCategoryName.trim()) setNewCategoryName("Unkategorisiert");
+    if (!newTitle.trim()) setNewTitle(t("defaultTitle", { n: recordings.length + 1 }));
+    if (!newCategoryName.trim()) setNewCategoryName(t("uncategorized"));
     setIsDialogOpen(false);
     setTimeout(() => {
       if (showArchived) setShowArchived(false);
@@ -411,8 +414,8 @@ const Dashboard = () => {
         body: formData,
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload fehlgeschlagen" }));
-        toast.error(err.detail || "Upload fehlgeschlagen");
+        const err = await res.json().catch(() => ({ detail: t("upload.failed") }));
+        toast.error(apiErrorMessage(err, t("upload.failed")));
         return;
       }
       const data = await res.json();
@@ -421,9 +424,9 @@ const Dashboard = () => {
       const tempRecording: Recording = {
         id: data.session_id,
         dbId: data.record_id,
-        title: uploadTitle.trim() || `Upload ${new Date().toLocaleString("de-DE")}`,
+        title: uploadTitle.trim() || t("upload.defaultTitle", { date: new Date().toLocaleString(i18n.language) }),
         categoryId: parseInt(uploadCategoryId),
-        categoryName: cat?.name || "Unkategorisiert",
+        categoryName: cat?.name || t("uncategorized"),
         timestamp: new Date().toLocaleString("de-DE"),
         content: "",
         summarize: "",
@@ -437,10 +440,10 @@ const Dashboard = () => {
       setUploadFile(null);
       setUploadTitle("");
       setUploadCategoryId(null);
-      toast.success("Upload erfolgreich – Transkription läuft.");
+      toast.success(t("upload.success"));
     } catch (err) {
       console.error(err);
-      toast.error("Upload fehlgeschlagen");
+      toast.error(t("upload.failed"));
     } finally {
       setUploading(false);
     }
@@ -477,7 +480,7 @@ const Dashboard = () => {
             onClick={() => setMobileSidebarOpen(true)}
           >
             <Menu className="w-5 h-5" />
-            <span className="sr-only">Menü öffnen</span>
+            <span className="sr-only">{t("openMenu")}</span>
           </Button>
           <Logo className="h-8" />
         </div>
@@ -498,7 +501,7 @@ const Dashboard = () => {
               <Button
                 variant="ghost"
                 onClick={async () => {
-                  const ok = confirm("Aufnahme wirklich abbrechen? Diese kann nicht wiederhergestellt werden.");
+                  const ok = confirm(t("cancelConfirm"));
                   if (!ok) return;
                   // Wait for pending chunk uploads before cancelling on the server,
                   // so in-flight uploads don't create orphaned files after cleanup.
@@ -510,12 +513,12 @@ const Dashboard = () => {
                     await authFetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
                   } catch (err) {
                     console.error(err);
-                    toast.error("Fehler beim Abbrechen der Aufnahme");
+                    toast.error(t("cancelFailed"));
                   }
                   fetchRecords();
                 }}
               >
-                Abbrechen
+                {t("cancel")}
               </Button>
               <Button
                 variant="ghost"
@@ -526,7 +529,7 @@ const Dashboard = () => {
                   setSelectedRecording(null);
                 }}
               >
-                Zur Übersicht
+                {t("toOverview")}
               </Button>
             </div>
           </div>
@@ -563,22 +566,22 @@ const Dashboard = () => {
                   <Radio className="w-5 h-5 text-red-500 animate-pulse" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">Unfertige Aufnahme</p>
-                  <p className="text-xs text-red-600/70 dark:text-red-400/70">Eine Aufnahme wurde unterbrochen und kann fortgesetzt werden.</p>
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">{t("unfinished.title")}</p>
+                  <p className="text-xs text-red-600/70 dark:text-red-400/70">{t("unfinished.description")}</p>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <Button
                     size="sm"
                     onClick={() => setActiveSessionId(unfinishedSessionId)}
                   >
-                    Fortsetzen
+                    {t("unfinished.resume")}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
                     onClick={async () => {
-                      const ok = confirm("Aufnahme wirklich verwerfen?");
+                      const ok = confirm(t("unfinished.discardConfirm"));
                       if (!ok) return;
                       try {
                         await authFetch(`/api/v1/records/cancel-session/${userId}`, { method: "DELETE" });
@@ -589,49 +592,49 @@ const Dashboard = () => {
                       fetchRecords();
                     }}
                   >
-                    Verwerfen
+                    {t("unfinished.discard")}
                   </Button>
                 </div>
               </div>
             )}
 
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold">Willkommen bei openDox</h1>
-              <p className="text-muted-foreground">Wählen Sie eine Aufnahme aus oder starten Sie eine neue, um loszulegen.</p>
+              <h1 className="text-3xl font-bold">{t("welcome.title")}</h1>
+              <p className="text-muted-foreground">{t("welcome.description")}</p>
             </div>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="lg">Neue Aufnahme starten</Button>
+                <Button size="lg">{t("new.start")}</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                  <DialogTitle>Neue Aufnahme</DialogTitle>
+                  <DialogTitle>{t("new.title")}</DialogTitle>
                   <DialogDescription>
-                    Geben Sie der Aufnahme einen Namen und eine Kategorie, um sie später leichter zu finden.
+                    {t("new.description")}
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <label htmlFor="title" className="text-sm font-medium">Titel</label>
+                    <label htmlFor="title" className="text-sm font-medium">{t("new.titleLabel")}</label>
                     <Input
                       id="title"
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="z.B. Patienten-Anamnese"
+                      placeholder={t("new.titlePlaceholder")}
                       autoFocus
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">Kategorie</label>
+                    <label className="text-sm font-medium">{t("category")}</label>
                     <Select value={categoryId || ""} onValueChange={(val) => {
                       setCategoryId(val);
                       const cat = categories.find(c => c.id.toString() === val);
                       setNewCategoryName(cat?.name || "");
                     }}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Kategorie auswählen..." />
+                        <SelectValue placeholder={t("categoryPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         {categories.map((cat) => (
@@ -641,31 +644,29 @@ const Dashboard = () => {
                     </Select>
                     {categories.length === 0 && (
                       <p className="text-xs text-muted-foreground">
-                        Legen Sie zuerst eine Kategorie unter Einstellungen an.
+                        {t("categoriesHint")}
                       </p>
                     )}
                   </div>
 
                   <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Wichtiger Hinweis</AlertTitle>
+                    <AlertTitle>{t("disclaimer:noticeTitle")}</AlertTitle>
                     <AlertDescription className="text-sm leading-relaxed">
-                      Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
-                      Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
-                      Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+                      {t("disclaimer:view")}
                     </AlertDescription>
                   </Alert>
                 </div>
 
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button type="button" variant="secondary">Abbrechen</Button>
+                    <Button type="button" variant="secondary">{t("cancel")}</Button>
                   </DialogClose>
                   <Button
                     onClick={handleStartRecordingSession}
                     disabled={!categoryId}
                   >
-                    Aufnahme starten
+                    {t("new.submit")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -693,32 +694,32 @@ const Dashboard = () => {
         }}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Audio hochladen</DialogTitle>
+              <DialogTitle>{t("upload.title")}</DialogTitle>
               <DialogDescription>
-                Laden Sie eine fertige Audiodatei hoch. Sie durchläuft automatisch die Transkriptions- und Zusammenfassungspipeline.
+                {t("upload.description")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <label htmlFor="upload-title" className="text-sm font-medium">Titel (optional)</label>
+                <label htmlFor="upload-title" className="text-sm font-medium">{t("upload.titleOptional")}</label>
                 <Input
                   id="upload-title"
                   value={uploadTitle}
                   onChange={(e) => setUploadTitle(e.target.value)}
-                  placeholder="z.B. Anamnese Patient Müller"
+                  placeholder={t("upload.titlePlaceholder")}
                   disabled={uploading}
                 />
               </div>
               <div className="grid gap-2">
-                <label className="text-sm font-medium">Kategorie</label>
+                <label className="text-sm font-medium">{t("category")}</label>
                 <Select
                   value={uploadCategoryId || ""}
                   onValueChange={(val) => setUploadCategoryId(val)}
                   disabled={uploading}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Kategorie auswählen..." />
+                    <SelectValue placeholder={t("categoryPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
@@ -728,12 +729,12 @@ const Dashboard = () => {
                 </Select>
                 {categories.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Legen Sie zuerst eine Kategorie unter Einstellungen an.
+                    {t("categoriesHint")}
                   </p>
                 )}
               </div>
               <div className="grid gap-2">
-                <label htmlFor="upload-file" className="text-sm font-medium">Audiodatei</label>
+                <label htmlFor="upload-file" className="text-sm font-medium">{t("upload.file")}</label>
                 <Input
                   id="upload-file"
                   type="file"
@@ -743,31 +744,29 @@ const Dashboard = () => {
                 />
                 {uploadFile && (
                   <p className="text-xs text-muted-foreground truncate">
-                    Ausgewählt: {uploadFile.name}
+                    {t("upload.selected", { name: uploadFile.name })}
                   </p>
                 )}
               </div>
 
               <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Wichtiger Hinweis</AlertTitle>
+                <AlertTitle>{t("disclaimer:noticeTitle")}</AlertTitle>
                 <AlertDescription className="text-sm leading-relaxed">
-                  Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
-                  Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
-                  Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+                  {t("disclaimer:view")}
                 </AlertDescription>
               </Alert>
             </div>
 
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="secondary" disabled={uploading}>Abbrechen</Button>
+                <Button type="button" variant="secondary" disabled={uploading}>{t("cancel")}</Button>
               </DialogClose>
               <Button
                 onClick={handleUploadSubmit}
                 disabled={!uploadCategoryId || !uploadFile || uploading}
               >
-                {uploading ? "Wird hochgeladen..." : "Hochladen"}
+                {uploading ? t("upload.uploading") : t("upload.submit")}
               </Button>
             </DialogFooter>
           </DialogContent>

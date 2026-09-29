@@ -1,0 +1,58 @@
+{
+  "confirmDelete": "Do you really want to permanently delete this recording?",
+  "deleteFailedShort": "Error deleting",
+  "deleted": "Recording deleted",
+  "deleteFailed": "Error deleting the recording",
+  "archiveFailedShort": "Error archiving",
+  "archived": "Recording archived",
+  "restoreFailed": "Error restoring",
+  "restored": "Recording restored",
+  "defaultTitle": "Recording {{n}}",
+  "uncategorized": "Uncategorized",
+  "fetchFailed": "Error fetching the recording",
+  "loadFailed": "Error loading the recording",
+  "saved": "Recording saved",
+  "saveFailed": "Error saving",
+  "categoryChanged": "Category changed",
+  "categoryChangeFailed": "Error changing the category",
+  "upload": {
+    "failed": "Upload failed",
+    "defaultTitle": "Upload {{date}}",
+    "success": "Upload successful – transcription in progress.",
+    "title": "Upload audio",
+    "description": "Upload a finished audio file. It automatically runs through the transcription and summarization pipeline.",
+    "titleOptional": "Title (optional)",
+    "titlePlaceholder": "e.g. Anamnesis patient Miller",
+    "file": "Audio file",
+    "selected": "Selected: {{name}}",
+    "uploading": "Uploading...",
+    "submit": "Upload"
+  },
+  "openMenu": "Open menu",
+  "cancelConfirm": "Really cancel the recording? It cannot be restored.",
+  "cancelFailed": "Error cancelling the recording",
+  "cancel": "Cancel",
+  "toOverview": "Back to overview",
+  "unfinished": {
+    "title": "Unfinished recording",
+    "description": "A recording was interrupted and can be resumed.",
+    "resume": "Resume",
+    "discardConfirm": "Really discard the recording?",
+    "discard": "Discard"
+  },
+  "welcome": {
+    "title": "Welcome to openDox",
+    "description": "Select a recording or start a new one to get going."
+  },
+  "new": {
+    "start": "Start new recording",
+    "title": "New recording",
+    "description": "Give the recording a name and a category so you can find it more easily later.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "e.g. Patient anamnesis",
+    "submit": "Start recording"
+  },
+  "category": "Category",
+  "categoryPlaceholder": "Select category...",
+  "categoriesHint": "Create a category under Settings first."
+}

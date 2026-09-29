@@ -1,0 +1,48 @@
+{
+  "listTitle": "Kategorien Liste",
+  "listDescription": "Verwalten Sie Ihre vorhandenen Kategorien",
+  "badgeGlobal": "Global",
+  "badgeOwn": "Eigene Kategorie",
+  "llmLabel": "LLM: {{model}}",
+  "empty": "Keine Kategorien vorhanden",
+  "form": {
+    "editTitle": "Kategorie bearbeiten",
+    "createTitle": "Neue Kategorie erstellen",
+    "editDescription": "Bearbeiten Sie die ausgewählte Kategorie",
+    "createDescription": "Fügen Sie eine neue Kategorie hinzu",
+    "name": "Kategorie Name",
+    "description": "Beschreibung",
+    "systemPrompt": "System Prompt (LLM)",
+    "systemPromptPlaceholder": "Anweisungen für die Zusammenfassung, z.B. Format, Struktur, Fokus...",
+    "whisperPrompt": "Transkriptions-Hint (Whisper)",
+    "whisperPromptPlaceholder": "Kardiologie, Echokardiographie, Sinusbradykardie, Dr. Müller, EKG, Herzinsuffizienz ...",
+    "whisperPromptHint": "Kurzer Stil-/Aussprache-Hinweis für Whisper. Whisper berücksichtigt davon nur die letzten ~224 Tokens — für lange Fachbegriffslisten das Korrektur-Glossar unten verwenden. Optional.",
+    "glossary": "Korrektur-Glossar",
+    "glossaryPlaceholder": "Sertralin, Metformin, Ibuprofen ...",
+    "glossaryHint": "Begriffe, die nach der finalen Transkription automatisch phonetisch korrigiert werden (unabhängig vom Transkriptions-Hint oben, ohne Längenbegrenzung). Gleiches Format: Komma-, Semikolon- oder zeilengetrennt."
+  },
+  "llm": {
+    "useOwn": "Eigenes LLM verwenden",
+    "useOwnHint": "Überschreibt die globalen LLM-Einstellungen für diese Kategorie",
+    "model": "Modell",
+    "modelPlaceholder": "z.B. deepseek-r1:14b",
+    "endpoint": "API Endpunkt",
+    "apiKey": "API Key",
+    "optional": "Optional",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "topP": "Top P",
+    "frequencyPenalty": "Frequency Penalty",
+    "globalDefault": "Standard aus globalen Einstellungen",
+    "enableThinking": "Thinking aktivieren"
+  },
+  "updated": "Kategorie aktualisiert",
+  "created": "Kategorie erstellt",
+  "confirmDelete": "Möchten Sie diese Kategorie wirklich löschen?",
+  "deleted": "Kategorie gelöscht",
+  "deleteFailed": "Löschen fehlgeschlagen",
+  "submit": {
+    "update": "Aktualisieren",
+    "create": "Erstellen"
+  }
+}

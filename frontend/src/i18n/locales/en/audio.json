@@ -1,0 +1,22 @@
+{
+  "title": "Audio download",
+  "description": "Audio export for recordings (mono, configurable format/quality). Applies to new recordings only.",
+  "enabled": "Save audio",
+  "format": "File format",
+  "formats": {
+    "mp3": "MP3 (lossy, smallest file)",
+    "ogg": "OGG/Opus (lossy, modern & efficient)",
+    "flac": "FLAC (lossless compressed)",
+    "wav": "WAV (uncompressed, largest file)"
+  },
+  "bitrate": "Bitrate (quality/size)",
+  "bitrateOption": "{{kbit}} kbit/s (~{{size}} MB/min)",
+  "sampleRate": "Sample rate (Hz)",
+  "rates": {
+    "16000": "16000 Hz (native, smallest file)",
+    "22050": "22050 Hz",
+    "44100": "44100 Hz (standard audio, larger)"
+  },
+  "note": "Mono is enforced. If ffmpeg is not available, no audio is stored.",
+  "saved": "Audio settings saved"
+}

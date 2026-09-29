@@ -29,19 +29,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, LogOut, Settings, Sun, Moon, BookOpenCheck, BookMarked } from "lucide-react";
+import { UserCircle, LogOut, Settings } from "lucide-react";
 import { useState } from "react";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTranslation } from "react-i18next";
 import AdminModal from "./AdminModal";
-import MyCategoriesModal from "./MyCategoriesModal";
-import MyDictionaryModal from "./MyDictionaryModal";
+import ProfileModal from "./ProfileModal";
 
 const UserDropdown = () => {
+    const { t } = useTranslation();
     const { user, logout } = useAuth();
-    const { theme, toggleTheme } = useTheme();
     const [showAdmin, setShowAdmin] = useState(false);
-    const [showCategories, setShowCategories] = useState(false);
-    const [showDictionary, setShowDictionary] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
 
     return (
         <>
@@ -54,7 +52,7 @@ const UserDropdown = () => {
                         </Avatar>
                         <div className="flex flex-col items-start text-sm">
                             <span className="font-medium">{user?.name}</span>
-                            <span className="text-xs text-muted-foreground">Online</span>
+                            <span className="text-xs text-muted-foreground">{t('online')}</span>
                         </div>
                     </Button>
                 </DropdownMenuTrigger>
@@ -63,46 +61,34 @@ const UserDropdown = () => {
                         <div className="flex flex-col space-y-1">
                             <p className="text-sm font-medium leading-none">{user?.name}</p>
                             <p className="text-xs leading-none text-muted-foreground">
-                                {user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : user?.role === 'demo_viewer' ? 'Demo-Viewer (nur lesen)' : 'Benutzer'}
+                                {t(`roles.${user?.role ?? 'user'}`)}
                             </p>
                         </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={toggleTheme}>
-                        {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                        <span>{theme === 'dark' ? 'Helles Design' : 'Dunkles Design'}</span>
+                    <DropdownMenuItem onClick={() => {
+                        setTimeout(() => setShowProfile(true), 100);
+                    }}>
+                        <UserCircle className="mr-2 h-4 w-4" />
+                        <span>{t('profile:menu')}</span>
                     </DropdownMenuItem>
-                    {user?.role !== 'user' ? (
+                    {user?.role !== 'user' && (
                         <DropdownMenuItem onClick={() => {
                             setTimeout(() => setShowAdmin(true), 100);
                         }}>
                             <Settings className="mr-2 h-4 w-4" />
-                            <span>Administration</span>
-                        </DropdownMenuItem>
-                    ) : (
-                        <DropdownMenuItem onClick={() => {
-                            setTimeout(() => setShowCategories(true), 100);
-                        }}>
-                            <BookOpenCheck className="mr-2 h-4 w-4" />
-                            <span>Meine Kategorien</span>
+                            <span>{t('profile:administration')}</span>
                         </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => {
-                        setTimeout(() => setShowDictionary(true), 100);
-                    }}>
-                        <BookMarked className="mr-2 h-4 w-4" />
-                        <span>Mein Wörterbuch</span>
-                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={logout}>
                         <LogOut className="mr-2 h-4 w-4" />
-                        <span>Abmelden</span>
+                        <span>{t('logout')}</span>
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
 
             <AdminModal isOpen={showAdmin} onClose={() => setShowAdmin(false)} />
-            <MyCategoriesModal isOpen={showCategories} onClose={() => setShowCategories(false)} />
-            <MyDictionaryModal isOpen={showDictionary} onClose={() => setShowDictionary(false)} />
+            <ProfileModal isOpen={showProfile} onClose={() => setShowProfile(false)} />
         </>
     );
 };

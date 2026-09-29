@@ -23,6 +23,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AdminModal from "@/components/AdminModal";
 import { useAuth } from "@/contexts/AuthContext";
+import i18n from "@/i18n";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(),
@@ -185,5 +186,21 @@ describe("AdminModal", () => {
 
     await user.click(screen.getByRole("tab", { name: /LLM/ }));
     expect(screen.getByTestId("llm-config")).toBeInTheDocument();
+  });
+
+  it("renders nav items, heading and read-only banner in English when the UI language is English", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      renderAdminModal("demo_viewer");
+
+      for (const label of ["Services", "Archiving", "Users", "Authentication", "Backup", "Categories", "System"]) {
+        expect(screen.getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
+      }
+      expect(screen.getByText("Configure API services")).toBeInTheDocument();
+      expect(screen.getByText(/Read-only mode \(demo\)/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Dienste/ })).not.toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("de");
+    }
   });
 });

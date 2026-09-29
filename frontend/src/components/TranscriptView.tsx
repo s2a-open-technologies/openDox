@@ -18,6 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { useTranslation } from "react-i18next";
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -57,6 +58,7 @@ interface TranscriptViewProps {
 }
 
 const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCategoryChange }: TranscriptViewProps) => {
+  const { t } = useTranslation(["transcript", "disclaimer"]);
   const { authFetch } = useAuth();
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState(transcript?.content || "");
@@ -148,11 +150,11 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
         <div className="mb-4">
           <Mic className="w-16 h-16 text-muted-foreground" />
         </div>
-        <h2 className="text-2xl font-semibold text-foreground mb-2">Keine Aufnahme ausgewählt</h2>
-        <p className="text-muted-foreground mb-6">Wählen Sie eine Aufnahme aus der Seitenleiste aus, um das Transkript anzuzeigen.</p>
+        <h2 className="text-2xl font-semibold text-foreground mb-2">{t("empty.title")}</h2>
+        <p className="text-muted-foreground mb-6">{t("empty.description")}</p>
         <Button onClick={onNewRecording}>
           <Mic className="w-4 h-4 mr-2" />
-          Neue Aufnahme starten
+          {t("empty.start")}
         </Button>
       </div>
     );
@@ -173,14 +175,14 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
         return (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900">
             <Check className="w-3 h-3" />
-            <span className="text-xs font-semibold">Fertig</span>
+            <span className="text-xs font-semibold">{t("status.finished")}</span>
           </div>
         );
       case 'error':
         return (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900">
             <AlertCircle className="w-3 h-3" />
-            <span className="text-xs font-semibold">Fehler</span>
+            <span className="text-xs font-semibold">{t("status.error")}</span>
           </div>
         );
       default:
@@ -200,14 +202,14 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
 
   const handleCopy = async (text: string) => {
     if (hasUnsavedChanges) {
-      const ok = confirm('Es gibt ungespeicherte Änderungen. Trotzdem kopieren?');
+      const ok = confirm(t("copy.unsavedConfirm"));
       if (!ok) return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      toast.success('In die Zwischenablage kopiert');
+      toast.success(t("copy.success"));
     } catch {
-      toast.error('Kopieren fehlgeschlagen');
+      toast.error(t("copy.failed"));
     }
   };
 
@@ -235,12 +237,12 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       const data = await res.json();
       if (currentDbIdRef.current === targetId) {
         setEditedSummary(data.summarize || "");
-        toast.success('Zusammenfassung neu generiert');
+        toast.success(t("summary.regenerated"));
       } else {
-        toast.success(`Zusammenfassung für „${targetTitle}" aktualisiert`);
+        toast.success(t("summary.updatedFor", { title: targetTitle }));
       }
     } catch {
-      toast.error('Fehler beim Generieren der Zusammenfassung');
+      toast.error(t("summary.regenerateFailed"));
     } finally {
       setRegeneratingId(prev => (prev === targetId ? null : prev));
     }
@@ -250,7 +252,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
     if (!transcript?.dbId) return;
     try {
       const res = await authFetch(`/api/v1/records/record/${transcript.dbId}/audio`);
-      if (!res.ok) throw new Error("Download fehlgeschlagen");
+      if (!res.ok) throw new Error(t("download.failed"));
       const blob = await res.blob();
       const disposition = res.headers.get("content-disposition") || "";
       const match = disposition.match(/filename="?([^"]+)"?/);
@@ -264,7 +266,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      toast.error("Download fehlgeschlagen");
+      toast.error(t("download.failed"));
     }
   };
 
@@ -275,8 +277,8 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
           <span className="text-sm font-medium text-foreground">
             {taskStatus === 'processing_llm'
-              ? 'KI erstellt Zusammenfassung...'
-              : 'Transkription läuft...'}
+              ? t("processing.llm")
+              : t("processing.transcribing")}
           </span>
         </div>
       )}
@@ -290,7 +292,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
             disabled={isChangingCategory || categories.length === 0}
           >
             <SelectTrigger className="w-auto h-8 text-xs gap-2">
-              <SelectValue placeholder="Kategorie auswählen..." />
+              <SelectValue placeholder={t("categoryPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {categories.map((cat) => (
@@ -303,16 +305,16 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
           {hasAudio && (
             <Button onClick={handleDownloadAudio} variant="outline">
               <Download className="w-4 h-4 mr-2" />
-              Audio
+              {t("audio")}
             </Button>
           )}
           <Button onClick={handleSave} disabled={!hasUnsavedChanges || isSaving} variant="outline">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            {isSaving ? "Speichere..." : "Speichern"}
+            {isSaving ? t("saving") : t("save")}
           </Button>
           <Button onClick={onNewRecording} variant="outline">
             <Mic className="w-4 h-4 mr-2" />
-            Neue Aufnahme
+            {t("newRecording")}
           </Button>
         </div>
       </div>
@@ -320,34 +322,34 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       {hasUnsavedChanges && (
         <div className="text-amber-600 text-sm font-medium flex items-center gap-2">
           <AlertCircle className="w-4 h-4" />
-          Ungespeicherte Änderungen vorhanden
+          {t("unsaved")}
         </div>
       )}
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-semibold text-foreground">Transkript</h3>
+            <h3 className="text-xl font-semibold text-foreground">{t("title")}</h3>
             <Button
               variant="ghost"
               size="sm"
               disabled={!confirmed}
               onClick={() => handleCopy(editedContent)}
-              title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : ""}
+              title={!confirmed ? t("confirmFirst") : ""}
             >
               <Copy className="w-4 h-4 mr-2" />
-              Kopieren
+              {t("copy")}
             </Button>
           </div>
           <Textarea
             value={editedContent}
             onChange={(e) => setEditedContent(e.target.value)}
-            placeholder="Transkript..."
+            placeholder={t("placeholder")}
             readOnly={!confirmed}
             onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
             onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
             onCut={(e) => { if (!confirmed) e.preventDefault(); }}
-            title={!confirmed ? 'Bitte zuerst Bestätigungshaken setzen' : undefined}
+            title={!confirmed ? t("confirmFirst") : undefined}
             className={`flex-1 min-h-0 font-sans shadow-md text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
           />
         </div>
@@ -355,15 +357,15 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
         <div className="flex flex-col min-h-0">
           <Card className="p-6 flex flex-col flex-1 min-h-0 shadow-md">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-              <h3 className="text-xl font-semibold text-foreground">Zusammenfassung</h3>
+              <h3 className="text-xl font-semibold text-foreground">{t("summary.title")}</h3>
               <div className="flex items-center gap-2 ml-auto">
                 <Button
                   variant="ghost"
                   size="sm"
                   disabled={!confirmed}
                   onClick={() => handleCopy(editedSummary)}
-                  title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : ""}
-                  aria-label="Zusammenfassung kopieren"
+                  title={!confirmed ? t("confirmFirst") : ""}
+                  aria-label={t("summary.copyLabel")}
                 >
                   <Copy className="w-4 h-4" />
                 </Button>
@@ -372,7 +374,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
                   size="icon"
                   onClick={handleRegenerateSummary}
                   disabled={regeneratingId === transcript?.dbId || isProcessing}
-                  title="Zusammenfassung neu generieren"
+                  title={t("summary.regenerate")}
                 >
                   {regeneratingId === transcript?.dbId
                     ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -383,10 +385,10 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
                   size="sm"
                   disabled={!confirmed}
                   onClick={() => setIsEditingSummary(!isEditingSummary)}
-                  title={!confirmed ? "Bitte zuerst Bestätigungshaken setzen" : isEditingSummary ? "Markdown-Vorschau" : "Bearbeiten"}
+                  title={!confirmed ? t("confirmFirst") : isEditingSummary ? t("markdownPreview") : t("edit")}
                 >
                   {isEditingSummary ? <Eye className="w-4 h-4 sm:mr-2" /> : <Pencil className="w-4 h-4 sm:mr-2" />}
-                  <span className="hidden sm:inline">{isEditingSummary ? "Vorschau" : "Bearbeiten"}</span>
+                  <span className="hidden sm:inline">{isEditingSummary ? t("preview") : t("edit")}</span>
                 </Button>
               </div>
             </div>
@@ -394,12 +396,12 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
               <Textarea
                 value={editedSummary}
                 onChange={(e) => setEditedSummary(e.target.value)}
-                placeholder="Noch keine Zusammenfassung verfügbar"
+                placeholder={t("summary.none")}
                 readOnly={!confirmed}
                 onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
                 onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
                 onCut={(e) => { if (!confirmed) e.preventDefault(); }}
-                title={!confirmed ? 'Bitte zuerst Bestätigungshaken setzen' : undefined}
+                title={!confirmed ? t("confirmFirst") : undefined}
                 className={`flex-1 min-h-0 font-sans shadow-sm text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
               />
             ) : (
@@ -411,7 +413,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
                 {editedSummary ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{editedSummary}</ReactMarkdown>
                 ) : (
-                  <p className="text-muted-foreground italic">Noch keine Zusammenfassung verfügbar</p>
+                  <p className="text-muted-foreground italic">{t("summary.none")}</p>
                 )}
               </div>
             )}
@@ -422,11 +424,9 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
 
       <Alert variant="destructive" className="!mt-4 shadow-md">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Kein Medizinprodukt</AlertTitle>
+        <AlertTitle>{t("disclaimer:title")}</AlertTitle>
         <AlertDescription className="text-sm leading-relaxed">
-          Dieses Tool ist kein Medizinprodukt gemäß Medizinproduktegesetz (MPG). Es dient ausschließlich der Unterstützung bei der Dokumentation.
-          Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.
-          Es ersetzt keine ärztliche Diagnose, Beratung oder Therapieempfehlung.
+          {t("disclaimer:view")}
         </AlertDescription>
       </Alert>
 
@@ -446,7 +446,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
             className="mt-0.5"
           />
           <label htmlFor="transcript-confirm" className="text-sm text-muted-foreground cursor-pointer">
-            Ich habe den Text sorgfältig überprüft und ggf. korrigiert. Ich übernehme die Verantwortung für den kopierten Inhalt.
+            {t("confirmLabel")}
           </label>
         </div>
       </div>
@@ -454,23 +454,20 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Verantwortung übernehmen</DialogTitle>
+            <DialogTitle>{t("dialog.title")}</DialogTitle>
             <DialogDescription>
-              Mit der Bestätigung übernehmen Sie die Verantwortung für den kopierten
-              Inhalt und bestätigen die korrekte Übergabe an eine Fachkraft. Alle
-              maschinell erstellten Transkriptionen und Zusammenfassungen müssen
-              von qualifiziertem Fachpersonal überprüft werden.
+              {t("dialog.description")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
-              Abbrechen
+              {t("dialog.cancel")}
             </Button>
             <Button onClick={() => {
               setConfirmed(true);
               setConfirmDialogOpen(false);
             }}>
-              Bestätigen
+              {t("dialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

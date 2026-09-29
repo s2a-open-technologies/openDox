@@ -1,0 +1,23 @@
+{
+  "title": "LDAP configuration",
+  "description": "Connect your user directory",
+  "host": "Server host",
+  "port": "Port",
+  "useSsl": "Use SSL (LDAPS)",
+  "uploadCert": "Upload certificate",
+  "uploading": "Uploading...",
+  "upload": "Upload",
+  "baseDn": "Base DN",
+  "userDn": "User DN pattern (uid or sAMAccountName)",
+  "searchFilter": "Search filter (optional)",
+  "searchFilterHint": "LDAP filter to restrict login to specific groups. Combined with the user search via AND.",
+  "allowedGroups": "Allowed groups (comma-separated)",
+  "allowedGroupsHint": "Group names only, no DN — the app builds the DN itself (cn=name,base DN). Leave empty = all successfully authenticated LDAP users may log in.",
+  "adminGroups": "Admin groups (comma-separated)",
+  "moderatorGroups": "Moderator groups (comma-separated)",
+  "moderatorGroupsHint": "If a user is in both an admin and a moderator group, admin wins.",
+  "bindUserDn": "Bind user DN",
+  "bindUserPassword": "Bind user password",
+  "testConnection": "Test connection",
+  "saved": "LDAP settings saved"
+}

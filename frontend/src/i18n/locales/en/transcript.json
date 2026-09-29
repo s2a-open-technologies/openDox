@@ -1,0 +1,47 @@
+{
+  "empty": {
+    "title": "No recording selected",
+    "description": "Select a recording from the sidebar to view its transcript.",
+    "start": "Start new recording"
+  },
+  "status": {
+    "finished": "Done",
+    "error": "Error"
+  },
+  "processing": {
+    "llm": "AI is creating the summary...",
+    "transcribing": "Transcription in progress..."
+  },
+  "copy": "Copy",
+  "summary": {
+    "regenerated": "Summary regenerated",
+    "updatedFor": "Summary for “{{title}}” updated",
+    "regenerateFailed": "Error generating the summary",
+    "regenerate": "Regenerate summary",
+    "copyLabel": "Copy summary",
+    "none": "No summary available yet",
+    "title": "Summary"
+  },
+  "download": {
+    "failed": "Download failed"
+  },
+  "categoryPlaceholder": "Select category...",
+  "audio": "Audio",
+  "save": "Save",
+  "saving": "Saving...",
+  "newRecording": "New recording",
+  "unsaved": "Unsaved changes present",
+  "title": "Transcript",
+  "confirmFirst": "Please tick the confirmation checkbox first",
+  "placeholder": "Transcript...",
+  "markdownPreview": "Markdown preview",
+  "edit": "Edit",
+  "preview": "Preview",
+  "confirmLabel": "I have carefully reviewed the text and corrected it where necessary. I take responsibility for the copied content.",
+  "dialog": {
+    "title": "Take responsibility",
+    "description": "By confirming you take responsibility for the copied content and confirm its correct handover to a professional. All machine-generated transcriptions and summaries must be reviewed by qualified professionals.",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  }
+}

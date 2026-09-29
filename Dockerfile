@@ -11,7 +11,7 @@
 #  ═══════════════════════════════════════════════════════════════════════════════
 #  Stage 1: Build the React frontend
 #  ═══════════════════════════════════════════════════════════════════════════════
-FROM node:22-slim AS frontend-builder
+FROM node:26-slim AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -24,7 +24,7 @@ RUN npm run build
 # ═══════════════════════════════════════════════════════════════════════════════
 # Stage 2: Python backend
 # ═══════════════════════════════════════════════════════════════════════════════
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 # Install system deps (ffmpeg for audio processing, curl for healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends \

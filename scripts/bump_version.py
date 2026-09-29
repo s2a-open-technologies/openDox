@@ -31,11 +31,14 @@ import re
 import subprocess
 import sys
 import tomllib
+from datetime import date
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 PACKAGE_JSON = PROJECT_ROOT / "frontend" / "package.json"
+CHANGELOG = PROJECT_ROOT / "CHANGELOG.md"
+REPO_URL = "https://github.com/daemolition/openDox"
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -103,6 +106,45 @@ def write_package_json_version(new_version: str) -> None:
     PACKAGE_JSON.write_text(updated, encoding="utf-8")
 
 
+def update_changelog(current: str, new_version: str) -> bool:
+    """Move the "[Unreleased]" CHANGELOG section under a new version heading.
+
+    Renames "## [Unreleased]" to "## [<new_version>] — <today>" and inserts a
+    fresh, empty "## [Unreleased]" above it, then rewrites the compare links
+    at the bottom of the file. No-op (returns False) if the "[Unreleased]"
+    section has no actual changelog bullets yet — bumping the version isn't
+    reason enough to create an empty release section.
+
+    Args:
+        current: The version being bumped from, e.g. "0.7.1".
+        new_version: The version being bumped to, e.g. "0.7.2".
+
+    Returns:
+        True if the changelog was updated, False if there was nothing to move.
+    """
+    text = CHANGELOG.read_text(encoding="utf-8")
+
+    match = re.search(r"^## \[Unreleased\]\n(.*?)(?=^## \[|\Z)", text, re.S | re.M)
+    if not match or "\n- " not in ("\n" + match.group(1)):
+        return False
+
+    today = date.today().isoformat()
+    heading = f"## [Unreleased]\n\n## [{new_version}] — {today}\n"
+    updated = text[: match.start()] + heading + match.group(1) + text[match.end() :]
+
+    updated = re.sub(
+        rf"^\[Unreleased\]: {re.escape(REPO_URL)}/compare/v.*\.\.\.HEAD$",
+        f"[Unreleased]: {REPO_URL}/compare/v{new_version}...HEAD\n"
+        f"[{new_version}]: {REPO_URL}/compare/v{current}...v{new_version}",
+        updated,
+        count=1,
+        flags=re.MULTILINE,
+    )
+
+    CHANGELOG.write_text(updated, encoding="utf-8")
+    return True
+
+
 def resync_package_lock() -> None:
     """Resync package-lock.json's embedded version fields via npm."""
     subprocess.run(
@@ -112,13 +154,15 @@ def resync_package_lock() -> None:
     )
 
 
-def commit_and_tag(new_version: str) -> None:
+def commit_and_tag(new_version: str, changelog_updated: bool) -> None:
     """Commit the version bump and create a git tag."""
     files = [
         str(PYPROJECT),
         str(PACKAGE_JSON),
         str(PROJECT_ROOT / "frontend" / "package-lock.json"),
     ]
+    if changelog_updated:
+        files.append(str(CHANGELOG))
     subprocess.run(["git", "add", *files], cwd=PROJECT_ROOT, check=True)
     subprocess.run(
         ["git", "commit", "-m", f"chore: bump version to v{new_version}"],
@@ -163,9 +207,16 @@ def main() -> None:
     write_pyproject_version(new_version)
     write_package_json_version(new_version)
     resync_package_lock()
+    changelog_updated = update_changelog(current, new_version)
+    if not changelog_updated:
+        print(
+            "Warning: CHANGELOG.md's [Unreleased] section is empty — "
+            "no version section created.",
+            file=sys.stderr,
+        )
 
     if args.commit:
-        commit_and_tag(new_version)
+        commit_and_tag(new_version, changelog_updated)
 
     print(f"{current} -> {new_version}")
 

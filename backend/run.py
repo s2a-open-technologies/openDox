@@ -166,6 +166,30 @@ async def _failed_audio_archival_loop(logger) -> None:
             logger.warning("Failed-audio archival failed: %s", exc)
 
 
+async def _auto_archive_loop(logger) -> None:
+    """Periodically auto-archive records older than the configured age.
+
+    Admin-configurable via the audio settings singleton
+    (``auto_archive_enabled``/``auto_archive_days`` — Admin UI, Audio tab).
+    Every 6 hours (same cadence as the failed-audio archival loop) the service
+    re-reads the settings, so enabling/disabling or changing the age takes
+    effect on the next tick without a restart. Archiving is idempotent —
+    already-archived records are excluded by the query.
+    """
+    from backend.components.services.auto_archive_service import (
+        auto_archive_old_records,
+    )
+
+    while True:
+        await asyncio.sleep(6 * 3600)
+        try:
+            count = await asyncio.to_thread(auto_archive_old_records)
+            if count:
+                logger.info("Auto-archived %d old record(s)", count)
+        except Exception as exc:
+            logger.warning("Auto-archive run failed: %s", exc)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan: startup cleanup + background tasks, graceful shutdown.
@@ -180,17 +204,23 @@ async def lifespan(app: FastAPI):
     logger.info("Stale-session cleanup loop started (interval=600s, max_age=30min)")
     archival_task = asyncio.create_task(_failed_audio_archival_loop(logger))
     logger.info("Failed-audio archival loop started (interval=6h)")
+    auto_archive_task = asyncio.create_task(_auto_archive_loop(logger))
+    logger.info("Record auto-archive loop started (interval=6h)")
     try:
         yield
     finally:
         cleanup_task.cancel()
         archival_task.cancel()
+        auto_archive_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
         with contextlib.suppress(asyncio.CancelledError):
             await archival_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await auto_archive_task
         logger.info("Stale-session cleanup loop stopped")
         logger.info("Failed-audio archival loop stopped")
+        logger.info("Record auto-archive loop stopped")
 
 
 def create_app():

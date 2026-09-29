@@ -34,3 +34,7 @@ class AudioSettingsModel(SQLModel, table=True):
     audio_sample_rate: Optional[int] = Field(default=16000)
 
     audio_format: Optional[str] = Field(default="mp3")
+
+    auto_archive_enabled: bool = Field(default=False)
+
+    auto_archive_days: int = Field(default=90)

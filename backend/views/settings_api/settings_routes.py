@@ -970,6 +970,13 @@ async def update_audio_settings(
                 f"audio_bitrate muss einer von {sorted(_ALLOWED_AUDIO_BITRATES)} sein"
             ),
         )
+    if settings_in.auto_archive_days is not None and not (
+        1 <= settings_in.auto_archive_days <= 3650
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="auto_archive_days muss zwischen 1 und 3650 liegen",
+        )
 
     settings = db.exec(select(AudioSettingsModel)).first()
     if not settings:

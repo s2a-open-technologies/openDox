@@ -24,7 +24,7 @@ import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  GlobeLock, BookOpenCheck, Settings, Users, Server, HardDrive, Mic, Brain, Archive
+  GlobeLock, BookOpenCheck, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +40,8 @@ import BackupSettings from './settings/BackupSettings';
 import { AudioConfig } from './settings/AudioConfig';
 import { AutoArchiveConfig } from './settings/AutoArchiveConfig';
 import { FailedTranscriptions } from './settings/FailedTranscriptions';
+import { ClientConfig } from './settings/ClientConfig';
+import { ClientDistribution } from './settings/ClientDistribution';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -65,6 +67,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
       { id: 'users', label: t('nav.users'), icon: Users },
       { id: 'auth', label: t('nav.auth'), icon: GlobeLock },
       { id: 'backup', label: t('nav.backup'), icon: HardDrive },
+      { id: 'clients', label: t('nav.clients'), icon: Monitor },
     ] : []),
     { id: 'categories', label: t('nav.categories'), icon: BookOpenCheck },
     { id: 'system', label: t('nav.system'), icon: Settings },
@@ -158,6 +161,17 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <fieldset className="space-y-4">
             <h3 className="text-lg font-medium">{t('backup.heading')}</h3>
             <BackupSettings readOnly={readOnly} />
+          </fieldset>
+        );
+      case 'clients':
+        return (
+          <fieldset className="space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Monitor className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-medium">{t('clients:heading')}</h3>
+            </div>
+            <ClientDistribution />
+            <ClientConfig readOnly={readOnly} />
           </fieldset>
         );
       case 'categories':

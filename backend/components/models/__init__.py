@@ -24,6 +24,7 @@ from backend.components.models.categories import (
     CategoriesCreate,
     CategoriesRead,
 )
+from backend.components.models.client_settings_model import ClientSettingsModel
 from backend.components.models.encryption_key_state import EncryptionKeyState
 from backend.components.models.languages import (
     Languages,
@@ -51,6 +52,7 @@ __all__ = [
     "Categories",
     "CategoriesCreate",
     "CategoriesRead",
+    "ClientSettingsModel",
     "EncryptionKeyState",
     "Languages",
     "LanguagesCreate",

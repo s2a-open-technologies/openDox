@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import Any
 
 import requests as _requests
-from fastapi import Depends, File, HTTPException, UploadFile
+from fastapi import Depends, File, HTTPException, Request, UploadFile
 from sqlmodel import select
 
 from backend.components.llm.llm_model import SummarizeModel, normalize_openai_base_url
@@ -34,6 +34,10 @@ from backend.components.models.categories import (
     CategoriesCreate,
     CategoriesListRead,
     CategoriesRead,
+)
+from backend.components.models.client_settings_model import (
+    ClientConfig,
+    ClientSettingsModel,
 )
 from backend.components.models.languages import (
     Languages,
@@ -54,6 +58,7 @@ from backend.components.models.user_model import (
 )
 from backend.components.modules.api_errors import api_error
 from backend.components.modules.env import env_or_file
+from backend.components.modules.public_url import request_base_url
 from backend.components.services import audio_storage
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
@@ -1030,3 +1035,77 @@ async def update_audio_settings(
     db.refresh(settings)
     get_settings_service().invalidate_cache()
     return settings
+
+
+# Desktop client (openDox client: policy + installer distribution)
+
+# The installers are built and signed outside the server and published as
+# GitHub release assets under fixed names — ``releases/latest/download/<name>``
+# then always resolves to the newest client, without a server update.
+_DEFAULT_CLIENT_DOWNLOAD_BASE_URL = (
+    "https://github.com/daemolition/opendox-client/releases/latest/download"
+)
+_CLIENT_DOWNLOAD_FILES = {
+    "windows_msi": "opendox-client-installer.msi",
+    "windows_exe": "opendox-client-amd64-installer.exe",
+    "macos_zip": "opendox-client-macos.zip",
+}
+
+
+def _get_or_create_client_settings(db) -> ClientSettingsModel:
+    settings = db.exec(select(ClientSettingsModel)).first()
+    if not settings:
+        settings = ClientSettingsModel()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@settings_bp.get("/client-config/", response_model=ClientConfig)
+async def get_client_config(db: SessionDep):
+    """Return the desktop-client policy.
+
+    Deliberately unauthenticated: the client fetches it at startup, before
+    anyone has logged in. The content (program names, numbers) is not secret.
+    """
+    return ClientConfig.from_row(_get_or_create_client_settings(db))
+
+
+@settings_bp.put("/client-config/", response_model=ClientConfig)
+async def update_client_config(
+    config_in: ClientConfig,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
+    """Save the desktop-client policy from the admin UI."""
+    settings = _get_or_create_client_settings(db)
+    config_in.apply_to(settings)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return ClientConfig.from_row(settings)
+
+
+@settings_bp.get("/client-distribution/")
+async def get_client_distribution(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Everything the admin UI needs to hand out the desktop client.
+
+    ``server_url`` goes into the one-line ``settings.json`` the admin deploys
+    next to the installer (``CLIENT_SERVER_URL`` overrides the URL derived
+    from the request, e.g. when clients reach the server under another name).
+    """
+    if current_user.role not in ("admin", "demo_viewer"):
+        raise api_error(403, "admin_required", "Admin role required")
+    server_url = env_or_file("CLIENT_SERVER_URL", "") or request_base_url(request)
+    download_base_url = (
+        env_or_file("CLIENT_DOWNLOAD_BASE_URL", "") or _DEFAULT_CLIENT_DOWNLOAD_BASE_URL
+    )
+    return {
+        "server_url": server_url.strip().rstrip("/"),
+        "download_base_url": download_base_url.strip().rstrip("/"),
+        "files": _CLIENT_DOWNLOAD_FILES,
+    }

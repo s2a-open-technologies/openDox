@@ -1,0 +1,39 @@
+{
+  "heading": "Desktop-Client",
+  "saved": "Client-Einstellungen gespeichert",
+  "config": {
+    "title": "Client-Einstellungen",
+    "description": "Gelten für alle openDox-Clients, die mit diesem Server verbunden sind. Die Clients übernehmen Änderungen beim Start und danach spätestens nach 10 Minuten.",
+    "liveView": "Live-Ansicht standardmäßig an (Nutzer können sie im Client selbst umschalten)",
+    "micMode": "Record-Taste am Diktiermikrofon",
+    "micModes": {
+      "hold": "Halten zum Aufnehmen, Loslassen fügt ein",
+      "toggle": "Drücken startet, erneutes Drücken stoppt"
+    },
+    "clipboardExclude": "Eingefügten Text aus Zwischenablage-Verlauf und Cloud-Zwischenablage heraushalten (Windows)",
+    "clipboardClear": "Zwischenablage leeren nach (Sekunden)",
+    "clipboardClearHint": "Nur wenn sie sich seitdem nicht geändert hat. 0 = nie leeren.",
+    "allowlist": "Erlaubte Zielprogramme (ein Programm pro Zeile)",
+    "allowlistHint": "Leer = in jedes Programm einfügen. Sonst fragt der Client vor dem Einfügen in ein nicht gelistetes Programm nach. Beispiel: medistar.exe",
+    "note": "Diese Werte haben Vorrang vor einer lokalen settings.json auf den Rechnern."
+  },
+  "distribution": {
+    "title": "Client verteilen",
+    "description": "Ein Installer für alle Rechner. Die Verbindung zu diesem Server steckt in einer kleinen settings.json, die neben das Programm kopiert wird.",
+    "step1": "1. Installer herunterladen",
+    "windowsMsi": "Windows (MSI, für Softwareverteilung)",
+    "windowsExe": "Windows (Setup.exe, Einzelplatz)",
+    "macos": "macOS",
+    "step2": "2. settings.json herunterladen",
+    "serverUrl": "Server-Adresse für die Clients:",
+    "settingsJson": "settings.json",
+    "serverUrlHint": "Stimmt die Adresse nicht (z.B. erreichen die Clients den Server unter einem anderen Namen), CLIENT_SERVER_URL in der Server-Konfiguration setzen.",
+    "step3": "3. Installer und settings.json gemeinsam verteilen",
+    "intune": "Intune (Win32-App, Installationsbefehl)",
+    "sccm": "SCCM / PowerShell",
+    "singleHint": "Einzelplatz: Installer ausführen und settings.json nach {{dir}} kopieren.",
+    "copy": "Kopieren",
+    "copied": "In die Zwischenablage kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen"
+  }
+}

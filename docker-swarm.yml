@@ -228,6 +228,11 @@ services:
       # IPs allowed to set X-Forwarded-Proto/-Host (OIDC redirect URI).
       # Empty = auto-detect loopback + this container's Docker gateway.
       TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      # Desktop client distribution (admin UI → Clients). Server URL written into
+      # the client's settings.json; empty = derived from the admin's request.
+      CLIENT_SERVER_URL: ${CLIENT_SERVER_URL:-}
+      # Where the installer download buttons point; empty = latest GitHub release.
+      CLIENT_DOWNLOAD_BASE_URL: ${CLIENT_DOWNLOAD_BASE_URL:-}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
       # Field Encryption (DSGVO / § 203 StGB)

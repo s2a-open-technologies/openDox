@@ -1,0 +1,39 @@
+{
+  "heading": "Desktop client",
+  "saved": "Client settings saved",
+  "config": {
+    "title": "Client settings",
+    "description": "Apply to every openDox client connected to this server. Clients pick up changes at startup and after at most 10 minutes.",
+    "liveView": "Live view on by default (users can toggle it in the client)",
+    "micMode": "Record button on dictation microphones",
+    "micModes": {
+      "hold": "Hold to record, release inserts",
+      "toggle": "Press to start, press again to stop"
+    },
+    "clipboardExclude": "Keep inserted text out of clipboard history and cloud clipboard (Windows)",
+    "clipboardClear": "Clear clipboard after (seconds)",
+    "clipboardClearHint": "Only if it hasn't changed since. 0 = never clear.",
+    "allowlist": "Allowed target programs (one per line)",
+    "allowlistHint": "Empty = insert into any program. Otherwise the client asks before inserting into an unlisted program. Example: medistar.exe",
+    "note": "These values take precedence over a local settings.json on the machines."
+  },
+  "distribution": {
+    "title": "Distribute the client",
+    "description": "One installer for all machines. The connection to this server lives in a small settings.json copied next to the program.",
+    "step1": "1. Download the installer",
+    "windowsMsi": "Windows (MSI, for software deployment)",
+    "windowsExe": "Windows (Setup.exe, single machine)",
+    "macos": "macOS",
+    "step2": "2. Download settings.json",
+    "serverUrl": "Server address for the clients:",
+    "settingsJson": "settings.json",
+    "serverUrlHint": "If the address is wrong (e.g. clients reach the server under a different name), set CLIENT_SERVER_URL in the server configuration.",
+    "step3": "3. Deploy installer and settings.json together",
+    "intune": "Intune (Win32 app, install command)",
+    "sccm": "SCCM / PowerShell",
+    "singleHint": "Single machine: run the installer and copy settings.json to {{dir}}.",
+    "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed"
+  }
+}

@@ -139,6 +139,8 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | `ENCRYPTION_KEY` | Fernet-Key für verschlüsselte Patientendaten (DSGVO/§203 StGB) | – (Verschlüsselung deaktiviert wenn leer) |
 | `CORS_ALLOWED_ORIGINS` | Komma-getrennte erlaubte CORS-Origins | – (alle erlaubt, loggt Warnung) |
 | `TRUSTED_PROXY_IPS` | IPs, die `X-Forwarded-Proto`/`-Host` setzen dürfen (OIDC-Redirect) | – (Auto-Erkennung: Loopback + Docker-Gateway) |
+| `CLIENT_SERVER_URL` | Server-Adresse, die in die `settings.json` des Desktop-Clients geschrieben wird (Admin → Clients) | – (aus der Anfrage des Admins abgeleitet, inkl. `ROOT_PATH`) |
+| `CLIENT_DOWNLOAD_BASE_URL` | Basis-URL der Installer-Downloads im Admin-Bereich | neuestes GitHub-Release von `opendox-client` |
 | `WHISPER_API_ENDPOINT` | Whisper-API-URL (Fallback, wenn keine DB-Settings gesetzt sind) | `http://localhost:9100/v1` |
 | `WHISPER_API_KEY` | Whisper-API-Key | `loc-123` |
 | `S3_ENDPOINT_URL` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | S3-kompatibler Objektspeicher für Audio-Downloads | zeigt im Docker-Compose-Stack auf den mitgelieferten `garage`-Service |

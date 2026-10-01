@@ -25,6 +25,7 @@ from typing import Any
 
 import requests as _requests
 from fastapi import Depends, File, HTTPException, Request, UploadFile
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 
 from backend.components.llm.llm_model import SummarizeModel, normalize_openai_base_url
@@ -85,19 +86,64 @@ def _require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def _optional_user(request: Request, db: SessionDep) -> User | None:
+    """Resolve the bearer-token user if there is a valid one, else None.
+
+    For endpoints that must stay reachable without login (e.g. the desktop
+    client reads ``live_backend`` before anyone signs in) but may expose more
+    to privileged users. An invalid or expired token counts as anonymous.
+    """
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    try:
+        return get_current_user(
+            HTTPAuthorizationCredentials(scheme="Bearer", credentials=token), db
+        )
+    except HTTPException:
+        return None
+
+
+def _require_secret_reader(current_user: User = Depends(get_current_user)) -> User:
+    """Guard for settings GETs that carry secrets: admin, or demo viewer (redacted)."""
+    if current_user.role not in ("admin", "demo_viewer"):
+        raise api_error(403, "admin_required", "Admin role required")
+    return current_user
+
+
+def _redact_secrets(settings, user: User | None, fields: tuple[str, ...]):
+    """Return ``settings`` with ``fields`` blanked unless ``user`` is an admin.
+
+    Works on a detached copy — the stored row is never modified.
+    """
+    if user is not None and user.role == "admin":
+        return settings
+    blank = {
+        field: ("" if isinstance(getattr(settings, field), str) else None)
+        for field in fields
+    }
+    return settings.model_copy(update=blank)
+
+
 # Whisper Endpoints
 
 
 @settings_bp.get("/whisper-settings/", response_model=WhisperSettingsModel)
-async def get_whisper_settings(db: SessionDep):
-    """Return the Whisper settings, creating defaults if missing."""
+async def get_whisper_settings(
+    db: SessionDep, user: User | None = Depends(_optional_user)
+):
+    """Return the Whisper settings, creating defaults if missing.
+
+    Readable without login (the recorder UIs need ``live_backend`` before
+    sign-in), but the API keys are only included for admins.
+    """
     settings = db.exec(select(WhisperSettingsModel)).first()
     if not settings:
         settings = WhisperSettingsModel()
         db.add(settings)
         db.commit()
         db.refresh(settings)
-    return settings
+    return _redact_secrets(settings, user, ("live_api_key", "final_api_key"))
 
 
 @settings_bp.put("/whisper-settings/", response_model=WhisperSettingsModel)
@@ -157,15 +203,17 @@ async def update_whisper_settings(
 
 
 @settings_bp.get("/llm-settings/", response_model=LlmSettingsModel)
-async def get_llm_settings(db: SessionDep):
-    """Return the LLM settings, creating defaults if missing."""
+async def get_llm_settings(
+    db: SessionDep, user: User = Depends(_require_secret_reader)
+):
+    """Return the LLM settings (admin; API keys blanked for demo viewers)."""
     settings = db.exec(select(LlmSettingsModel)).first()
     if not settings:
         settings = LlmSettingsModel()
         db.add(settings)
         db.commit()
         db.refresh(settings)
-    return settings
+    return _redact_secrets(settings, user, ("llm_api_key", "sanitizer_api_key"))
 
 
 @settings_bp.put("/llm-settings/", response_model=LlmSettingsModel)
@@ -418,14 +466,16 @@ async def get_services_health(db: SessionDep):
 
 # LDAP Endpoints
 @settings_bp.get("/ldap-settings/", response_model=LdapSettingsModel)
-async def get_ldap_settings(db: SessionDep):
-    """Return the LDAP settings or an empty default object if missing."""
+async def get_ldap_settings(
+    db: SessionDep, user: User = Depends(_require_secret_reader)
+):
+    """Return the LDAP settings (admin; bind password blanked for demo viewers)."""
     settings = db.exec(select(LdapSettingsModel)).first()
     if not settings:
         return LdapSettingsModel(
             server_host="", server_port=389, base_dn="", user_dn=""
         )
-    return settings
+    return _redact_secrets(settings, user, ("bind_user_password",))
 
 
 @settings_bp.put("/ldap-settings/", response_model=LdapSettingsModel)
@@ -928,15 +978,17 @@ async def import_backup(
 
 
 @settings_bp.get("/oidc-settings/", response_model=OidcSettingsModel)
-async def get_oidc_settings(db: SessionDep):
-    """Return the current OIDC settings, creating a default row if none exists."""
+async def get_oidc_settings(
+    db: SessionDep, user: User = Depends(_require_secret_reader)
+):
+    """Return the OIDC settings (admin; client secret blanked for demo viewers)."""
     settings = db.exec(select(OidcSettingsModel)).first()
     if not settings:
         settings = OidcSettingsModel()
         db.add(settings)
         db.commit()
         db.refresh(settings)
-    return settings
+    return _redact_secrets(settings, user, ("client_secret",))
 
 
 @settings_bp.put("/oidc-settings/", response_model=OidcSettingsModel)

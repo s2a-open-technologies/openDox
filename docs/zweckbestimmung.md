@@ -83,10 +83,11 @@ therapeutischen Auswertungen verlangen (siehe Abschnitt 6).
 
 Die Abgrenzung wird in der Software nachvollziehbar abgebildet:
 
-- Der Desktop-Client fügt Text nie automatisch ein: Er braucht die Bestätigung
-  des Anwenders (Button, Hotkey oder Mikrofontaste), bei Tastenmikrofonen im
-  Standardmodus „halten“ das Loslassen der Aufnahmetaste. Der Betreiber kann den
-  Modus auf „toggle“ stellen und Zielprogramme auf eine Allow-Liste beschränken
+- Der Desktop-Client fügt Text nur auf eine Handlung des Anwenders hin ein
+  (Button, Hotkey oder Mikrofontaste), nie von selbst. Beim Tastenmikrofon im
+  Standardmodus „hold“ ist diese Handlung das Loslassen der Aufnahmetaste; der
+  Text landet dann ohne weiteren Klick im Zielprogramm. Der Betreiber kann auf
+  „toggle“ umstellen und Zielprogramme auf eine Allow-Liste beschränken
   (Admin → Clients).
 - Pflicht-Bestätigung beim ersten Login (`DisclaimerGate.tsx`, in Web-Frontend und Desktop-Client), serverseitig
   mit Zeitstempel in `User.disclaimer_accepted_at` gespeichert; alle Routen

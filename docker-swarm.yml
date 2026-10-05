@@ -279,8 +279,7 @@ services:
     deploy:
       # Must stay at 1: /app/chunks (live-recording PCM scratch space, plus
       # chunks/failed/ retained-for-retry audio) is local-disk-only and keyed
-      # by session_id/task_id, with no cross-instance sharing. See
-      # docs/TODO.md Tier 4.
+      # by session_id/task_id, with no cross-instance sharing.
       replicas: 1
       restart_policy:
         condition: any

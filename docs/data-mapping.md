@@ -64,7 +64,7 @@ PII-Sanitizer aktiv ist).
 |---|---|---|
 | Gesundheitsdaten (besondere Kategorie, Art. 9 DSGVO) | Gesprochener Inhalt der Aufnahme, Transkript, Zusammenfassung | `record.content`, `record.summarize`, temporär als Audio |
 | Patientenbezogene Identifikatoren | Namen, Orte, Daten, die im Transkript vorkommen (nicht strukturiert, Freitext) | Teil von `record.content`/`record.summarize`; ggf. maskiert falls Sanitizer aktiv |
-| Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle | `User`-Tabelle |
+| Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle, UI-Sprache, privates Korrektur-Wörterbuch (`personal_glossary`, nie für Admins einsehbar) | `User`-Tabelle |
 | Zugangsdaten zu Drittsystemen | LDAP-Bind-Passwort, OIDC-Client-Secret, API-Keys für LLM/Whisper/Sanitizer | Settings-Tabellen (siehe Verschlüsselung unten) |
 | Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes Audio (Format konfigurierbar: MP3/WAV/FLAC/OGG) | `chunks/` (temporär, bei fehlgeschlagener Transkription länger, siehe unten), Objektspeicher (optional, dauerhaft bis Löschung) |
 
@@ -89,6 +89,7 @@ PII-Sanitizer aktiv ist).
 |---|---|---|
 | `record.content`, `record.summarize`, `record.pii_mapping` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | Persistiertes Audio im Objektspeicher | ✅ | Anwendungsseitig mit `ENCRYPTION_KEY` verschlüsselt **vor** dem Upload — der Objektspeicher-Anbieter sieht nie Klartext, unabhängig davon, ob er selbst Server-Side-Encryption anbietet |
+| `User.personal_glossary` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `record.title` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `LdapSettingsModel.bind_user_password` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `OidcSettingsModel.client_secret` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |

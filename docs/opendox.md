@@ -509,7 +509,7 @@ class SessionStore:
     Audio data is written to disk (session_{id}.pcm), not held in RAM,
     to prevent memory leaks during long recordings.
     
-    TODO: Replace with Redis for production/multi-instance deployments.
+    Fallback when REDIS_URL is unset (single instance only).
     """
     
     def __init__(self):
@@ -1039,7 +1039,7 @@ graph LR
 - ✅ Verschlüsselungs-Key-Rotation ohne Downtime
 - ✅ System-Health-Check-Endpoint für alle Kernservices
 
-**Bewusst außerhalb des aktuellen Scopes** (`app` ist unter Swarm auf `replicas: 1` gepinnt — der PCM-Chunk-Ordner ist lokal-disk-only, siehe `chunks/`): horizontale Skalierung auf mehrere App-Instanzen. Die vollständige, laufend gepflegte Roadmap dafür (Kubernetes-Migration, Sticky-WebSocket-Routing, geteilter Storage für laufende Aufnahmen, Multi-Replica-Cache-Invalidierung) steht in [`docs/TODO.md`](TODO.md) — nicht hier dupliziert, um nicht wieder auseinanderzudriften.
+**Bewusst außerhalb des aktuellen Scopes** (`app` ist unter Swarm auf `replicas: 1` gepinnt — der PCM-Chunk-Ordner ist lokal-disk-only, siehe `chunks/`): horizontale Skalierung auf mehrere App-Instanzen. Voraussetzungen dafür wären u. a. Sticky-WebSocket-Routing, geteilter Storage für laufende Aufnahmen und Multi-Replica-Cache-Invalidierung.
 
 ---
 
@@ -1062,8 +1062,7 @@ graph LR
 │  RELIABILITY 🛡️                                              │
 │  ├─ [✅] Health/Version-Endpoints (/api/endpoint,           │
 │  │       /api/version, /api/v1/settings/services-health/)  │
-│  ├─ [⚠️ ] Dedizierte Readiness-Probe /api/ready (TODO,      │
-│  │       siehe docs/TODO.md — services-health/ ist der Vorbild-Check) │
+│  ├─ [✅] Readiness-Probe /api/ready (503 bei DB/Redis-Ausfall) │
 │  ├─ [✅] Redis Session Store (REDIS_URL → Redis, else In-Memory) │
 │  ├─ [⚠️ ] Circuit Breaker (TODO: for external services)   │
 │  └─ [⚠️ ] Retry Logic (TODO: exponential backoff, außer dem │
@@ -1116,6 +1115,7 @@ Legend:
 |---------|------|--------------|
 | GET | `/api/endpoint` | Liveness |
 | GET | `/api/version` | App-Version aus `pyproject.toml` |
+| GET | `/api/ready` | Readiness-Probe (503, wenn DB oder Redis nicht erreichbar) |
 
 ### Authentication (`/api/v1/auth`)
 
@@ -1139,7 +1139,7 @@ Legend:
 | POST | `/upload` | Vollständige Audiodatei hochladen (Alternative zum Live-Recorder) | ✅ |
 | GET | `/active-session/{user_id}` | Aktive Session abrufen | ✅ |
 | DELETE | `/cancel-session/{user_id}` | Session abbrechen | ✅ |
-| WS | `/ws/record` | WebSocket für Live-Aufnahme + -Transkript | ✅ |
+| WS | `/ws/record` | WebSocket für Live-Aufnahme + -Transkript (`?live=0`: nur aufzeichnen, keine Live-Transkription) | ✅ |
 | GET | `/list-records/{user_id}` | Aufnahmen auflisten (`?archived=`) | ✅ |
 | GET | `/by-session/{session_id}` | Nach Session-ID suchen | ✅ |
 | GET | `/record/{id}` | Einzelne Aufnahme | ✅ |
@@ -1166,6 +1166,9 @@ Legend:
 | POST | `/ldap-settings/upload-cert/` | LDAPS-CA-Zertifikat hochladen (landet in der DB, nicht auf Disk) |
 | GET/PUT | `/oidc-settings/` | OIDC-Konfiguration |
 | GET/POST/PUT/DELETE | `/categories/`, `/categories/{id}` | Kategorien (Whisper-/Glossar-/LLM-Prompts, siehe Abschnitt „Kategorien") |
+| GET/PUT | `/my-language/` | UI-Sprache des angemeldeten Users (`User.ui_language`) |
+| GET/PUT | `/client-config/` | Richtlinie für den Desktop-Client (GET ohne Login, PUT nur Admin) |
+| GET | `/client-distribution/` | Installer-Links, `settings.json` und Intune-/SCCM-Befehle für den Desktop-Client (Admin) |
 | GET/PUT | `/my-dictionary/` | Eigenes, privates Korrektur-Wörterbuch des angemeldeten Users (nie für Admins sichtbar) |
 | GET/POST/PUT/DELETE | `/languages/`, `/languages/{id}` | Sprachen |
 | GET | `/backup/` | Alle Settings-Tabellen als JSON exportieren |
@@ -1400,7 +1403,7 @@ Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${V
 
 - **Quellcode:** [GitHub - daemolition/openDox](https://github.com/daemolition/openDox)
 - **Docker Images:** `registry.nutsolution.de` (per `docker_build_push.sh`) — App, Whisper, Parakeet, Garage-Init; zusätzlich optional `ghcr.io/<owner>` (Dual-Push, multi-arch amd64+arm64, `.github/workflows/docker-publish.yml`)
-- **Weitere Dokumentation:** `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `docs/TODO.md` (Kubernetes-/Skalierungs-Roadmap), `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
+- **Weitere Dokumentation:** `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
 
 ### Technologie-Dokumentation
 

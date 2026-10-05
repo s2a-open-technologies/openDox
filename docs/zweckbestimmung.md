@@ -34,7 +34,8 @@ vollständig beim Anwender.
 
 | Funktion | Beschreibung |
 |---|---|
-| Aufnahme | Audioaufnahme per Browser oder Desktop-Client, Upload vorhandener Audiodateien |
+| Aufnahme | Audioaufnahme per Browser oder Desktop-Client ([`client.md`](client.md)), Upload vorhandener Audiodateien |
+| Einfügen (Desktop-Client) | Der Anwender bestätigt den Text („Akzeptieren und einfügen“); der Client fügt ihn in das gerade fokussierte Programm ein, in dem der Anwender ihn prüft und selbst speichert |
 | Transkription | Live-Text (Parakeet) und finale Transkription (Whisper) |
 | Fachbegriff-Korrektur | Phonetischer Abgleich mit Glossaren (Kategorie, persönliches Wörterbuch) |
 | PII-Maskierung (optional) | Ersetzen von Namen und Orten durch Platzhalter vor der LLM-Verarbeitung |
@@ -50,7 +51,10 @@ openDox ist **nicht** dafür bestimmt und darf **nicht** verwendet werden für:
 2. die **Entscheidungsfindung** über Diagnostik oder Therapie, einschließlich
    Empfehlungen, Risikobewertungen, Triage oder Dosierungsvorschlägen;
 3. die **automatische Übernahme** von Ausgaben in die Patientenakte oder in
-   andere Systeme ohne vorherige Prüfung durch qualifiziertes Fachpersonal;
+   andere Systeme ohne Prüfung durch qualifiziertes Fachpersonal. Der
+   Desktop-Client fügt Text nur an der Cursorposition des Zielprogramms ein
+   und speichert oder sendet nichts; die Prüfung vor dem Speichern bleibt
+   Pflicht des Anwenders;
 4. die Ableitung neuer medizinischer Aussagen: openDox soll Gesagtes
    dokumentieren, nicht medizinisch bewerten oder ergänzen;
 5. den Einsatz als **alleinige Grundlage** für Behandlungsentscheidungen;
@@ -79,7 +83,12 @@ therapeutischen Auswertungen verlangen (siehe Abschnitt 6).
 
 Die Abgrenzung wird in der Software nachvollziehbar abgebildet:
 
-- Pflicht-Bestätigung beim ersten Login (`DisclaimerGate.tsx`), serverseitig
+- Der Desktop-Client fügt Text nie automatisch ein: Er braucht die Bestätigung
+  des Anwenders (Button, Hotkey oder Mikrofontaste), bei Tastenmikrofonen im
+  Standardmodus „halten“ das Loslassen der Aufnahmetaste. Der Betreiber kann den
+  Modus auf „toggle“ stellen und Zielprogramme auf eine Allow-Liste beschränken
+  (Admin → Clients).
+- Pflicht-Bestätigung beim ersten Login (`DisclaimerGate.tsx`, in Web-Frontend und Desktop-Client), serverseitig
   mit Zeitstempel in `User.disclaimer_accepted_at` gespeichert; alle Routen
   bleiben bis zur Bestätigung gesperrt.
 - Hinweis „Kein Medizinprodukt“ im Aufnahmedialog und in der Transkriptansicht
@@ -112,3 +121,4 @@ Lizenz: AGPL-3.0-or-later · Quellcode: <https://github.com/daemolition/openDox>
 - [`DISCLAIMER.md`](../DISCLAIMER.md): Haftungs- und Regulierungshinweis
 - [`docs/hospital-audit-frameworks.md`](hospital-audit-frameworks.md) §8: Abgrenzung zur MDR
 - [`docs/data-mapping.md`](data-mapping.md): Datenfluss und DSGVO
+- [`docs/client.md`](client.md): Funktionsweise des Desktop-Clients

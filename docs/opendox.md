@@ -1403,7 +1403,7 @@ Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${V
 
 - **Quellcode:** [GitHub - daemolition/openDox](https://github.com/daemolition/openDox)
 - **Docker Images:** `registry.nutsolution.de` (per `docker_build_push.sh`) — App, Whisper, Parakeet, Garage-Init; zusätzlich optional `ghcr.io/<owner>` (Dual-Push, multi-arch amd64+arm64, `.github/workflows/docker-publish.yml`)
-- **Weitere Dokumentation:** `docs/zweckbestimmung.md` (Zweckbestimmung, Abgrenzung zur MDR), `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
+- **Weitere Dokumentation:** `docs/zweckbestimmung.md` (Zweckbestimmung, Abgrenzung zur MDR), `docs/client.md` (Desktop-Client), `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
 
 ### Technologie-Dokumentation
 

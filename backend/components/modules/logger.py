@@ -20,6 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # Standard Library
 import logging
 
+# Third-party
+from uvicorn.logging import DefaultFormatter
+
+# Custom
 from backend.components.modules.env import env_or_file
 
 LOG_LEVEL = env_or_file("LOG_LEVEL", "INFO")
@@ -43,7 +47,9 @@ def initialize_logging():
         root_logger.removeHandler(handler)
 
     stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(levelname)-8s [%(name)s] %(message)s")
+    # Same look as uvicorn's own lines ("INFO:     message", coloured on a
+    # TTY), but our own handler: uvicorn's are not configured yet at import.
+    formatter = DefaultFormatter("%(levelprefix)s %(message)s")
     stream_handler.setFormatter(formatter)
     root_logger.addHandler(stream_handler)
 
@@ -56,10 +62,10 @@ def initialize_logging():
         logging.getLogger(name).setLevel(LOG_LEVEL)
 
 
-def get_logger(name: str = __name__):
-    """Returns a logger object that writes to uvicorn.error stream.
+def get_logger(name: str | None = None):
+    """Return a logger; pass ``__name__`` so records name their module.
 
-    This ensures all application logs are captured by uvicorn's
-    logging system and appear in uvicorn's log output.
+    Without a name the root logger is used, so no record is attributed to this
+    helper module.
     """
     return logging.getLogger(name)

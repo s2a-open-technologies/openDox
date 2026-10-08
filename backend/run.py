@@ -198,7 +198,7 @@ async def lifespan(app: FastAPI):
     the stale-session cleanup loop. On shutdown: cancel the loop so the event
     loop can stop cleanly.
     """
-    logger = get_logger()
+    logger = get_logger(__name__)
     _cleanup_orphaned_chunk_files(logger)
     cleanup_task = asyncio.create_task(_stale_session_cleanup_loop(logger))
     logger.info("Stale-session cleanup loop started (interval=600s, max_age=30min)")
@@ -226,7 +226,7 @@ async def lifespan(app: FastAPI):
 def create_app():
     """Create and configure the FastAPI application."""
     initialize_logging()
-    logger = get_logger()
+    logger = get_logger(__name__)
 
     logger.info("Checking encryption key rotation...")
     _run_key_rotation(logger)

@@ -9,24 +9,24 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "alembic==1.18.4",
+    "alembic==1.20.0",
     "boto3>=1.35.0",
-    "fastapi==0.136.3",
-    "langchain==1.3.4",
-    "langchain-openai==1.2.2",
+    "fastapi==0.142.2",
+    "langchain==1.4.3",
+    "langchain-openai==1.6.7",
     "ldap3==2.9.1",
-    "numpy==2.4.6",
-    "cryptography==48.0.1",
+    "numpy==2.5.3",
+    "cryptography==50.0.2",
     "passlib==1.7.4",
-    "psycopg2-binary==2.9.12",
-    "pydantic==2.13.4",
-    "python-dotenv==1.2.2",
+    "psycopg2-binary==2.9.13",
+    "pydantic==2.13.5",
+    "python-dotenv==1.2.4",
     "python-jose==3.5.0",
-    "python-multipart==0.0.31",
-    "redis==8.0.1",
-    "ruff==0.15.16",
+    "python-multipart==0.0.32",
+    "redis==8.1.0",
+    "ruff==0.16.10",
     "sqlmodel==0.0.48",
-    "uvicorn[standard]==0.49.0",
+    "uvicorn[standard]==0.54.0",
     "httpx>=0.28.1",
     "requests>=2.34.2",
     "sqlalchemy>=2.0.50,<2.1",
@@ -83,6 +83,8 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 convention = "google"
 
 [tool.ruff.format]
+# ruff >= 0.16 also formats Markdown; keep the docs as written.
+exclude = ["*.md"]
 # Ruff übernimmt hier die Arbeit von Black
 quote-style = "double"
 indent-style = "space"

@@ -106,7 +106,7 @@ npm run build
 ### Transkriptions-Pipeline
 
 1. **Aufnahme**: Browser nimmt Audio über `MediaRecorder` + `AudioWorklet` auf
-2. **Live-Transkription** (optional, pro Aufnahme abschaltbar mit `?live=0`): Audio-Frames gehen per WebSocket ans Backend und von dort an den Parakeet-Server, der per VAD segmentiert und Text mit Zeichensetzung zurückstreamt (alternativ Whisper-API in festen Chunks)
+2. **Live-Transkription** (optional, pro Aufnahme abschaltbar mit `?live=0`): Audio-Frames gehen per WebSocket ans Backend und von dort an den Parakeet-Server, der per VAD segmentiert und Text mit Zeichensetzung zurückstreamt (alternativ Whisper-API in festen Chunks). **Parakeet braucht dafür eine GPU**; auf der CPU ist die Live-Ansicht zu langsam, dort Live-Transkription abschalten (Admin → Dienste → Whisper → `live_backend`)
 3. **Finale Transkription**: Nach Stopp der Aufnahme werden alle Audio-Chunks zu einer Datei zusammengefügt und erneut an die Whisper-API geschickt (optional mit phonetischer Fachbegriff-Korrektur und PII-Sanitizer vor dem LLM, siehe [`docs/pii.md`](docs/pii.md))
 4. **LLM-Zusammenfassung**: Der transkribierte Text wird zusammen mit einem kategoriespezifischen Prompt an ein externes LLM geschickt (z. B. Ollama, vLLM, OpenAI-kompatibel)
 

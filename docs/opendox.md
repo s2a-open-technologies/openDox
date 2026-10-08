@@ -323,15 +323,15 @@ const uploadChunk = (chunk: Blob, sessionId: string) => {
 │  ⚡ ZWEI-STUFEN LATENZ-PROFIL                                │
 │  ─────────────────────────────────────────────────────────  │
 │                                                               │
-│  STAGE 1: LIVE (Parakeet, CPU)                               │
+│  STAGE 1: LIVE (Parakeet, GPU empfohlen)                      │
 │  Komponente              │ Latenz      │ Optimierung       │
 │  ────────────────────────┼─────────────┼──────────────────  │
 │  Audio-Capture (Browser) │   10-20ms   │ 16kHz direkt      │
 │  WebSocket RTT           │    5-10ms   │ Lokales Netzwerk  │
-│  Parakeet Inferenz (3s)  │  200-500ms  │ CPU (ONNX)        │
+│  Parakeet Inferenz       │ hardwareabh.│ GPU; CPU zu langsam│
 │  Response-Serialization  │    5-10ms   │ JSON minimal      │
 │  ────────────────────────┼─────────────┼──────────────────  │
-│  Gesamt (Live)           │  ~220-540ms  │ Kein LLM nötig    │
+│  Gesamt (Live)           │ nicht gemessen│ Kein LLM nötig   │
 │                                                               │
 │  STAGE 2: FINAL (Whisper, GPU)                              │
 │  Komponente              │ Latenz      │ Optimierung       │
@@ -349,7 +349,7 @@ const uploadChunk = (chunk: Blob, sessionId: string) => {
 ```
 
 **Warum zwei Stufen?**
-- **Parakeet (Live):** CPU-only, keine GPU nötig, liefert sofort Sätze mit Interpunktion — kein LLM-Korrekturschritt
+- **Parakeet (Live):** liefert Sätze mit Interpunktion ohne LLM-Korrekturschritt. Echtzeitfähig ist das nur **mit GPU**: auf der CPU läuft der Dienst (CPU-Image oder GPU-Image ohne GPU), kommt mit dem Re-Decode des offenen Segments alle 0,4 s aber nicht hinterher, und der Live-Text erscheint stark verzögert. Auf Hosts ohne GPU die Live-Transkription abschalten (Admin → Dienste → Whisper → `live_backend` = „disabled“, oder der Client verbindet mit `?live=0`); die finale Transkription nach dem Stopp ist davon unabhängig
 - **Whisper (Final):** GPU-beschleunigt, höhere Qualität für die endgültige Transkription und Zusammenfassung
 
 ---
@@ -458,7 +458,7 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
 - **Modell-Cache:** `get_model(name)` mit Dict-Cache, keine Singletons
 - **Lifespan:** Default-Modell wird beim Start vorgeladen, bei Shutdown freigegeben
 - **PCM → WAV:** Akzeptiert rohes Float32-PCM (16kHz, Mono) oder WAV-Dateien
-- **GPU-Default mit CPU-Fallback:** anders als früher kein reiner CPU-Dienst mehr — `CUDAExecutionProvider` wird automatisch gewählt, wenn verfügbar
+- **GPU-Default mit CPU-Fallback:** `CUDAExecutionProvider` wird automatisch gewählt, wenn verfügbar. Der CPU-Fallback ist für Tests und den One-Shot-Endpunkt gedacht, nicht für Live-Streaming (zu langsam)
 
 ### Streaming-Endpunkt (WS /v1/audio/stream)
 

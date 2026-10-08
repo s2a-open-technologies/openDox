@@ -55,11 +55,10 @@ Für einen gehärteten Produktions-Deploy (echte Secrets statt Klartext-Defaults
 docker swarm init                        # einmalig pro Manager-Node
 ./create_docker_secrets.sh                # einmalig — erzeugt alle benötigten Secrets
 export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
-./docker_build_push.sh
 docker stack deploy -c docker-swarm.yml opendox
 ```
 
-Details (Secrets-Handling, GPU-Scheduling unter Swarm, Key-Rotation) siehe Kommentare in `docker-swarm.yml` und `AGENTS.md`.
+Swarm baut keine Images: die vier Images (App, Whisper, Parakeet, Garage-Init) müssen vorher in einer Registry liegen, die die Nodes erreichen (eigene Registry oder der manuelle Workflow `.github/workflows/docker-publish.yml` nach GHCR). Details (Secrets-Handling, GPU-Scheduling unter Swarm, Key-Rotation) siehe Kommentare in `docker-swarm.yml` und `AGENTS.md`.
 
 ## Entwicklung (ohne Docker)
 

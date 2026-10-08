@@ -10,8 +10,9 @@
 #  (that file stays the local dev/demo setup, this one is for `docker stack
 #  deploy`):
 #    - No `build:` — Swarm only pulls images, it never builds them. Build and
-#      push all four custom images first with ./docker_build_push.sh, then
-#      set OPENDOX_VERSION (see below) to the tag it produced.
+#      push all four custom images to a registry first (own `docker buildx
+#      build --push`, or .github/workflows/docker-publish.yml), then set
+#      OPENDOX_VERSION (see below) to the tag you pushed.
 #    - No `container_name:` — unsupported/ignored under Swarm, services are
 #      named `<stack>_<service>` automatically.
 #    - `restart:` moved under `deploy.restart_policy` (Swarm's equivalent).
@@ -31,7 +32,6 @@
 #    docker swarm init                       # once per manager node
 #    ./create_docker_secrets.sh               # once, or after adding a new secret
 #    export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
-#    ./docker_build_push.sh                   # build + push all 4 images at that tag
 #    docker stack deploy -c docker-swarm.yml opendox
 
 services:

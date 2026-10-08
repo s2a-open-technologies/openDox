@@ -1249,7 +1249,6 @@ docker compose down -v   # ⚠️ Datenverlust (Volumes)
 docker swarm init                        # einmalig pro Manager-Node
 ./create_docker_secrets.sh               # einmalig — erzeugt alle benötigten Secrets
 export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
-./docker_build_push.sh                   # baut + pusht alle 4 Images (app, whisper, parakeet, garage-init)
 docker stack deploy -c docker-swarm.yml opendox
 ```
 
@@ -1402,7 +1401,7 @@ Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${V
 ### Repositories
 
 - **Quellcode:** [GitHub - daemolition/openDox](https://github.com/daemolition/openDox)
-- **Docker Images:** `registry.nutsolution.de` (per `docker_build_push.sh`) — App, Whisper, Parakeet, Garage-Init; zusätzlich optional `ghcr.io/<owner>` (Dual-Push, multi-arch amd64+arm64, `.github/workflows/docker-publish.yml`)
+- **Docker Images:** App, Whisper, Parakeet, Garage-Init; multi-arch (amd64+arm64) über den manuellen Workflow `.github/workflows/docker-publish.yml` nach `ghcr.io/<owner>`
 - **Weitere Dokumentation:** `docs/zweckbestimmung.md` (Zweckbestimmung, Abgrenzung zur MDR), `docs/client.md` (Desktop-Client), `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
 
 ### Technologie-Dokumentation

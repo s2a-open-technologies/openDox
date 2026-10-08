@@ -182,7 +182,6 @@ convention (`backend/components/modules/env.py:env_or_file()`):
 docker swarm init                        # once per manager node
 ./create_docker_secrets.sh                # once — generates + creates every secret
 export OPENDOX_VERSION=$(python3 scripts/bump_version.py --current)
-./docker_build_push.sh
 docker stack deploy -c docker-swarm.yml opendox
 ```
 

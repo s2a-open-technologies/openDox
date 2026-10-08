@@ -55,15 +55,11 @@ Enhancement suggestions are tracked as GitHub issues. Please provide:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/opendox.git
-cd opendox
+git clone https://github.com/daemolition/openDox.git
+cd openDox
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install uv
+# Install dependencies (creates .venv from uv.lock; install uv first:
+# https://docs.astral.sh/uv/)
 uv sync
 
 # Set up environment variables
@@ -71,10 +67,10 @@ cp .env.example .env
 # Edit .env with your configuration
 
 # Run database migrations
-alembic upgrade head
+uv run alembic upgrade head
 
 # Start development server
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000
 ```
 
 ### Frontend Setup
@@ -93,11 +89,9 @@ npm run dev
 
 ```bash
 # Start all services
-docker-compose up --build
+docker compose up --build
 
-# Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:5000
+# Access the application: http://localhost:20000 (APP_PORT)
 ```
 
 ## Security Guidelines

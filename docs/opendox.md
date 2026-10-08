@@ -16,7 +16,9 @@
 - 🏷️ **Kategorien**: jede Aufnahme bekommt eine Kategorie mit eigenem Whisper-Vokabular-Prompt, LLM-System-Prompt und optionalem Per-Kategorie-LLM-Backend
 - 🤖 **KI-Zusammenfassung**: Grammatikkorrektur und Strukturierung über ein beliebiges OpenAI-kompatibles LLM (Ollama, vLLM, Cloud-Anbieter …) — nicht auf Ollama festgelegt
 - 🕵️ **PII-Sanitizer (EntityGuard, optional)**: maskiert Klarnamen vor dem LLM-Call, re-injiziert sie danach wieder in die gespeicherte Zusammenfassung
-- 🔐 **DSGVO-konform**: Feldweise Verschlüsselung (inkl. Key-Rotation) für patientenbezogene Daten, automatische Löschung des Rohaudios nach der Verarbeitung
+- 🔐 **Datenschutz-Funktionen**: Feldweise Verschlüsselung für patientenbezogene Daten (Key-Rotation mit bekannten Lücken, siehe `SECURITY.md`), automatische Löschung des Rohaudios nach erfolgreicher Verarbeitung. Ob ein Betrieb DSGVO-konform ist, hängt von der Konfiguration ab, siehe `docs/data-mapping.md`
+- 📖 **Fachbegriff-Korrektur**: optionale phonetische Korrektur (Kölner Phonetik) mit Kategorie-Glossar und privatem Nutzer-Wörterbuch
+- 🌍 **Mehrsprachige Oberfläche** (Deutsch/English) und optionaler **Desktop-Client** (`docs/client.md`)
 - 🎧 **Optionaler Audio-Download**: komprimierte, verschlüsselte Kopie der Aufnahme (Format/Bitrate wählbar) in einem S3-kompatiblen Objektspeicher (self-hosted Garage per Default)
 - 🏢 **Enterprise-Ready**: LDAP- und OIDC/SSO-Integration (inkl. Gruppen→Rollen-Mapping), Redis-Session-Store mit In-Memory-Fallback
 - 🐳 **Cloud-Native**: Docker-Compose-Stack (lokal/Demo) und Docker-Swarm-Produktionsdeploy mit PostgreSQL
@@ -920,7 +922,7 @@ class Record(SQLModel, table=True):
 
 ### Key-Rotation
 
-`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** `Record.content`/`summarize`/`pii_mapping`/`title` in-place mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — der `"Verschlüsselung"`-Eintrag muss `"online"` sein.
+`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** `Record.content`/`summarize`/`pii_mapping` in-place mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: `Record.title`, `User.personal_glossary`, das LDAP-Bind-Passwort und das OIDC-Client-Secret (gleicher Key, aber nicht umverschlüsselt — nach einer Rotation würden sie nicht lesbar sein und müssten neu eingegeben werden) sowie das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — der `"Verschlüsselung"`-Eintrag muss `"online"` sein.
 
 ### Key-Management
 
@@ -997,12 +999,14 @@ services:
 - `Record.summarize` – LLM-Zusammenfassung (patientenbezogene Inhalte)
 - `Record.title` – Titel der Aufnahme
 - `Record.pii_mapping` – Token→Klarname-Mapping des PII-Sanitizers
+- `User.personal_glossary` – privates Korrektur-Wörterbuch
 - `LdapSettingsModel.bind_user_password`, `OidcSettingsModel.client_secret`
 - Persistiertes Audio im Objektspeicher (`encrypt_bytes()`, siehe Audio-Download)
 
 **Was ist NICHT verschlüsselt?**
 - `Record.timestamp` – Zeitstempel (Metadaten)
 - `User.name` – Benutzername (Referenz für Zugriffskontrolle)
+- API-Keys in den Settings (`llm_api_key`, `sanitizer_api_key`, `live_api_key`, `final_api_key`, `Categories.llm_api_key`) – Klartext in der DB; per API nur für Admins lesbar
 - PCM/WAV in `chunks/` – unverschlüsselt, aber kurzlebig (siehe Aufbewahrung in `docs/data-mapping.md`)
 
 **Warum Feldweise Verschlüsselung?**
@@ -1055,7 +1059,7 @@ graph LR
 │  ├─ [✅] LDAP- und OIDC/SSO-Integration                     │
 │  ├─ [✅] Field Encryption (Fernet) inkl. Key-Rotation       │
 │  ├─ [✅] HTTPS Enforcement (Reverse-Proxy)                   │
-│  ├─ [⚠️ ] Rate-Limiting (TODO: nginx/slowapi)              │
+│  ├─ [⚠️ ] Rate-Limiting (nur /login, in-process; sonst Proxy)│
 │  ├─ [⚠️ ] Audit-Logging (TODO: who accessed what when)      │
 │  └─ [⚠️ ] CSP Headers (TODO: Content-Security-Policy)       │
 │                                                               │
@@ -1070,13 +1074,13 @@ graph LR
 │  │       Tasks, siehe Audio-Download)                        │
 │                                                               │
 │  SCALABILITY 📈                                               │
-│  ├─ [✅] Stateless Application                              │
+│  ├─ [⚠️ ] Nicht stateless: laufende Aufnahmen liegen lokal │
 │  ├─ [✅] Redis for Sessions (REDIS_URL, else In-Memory fallback) │
 │  ├─ [⚠️ ] Load-Balancer Config (TODO: Traefik)              │
 │  └─ [⚠️ ] Auto-Scaling Rules (TODO: K8s HPA)               │
 │                                                               │
 │  MONITORING 📊                                                │
-│  ├─ [✅] Basic Logging (Python stdlib)                     │
+│  ├─ [✅] Basic Logging (Python stdlib, uvicorn-Format)    │
 │  ├─ [⚠️ ] JSON Structured Logs (TODO: pythonjsonlogger)   │
 │  ├─ [⚠️ ] Prometheus Metrics (TODO: prometheus-fastapi)   │
 │  ├─ [⚠️ ] Grafana Dashboards (TODO: import dashboard)     │
@@ -1185,29 +1189,27 @@ Legend:
 # Environment kopieren
 cp .env.example .env
 
-# Dependencies installieren (mit uv)
-uv pip install -r pyproject.toml
+# Dependencies installieren (legt .venv aus uv.lock an)
+uv sync
 
-# Development Server starten
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
-
-# ⚠️ Wichtig: Nie "uv run main.py" verwenden (führt zu double init!)
+# Development Server mit Hot-Reload (ohne Reload: uv run main.py)
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000
 
 # Datenbank-Migrationen (nach jeder SQLModel-Änderung)
-alembic revision --autogenerate -m "Beschreibung"
-alembic upgrade head
+uv run alembic revision --autogenerate -m "Beschreibung"
+uv run alembic upgrade head
 
 # Lint (ruff-Config in pyproject.toml)
-ruff check --fix .
-ruff format .
+uv run ruff check --fix .
+uv run ruff format .
 
 # Tests
-pytest tests/                # alle Tests
-pytest tests/llm/            # ein Package
-pytest -k "test_name"        # ein einzelner Test
+uv run pytest tests/         # alle Tests
+uv run pytest tests/llm/     # ein Package
+uv run pytest -k "test_name" # ein einzelner Test
 ```
 
-Kein CI konfiguriert — Tests laufen nur lokal/manuell.
+CI (`.github/workflows/ci.yml`): Backend (ruff + pytest) und Frontend (vitest + eslint) laufen bei jedem Push/PR auf `master`.
 
 ### Frontend
 
@@ -1222,6 +1224,9 @@ npm run dev
 
 # Lint
 npm run lint
+
+# Tests (vitest)
+npm run test
 
 # Production Build (Output: ../backend/static/, NICHT frontend/dist)
 npm run build
@@ -1264,12 +1269,12 @@ python scripts/bump_version.py patch --commit  # zusätzlich git add+commit+tag
 
 ## Bekannte Probleme & Lösungen
 
-### 1. Dev-Server: `python -m uvicorn main:app`
+### 1. Dev-Server: Hot-Reload braucht den Import-String
 
-❌ **Falsch:** `uv run main.py` (führt zu double init)  
-✅ **Richtig:** `python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000`
+✅ **Mit Reload:** `uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000`  
+✅ **Ohne Reload:** `uv run main.py` (startet die App genau einmal)
 
-**Grund:** `main.py` importiert `create_app()` und ruft `uvicorn.run()` nur bei `__main__` auf.
+**Grund:** `main.py` erzeugt `app = create_app()` auf Modulebene und übergibt das Objekt an `uvicorn.run()`; Reload funktioniert nur mit dem Import-String `main:app`. Eine doppelte Initialisierung gibt es dabei nicht.
 
 ### 2. Port 9000 Konflikt (Whisper) — nur bei der alten Standalone-Compose
 

@@ -95,6 +95,12 @@ When using LDAP/Active Directory (`backend/components/services/ldap.py`):
   by the application
 - Bind credentials should use a service account with minimal privileges
 
+**Open self-registration**: `POST /api/v1/auth/register` needs no login and
+creates an active account with role `user` (`auth_routes.py:register`). Such a
+user sees only their own records, but can sign in and use the transcription
+and LLM pipeline. There is no setting to disable it; restrict it at the
+reverse proxy (block the path) if accounts must be created by admins only.
+
 **Not implemented**: no MFA/2FA of any kind (local, LDAP, or OIDC-side) is
 implemented or enforced by this application. If your LDAP/OIDC provider
 enforces MFA itself, that protects the directory login, but openDox has no

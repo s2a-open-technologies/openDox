@@ -140,7 +140,7 @@ versteckt seine Lücken nicht, es benennt sie:
   `docker-compose.yml`/`docker-swarm.yml` — nur akzeptabel, weil Redis
   nicht extern exponiert ist, aber eine reale Lücke, falls das
   Docker-Netz selbst mal nicht vertrauenswürdig ist.
-- **Bus-Faktor 1**: alle 113 Commits stammen von einer Person (vier
+- **Bus-Faktor 1**: alle über 150 Commits (Stand 2026-10-08) stammen von einer Person (vier
   verschiedene Git-Identitäten, gleicher Mensch) — kein zweiter Maintainer,
   kein dokumentierter Governance-/Nachfolgeprozess.
 - **Verschlüsselung in Transit nicht erzwungen**: ob LLM-/Sanitizer-/

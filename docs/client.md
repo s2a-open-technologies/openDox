@@ -1,6 +1,6 @@
 # openDox Client: Funktionsweise
 
-> Stand: 2026-10-05 · Client-Version 0.8.0 · Server ab 0.8.x
+> Stand: 2026-10-08 · Client-Version 0.8.1 · Server ab 0.8.3
 > Der Client liegt in einem eigenen Repository (`opendox-client`, Go + Wails v2,
 > AGPL-3.0-or-later). Dieses Dokument beschreibt, wie er mit dem Server
 > zusammenarbeitet. Details zu Build, Berechtigungen und Plattformen stehen in

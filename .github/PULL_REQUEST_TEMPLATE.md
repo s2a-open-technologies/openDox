@@ -25,6 +25,7 @@ Brief description of the change. Reference related issues with
       `backend/components/models/__init__.py`
 - [ ] No real patient data, credentials, or secrets in code, tests,
       screenshots, or logs
+- [ ] Entry added under `## [Unreleased]` in `CHANGELOG.md`
 - [ ] AGPL/SPDX license header added to new source files
 - [ ] `AGENTS.md` updated if dev commands, architecture, or gotchas changed
 - [ ] "Kein Medizinprodukt" disclaimer preserved in recording dialog and

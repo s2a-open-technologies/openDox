@@ -35,7 +35,7 @@ Enhancement suggestions are tracked as GitHub issues. Please provide:
 ### Pull Requests
 
 1. Fork the repository
-2. Create a new branch from `main`: `git checkout -b feature/your-feature-name`
+2. Create a new branch from `master`: `git checkout -b feature/your-feature-name`
 3. Make your changes
 4. Run tests and linting
 5. Commit your changes with a clear commit message
@@ -47,7 +47,8 @@ Enhancement suggestions are tracked as GitHub issues. Please provide:
 ### Prerequisites
 
 - Python 3.12+
-- Node.js 18+
+- Node.js 22+
+- [uv](https://docs.astral.sh/uv/)
 - Docker and Docker Compose
 - Git
 
@@ -117,8 +118,8 @@ SECRET_KEY = "my-secret-key-123"
 ✅ **DO THIS INSTEAD:**
 ```python
 # Good - Environment variable
-import os
-SECRET_KEY = os.getenv("SECRET_KEY")
+from backend.components.modules.env import env_or_file
+SECRET_KEY = env_or_file("SECRET_KEY")  # also reads SECRET_KEY_FILE (Docker secrets)
 ```
 
 ### Security Testing
@@ -141,10 +142,10 @@ We use **Ruff** for linting and formatting:
 
 ```bash
 # Run linting
-ruff check .
+uv run ruff check .
 
 # Run formatting
-ruff format .
+uv run ruff format .
 ```
 
 **Code style requirements:**
@@ -196,13 +197,11 @@ npm run lint
 
 ```bash
 # Run all tests
-pytest
+uv run pytest tests/
 
-# Run with coverage
-pytest --cov=backend --cov-report=html
-
-# Run specific test file
-pytest tests/test_auth.py
+# Run one package or one test
+uv run pytest tests/auth/
+uv run pytest -k "test_name"
 ```
 
 ### Frontend Tests
@@ -210,19 +209,11 @@ pytest tests/test_auth.py
 ```bash
 cd frontend
 
-# Run tests
+# Run tests (vitest)
 npm run test
-
-# Run with coverage
-npm run test:coverage
 ```
 
-### Integration Tests
-
-```bash
-# Run integration tests (requires Docker)
-docker-compose -f docker-compose.test.yml up --build
-```
+There are no automated integration tests for the Docker/full-stack setup; test those changes manually with `docker compose up --build`.
 
 ## Documentation
 
@@ -277,16 +268,16 @@ When changing SQLModels:
 
 ```bash
 # Generate migration
-alembic revision --autogenerate -m "add user preferences"
+uv run alembic revision --autogenerate -m "add user preferences"
 
 # Review the generated migration
 # Edit if necessary (autogenerate isn't perfect)
 
 # Test migration
-alembic upgrade head
+uv run alembic upgrade head
 
 # If something goes wrong
-alembic downgrade -1
+uv run alembic downgrade -1
 ```
 
 **Migration best practices:**
@@ -301,15 +292,16 @@ alembic downgrade -1
 2. **Add tests** for new features and bug fixes
 3. **Ensure all tests pass**:
    ```bash
-   pytest
-   cd frontend && npm test
+   uv run pytest tests/
+   uv run ruff check . && uv run ruff format --check .
+   cd frontend && npm test && npm run lint
    ```
 4. **Run security scans**:
    ```bash
    safety check
    bandit -r backend/
    ```
-5. **Update the CHANGELOG.md** if applicable
+5. **Add an entry under `## [Unreleased]` in `CHANGELOG.md`** (do not bump the version yourself; releases are cut by the maintainer)
 6. **Link related issues** in your PR description
 7. **Request review** from maintainers
 
@@ -326,21 +318,19 @@ Maintainers will review your PR for:
 
 ## Getting Help
 
-- **General questions**: Open a Discussion on GitHub
-- **Bug reports**: Open an Issue
+- **Questions and bug reports**: Open an Issue
 - **Security concerns**: See [SECURITY.md](SECURITY.md)
-- **Real-time chat**: Join our Discord/Matrix (if available)
 
 ## Recognition
 
 Contributors will be:
-- Listed in CONTRIBUTORS.md
+- Listed in `AUTHORS`
 - Mentioned in release notes
 - Credited in security advisories (for security contributions)
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the AGPL-3.0 License.
+By contributing, you agree that your contributions will be licensed under the AGPL-3.0-or-later license. New source files need the SPDX/AGPL header (`scripts/add_spdx_headers.py`; check with `reuse lint`).
 
 ---
 

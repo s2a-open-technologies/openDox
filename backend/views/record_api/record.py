@@ -415,6 +415,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     session_id = websocket.query_params.get("session_id")
     user_id = websocket.query_params.get("user_id")
     token = websocket.query_params.get("token")
+    # live=0: the client has no live view (openDox client, live_view off) -> record the audio only,
+    # skip every live ASR path (no Parakeet stream, no chunked live transcription, no live cleanup).
+    # The final transcription after "stop" reads the PCM file and is unaffected.
+    live = websocket.query_params.get("live") != "0"
 
     if not session_id or not user_id or not token:
         try:
@@ -520,12 +524,15 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     # we forward every PCM frame directly and relay partial/committed messages
     # back to the frontend, instead of the fixed-chunk + merge-overlap path.
     stream_session = None
-    try:
-        backend = get_live_asr()
-        use_streaming = backend.supports_streaming()
-    except Exception:
-        backend = None
-        use_streaming = False
+    backend = None
+    use_streaming = False
+    if live:
+        try:
+            backend = get_live_asr()
+            use_streaming = backend.supports_streaming()
+        except Exception:
+            backend = None
+            use_streaming = False
 
     if use_streaming and isinstance(backend, ParakeetStreamBackend):
         # Callbacks update local_live_text via nonlocal and push to the client.
@@ -611,6 +618,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                 with open(local_audio_path, "ab") as _af:
                     _af.write(chunk)
                 local_audio_size += len(chunk)
+
+                # No live view requested: audio is on disk, nothing else to do per chunk.
+                if not live:
+                    continue
 
                 # Streaming path: forward every PCM frame to the Parakeet
                 # server's WS and let its VAD segment + decode. Partial /

@@ -259,6 +259,29 @@ See `backend/components/security/key_rotation.py` for the implementation.
 
 ---
 
+# Supply Chain
+
+- Dependabot opens weekly update PRs for Python, npm, Docker base images and
+  GitHub Actions (`.github/dependabot.yml`); npm major versions, Node majors and
+  `onnxruntime-gpu >= 1.30` (no arm64 wheels) are held back on purpose.
+- `pyproject.toml` pins only direct dependencies; transitive versions live in
+  `uv.lock`.
+- The manual publish workflow (`.github/workflows/docker-publish.yml`) emits a
+  CycloneDX SBOM and provenance attestation per image.
+- **Not implemented**: no CVE scan gate in CI or in the image build. Run a scanner
+  (e.g. Trivy) against the images yourself before deploying.
+
+# Past Security Issues
+
+| Fixed in | Issue | Action for operators |
+|---|---|---|
+| 0.8.3 | `GET /api/v1/settings/{llm,ldap,oidc,whisper}-settings/` returned API keys, the LDAP bind password and the OIDC client secret without login | Rotate those credentials if an instance of 0.8.2 or older was reachable from untrusted networks |
+| after 0.8.3 (unreleased) | `POST /api/v1/auth/register` let anyone create an account | Removed; accounts are created by admins or on first LDAP/OIDC login |
+| after 0.8.3 (unreleased) | Key rotation did not re-encrypt `record.title`, `user.personal_glossary`, the LDAP bind password and the OIDC client secret | Fixed; if you rotated with an older version, re-enter those four values |
+| after 0.8.3 (unreleased) | The app ran with plaintext storage when `ENCRYPTION_KEY` was unset | Now refuses to start without a key |
+
+---
+
 # Deployment Security
 
 ## Docker Security
@@ -382,6 +405,7 @@ other untrusted workloads on the same host).
 
 ## Pre-Deployment
 
+- [ ] `ENCRYPTION_KEY` is set to a valid Fernet key (mandatory since the Unreleased changes after v0.8.3: the app refuses to start without it)
 - [ ] All secrets are stored in environment variables or Docker secrets (see Key Management above)
 - [ ] `.env` file is in `.gitignore`
 - [ ] `CORS_ALLOWED_ORIGINS` is set to the real public origin(s), not left at the `*` default
@@ -570,4 +594,4 @@ We follow a 90-day disclosure policy. After fix confirmation, we will:
 ---
 
 *Last updated: 2026-10-08*
-*Version: 2.1 — reconciled against the implementation as of v0.8.3*
+*Version: 2.2 — reconciled against `master` after v0.8.3 (includes the unreleased changes listed under Past Security Issues)*

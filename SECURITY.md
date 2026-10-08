@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.8.x   | :white_check_mark: |
+| < 0.8   | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -114,10 +115,12 @@ symmetric encryption** (`backend/components/security/field_encryption.py`,
 | `Record.pii_mapping` | ✅ Yes | Fernet, `EncryptedString` column type |
 | Persisted audio (S3-compatible object storage, optional feature) | ✅ Yes | Fernet, encrypted client-side with `encrypt_bytes()` before upload — the storage provider never sees plaintext |
 | `Record.title` | ✅ Yes | Fernet, `EncryptedString` column type |
+| `User.personal_glossary` | ✅ Yes | Fernet, `EncryptedString` column type |
 | `User.name` | ❌ No | Plaintext (username, not patient data) |
 | `User.hashed_password` | N/A | bcrypt (one-way hash, not Fernet) |
 | `LdapSettingsModel.bind_user_password` | ✅ Yes | Fernet, `EncryptedString` column type |
 | `OidcSettingsModel.client_secret` | ✅ Yes | Fernet, `EncryptedString` column type |
+| `LlmSettingsModel.llm_api_key`, `sanitizer_api_key`; `WhisperSettingsModel.live_api_key`, `final_api_key`; `Categories.llm_api_key` | ❌ No | Plaintext in the database. `GET /api/v1/settings/llm-settings/`, `ldap-settings/` and `oidc-settings/` are admin-only, and `whisper-settings/` returns its keys to admins only (since the Unreleased security fix, see `CHANGELOG.md`) |
 
 If `ENCRYPTION_KEY` is unset, Fernet encryption is silently disabled for
 all rows marked ✅ above (a warning is logged at startup) — the
@@ -127,14 +130,14 @@ guarantees in this table only hold with a configured key.
 - Searchable metadata remains accessible (title, timestamps)
 - Patient content is protected even if the database is compromised
 - Supports the technical-measures side of Art. 32 GDPR — see
-  [`docs/data-mapping.md`](data-mapping.md) for the full data-flow picture
-  and known gaps (including the two plaintext credential fields above)
+  [`docs/data-mapping.md`](docs/data-mapping.md) for the full data-flow picture
+  and known gaps (including the plaintext API keys above)
 
 ### Password Hashing
 
 User passwords are hashed using **bcrypt** with:
 - **Salt**: Automatically generated per password
-- **Work Factor**: 12 rounds (configurable)
+- **Work Factor**: passlib's bcrypt default (12 rounds; not configurable in this app)
 - **Algorithm**: Blowfish-based adaptive hashing
 
 ```
@@ -234,6 +237,15 @@ docker stack deploy -c docker-swarm.yml -c docker-swarm.rotation.yml opendox
    place, and logs `Encryption key rotation complete (N records
    re-encrypted)`. The process is idempotent and safe to interrupt — an
    incomplete run resumes on the next restart with the same key values.
+   **Known gap:** the pass covers only those three `record` columns
+   (`key_rotation.py:_reencrypt_all_records`). `Record.title`,
+   `User.personal_glossary`, `LdapSettingsModel.bind_user_password` and
+   `OidcSettingsModel.client_secret` are encrypted with the same key but are
+   **not** re-encrypted. `decrypt()` silently returns the stored text when a
+   value does not decrypt, so after a rotation these four fields would show
+   ciphertext instead of their content until they are re-entered. Plan for that
+   (re-enter the LDAP/OIDC secrets, export or re-create titles and personal
+   dictionaries) or do not rotate before this is fixed.
    **Note:** the persisted-audio-in-S3 feature (`audio_storage.py`) is
    encrypted with the same `ENCRYPTION_KEY` but is **not** covered by this
    automatic re-encryption pass — it's encrypted/decrypted on
@@ -244,9 +256,7 @@ docker stack deploy -c docker-swarm.yml -c docker-swarm.rotation.yml opendox
    (or the `opendox_encryption_key_previous` Swarm secret) can now be
    removed.
 
-See `backend/components/security/key_rotation.py` for the implementation and
-`docs/superpowers/specs/2026-07-12-encryption-key-rotation-design.md` for the
-full design rationale.
+See `backend/components/security/key_rotation.py` for the implementation.
 
 ---
 
@@ -381,14 +391,14 @@ other untrusted workloads on the same host).
 - [ ] Database and Redis are not exposed to the internet (default in both compose files — verify no `ports:` was added)
 - [ ] Redis requires authentication if the Docker network isn't fully trusted (not implemented by default — see Database Security above)
 - [ ] LDAP connection uses `ldaps://`
-- [ ] Rate limiting is configured (not implemented at the application level — needs a reverse-proxy or gateway solution)
+- [ ] Rate limiting is configured for everything except `/login` (the login endpoint has an in-process limiter, 5 requests per 60 s per client IP, `rate_limiter.py`; all other endpoints need a reverse-proxy or gateway solution, and the limiter is per process)
 
 ## Post-Deployment
 
 - [ ] Security headers are present in HTTP responses (must be set at the reverse proxy — see Network Security above)
 - [ ] SSL certificate is valid and not expiring soon
 - [ ] Database backups are encrypted
-- [ ] Health checks are working (`/api/endpoint`, `/api/ready`, `GET /api/v1/settings/services-health/`)
+- [ ] Health checks are working (`/api/endpoint`, `/api/ready`, `/api/version`, `GET /api/v1/settings/services-health/`)
 - [ ] No hardcoded credentials in logs
 - [x] Container runs as non-root user (all 4 first-party images — see Docker Security above; existing pre-upgrade volumes need a one-time `chown`)
 
@@ -408,7 +418,7 @@ other untrusted workloads on the same host).
 > This section describes what is and isn't implemented today — verified
 > against the code, not aspirational. For the full data-flow picture
 > (what goes where, encryption status, external recipients) see
-> [`docs/data-mapping.md`](data-mapping.md). None of this is legal advice.
+> [`docs/data-mapping.md`](docs/data-mapping.md). None of this is legal advice.
 
 ## Technical Measures (Article 32)
 
@@ -416,8 +426,8 @@ other untrusted workloads on the same host).
 |---------|---------------|--------|
 | Encryption at rest | Fernet field-level encryption (see table above) | ✅ if `ENCRYPTION_KEY` is set |
 | Encryption in transit | Depends entirely on how endpoints (LLM, Whisper, LDAP, reverse proxy) are configured — not enforced by the app | ⚠️ (configure `https://`/`ldaps://`) |
-| Access Control | JWT + optional LDAP/OIDC + role-based (`admin`/`moderator`/`user`) | ✅ |
-| Data minimization | Raw PCM/WAV audio is deleted immediately after a *successful* transcription; on failure it's kept unencrypted in `chunks/failed/` (no automatic expiry) so an admin can retry — see "Retry for failed transcriptions" in `AGENTS.md`'s Audio File Cleanup section | ⚠️ |
+| Access Control | JWT + optional LDAP/OIDC + role-based (`admin`/`moderator`/`demo_viewer`/`user`) | ✅ |
+| Data minimization | Raw PCM/WAV audio is deleted immediately after a *successful* transcription; on failure it's kept unencrypted in `chunks/failed/` so an admin can retry, and moved encrypted to the object store after `FAILED_AUDIO_RETENTION_DAYS` (default 3) if one is configured — see "Retry for failed transcriptions" in `AGENTS.md`'s Audio File Cleanup section | ⚠️ |
 | Availability | PostgreSQL backups | ⚠️ (operator's responsibility, not automated by this repo) |
 
 ## Organizational Measures
@@ -428,7 +438,7 @@ Outside this repository's scope — operator responsibility:
 - [ ] **Data Processing Agreement (DPA)**: With hosting provider and any
       externally-configured LLM/sanitizer endpoint
 - [ ] **Records of Processing Activities (ROPA)**: Documented — see
-      [`docs/data-mapping.md`](data-mapping.md) as a starting point
+      [`docs/data-mapping.md`](docs/data-mapping.md) as a starting point
 - [ ] **Data Retention Policy**: Define deletion schedules (the app itself
       has no automatic retention/expiry — records persist until manually
       deleted)
@@ -478,8 +488,8 @@ treat the rows above as a gap list, not a feature list.
 pip install safety
 safety check
 
-# Docker image scanning
-docker scan opendox:latest
+# Docker image scanning (docker scan is discontinued; use e.g. Trivy or Docker Scout)
+trivy image opendox:latest
 ```
 
 ## For End Users
@@ -554,11 +564,11 @@ We follow a 90-day disclosure policy. After fix confirmation, we will:
 - [GDPR Guidelines](https://gdpr.eu/)
 - [Docker Security](https://docs.docker.com/engine/security/)
 - [PostgreSQL Security](https://www.postgresql.org/docs/current/security.html)
-- [`docs/data-mapping.md`](data-mapping.md) — full data-flow mapping
-- [`docs/pii.md`](pii.md) — PII sanitizer pipeline detail
+- [`docs/data-mapping.md`](docs/data-mapping.md) — full data-flow mapping
+- [`docs/pii.md`](docs/pii.md) — PII sanitizer pipeline detail
 - `AGENTS.md` (repo root, also linked as `CLAUDE.md`) — technical architecture reference
 
 ---
 
-*Last updated: 2026-08-02*
-*Version: 2.0 — reconciled against actual implementation*
+*Last updated: 2026-10-08*
+*Version: 2.1 — reconciled against the implementation as of v0.8.3*

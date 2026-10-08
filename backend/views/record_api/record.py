@@ -415,9 +415,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     session_id = websocket.query_params.get("session_id")
     user_id = websocket.query_params.get("user_id")
     token = websocket.query_params.get("token")
-    # live=0: the client has no live view (openDox client, live_view off) -> record the audio only,
-    # skip every live ASR path (no Parakeet stream, no chunked live transcription, no live cleanup).
-    # The final transcription after "stop" reads the PCM file and is unaffected.
+    # live=0: the client has no live view (openDox client, live_view off) ->
+    # record the audio only, skip every live ASR path (no Parakeet stream, no
+    # chunked live transcription, no live cleanup). The final transcription
+    # after "stop" reads the PCM file and is unaffected.
     live = websocket.query_params.get("live") != "0"
 
     if not session_id or not user_id or not token:
@@ -619,7 +620,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                     _af.write(chunk)
                 local_audio_size += len(chunk)
 
-                # No live view requested: audio is on disk, nothing else to do per chunk.
+                # No live view requested: audio is on disk, nothing else to do.
                 if not live:
                     continue
 

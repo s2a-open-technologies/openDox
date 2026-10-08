@@ -12,6 +12,18 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **Zeitstempel sind jetzt timezone-aware (UTC).** Das Backend schreibt
+  `datetime.now(timezone.utc)` statt des naiven `utcnow()`; Voraussetzung für
+  `sqlmodel` ≥ 0.0.47, dessen Datetime-Spalten naive Werte ablehnen. Migration
+  `e3b7c1a95d42` wandelt `task.created_at`/`updated_at` und
+  `user.disclaimer_accepted_at` unter PostgreSQL in `timestamptz` um (bestehende
+  Werte gelten als UTC); SQLite bleibt unverändert. `sqlmodel` auf 0.0.48.
+- **`pyproject.toml` pinnt nur noch direkte Abhängigkeiten.** Transitive Pakete
+  stehen nur noch in `uv.lock`; die bisherigen exakten Pins führten bei
+  Dependabot-Gruppen-PRs zu unauflösbaren Kombinationen.
+
 ## [0.8.3] — 2026-10-08
 
 ### Added

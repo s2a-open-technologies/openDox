@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # routers/auth.py
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlmodel import select
@@ -175,7 +175,7 @@ async def accept_disclaimer(
     db: SessionDep, current_user: User = Depends(get_current_user)
 ):
     """Record that the current user accepted the medical-device disclaimer."""
-    current_user.disclaimer_accepted_at = datetime.utcnow()
+    current_user.disclaimer_accepted_at = datetime.now(timezone.utc)
     db.add(current_user)
     db.commit()
     db.refresh(current_user)

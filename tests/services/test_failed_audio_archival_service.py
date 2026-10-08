@@ -8,7 +8,7 @@ server or ffmpeg binary is needed, and uses the in-memory sqlite
 
 import os
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -55,7 +55,7 @@ def test_skips_task_updated_within_retention_window(
     src = tmp_path / "task_1.wav"
     src.write_bytes(b"fake-audio")
     _create_error_task(
-        session_factory, str(src), datetime.utcnow() - timedelta(hours=1)
+        session_factory, str(src), datetime.now(timezone.utc) - timedelta(hours=1)
     )
 
     assert svc.archive_stale_failed_audio(retention_days=3) == 0
@@ -72,7 +72,7 @@ def test_skips_task_whose_local_file_is_already_gone(monkeypatch, session_factor
     _create_error_task(
         session_factory,
         "/nonexistent/task_1.wav",
-        datetime.utcnow() - timedelta(days=4),
+        datetime.now(timezone.utc) - timedelta(days=4),
     )
 
     assert svc.archive_stale_failed_audio(retention_days=3) == 0
@@ -99,7 +99,7 @@ def test_archives_wav_directly_without_ffmpeg(monkeypatch, session_factory, tmp_
     src = tmp_path / "task_1.wav"
     src.write_bytes(b"raw-wav-bytes")
     task = _create_error_task(
-        session_factory, str(src), datetime.utcnow() - timedelta(days=4)
+        session_factory, str(src), datetime.now(timezone.utc) - timedelta(days=4)
     )
 
     count = svc.archive_stale_failed_audio(retention_days=3)
@@ -142,7 +142,7 @@ def test_transcodes_when_target_format_differs(monkeypatch, session_factory, tmp
     src = tmp_path / "task_1.wav"
     src.write_bytes(b"raw-wav-bytes")
     task = _create_error_task(
-        session_factory, str(src), datetime.utcnow() - timedelta(days=4)
+        session_factory, str(src), datetime.now(timezone.utc) - timedelta(days=4)
     )
 
     count = svc.archive_stale_failed_audio(retention_days=3)
@@ -174,7 +174,7 @@ def test_failed_upload_leaves_local_file_and_task_untouched(
     src = tmp_path / "task_1.wav"
     src.write_bytes(b"raw-wav-bytes")
     task = _create_error_task(
-        session_factory, str(src), datetime.utcnow() - timedelta(days=4)
+        session_factory, str(src), datetime.now(timezone.utc) - timedelta(days=4)
     )
 
     count = svc.archive_stale_failed_audio(retention_days=3)

@@ -6,7 +6,7 @@ transitions, S3 fetch-back for archived audio), not the transcription
 pipeline or a real S3 server.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import backend.views.record_api.record as record_module
@@ -20,8 +20,8 @@ def _create_error_task(session_factory, **overrides) -> Task:
         error="boom",
         retry_audio_path=None,
         retry_audio_in_s3=False,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
     with session_factory() as session:

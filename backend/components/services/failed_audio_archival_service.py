@@ -21,7 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import subprocess
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Third-party
 from sqlmodel import select
@@ -117,7 +117,7 @@ def archive_stale_failed_audio(retention_days: int) -> int:
     bitrate = audio_settings.audio_bitrate or "64k"
     sample_rate = audio_settings.audio_sample_rate or 16000
 
-    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     db = session_factory()
     archived = 0
     try:

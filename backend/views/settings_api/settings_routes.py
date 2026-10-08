@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import requests as _requests
@@ -852,7 +852,7 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
 
     return {
         "version": "1.0",
-        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "exported_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "settings": {
             "whisper": _serialize_model(whisper) if whisper else None,
             "llm": _serialize_model(llm) if llm else None,
@@ -939,7 +939,8 @@ async def export_backup(
     from fastapi import Response
 
     data = _export_all_settings(db)
-    filename = f"opendox-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    filename = f"opendox-backup-{stamp}.json"
     content = json.dumps(data, indent=2, ensure_ascii=False)
     return Response(
         content=content,

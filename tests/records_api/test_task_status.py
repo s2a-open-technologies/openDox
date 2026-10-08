@@ -10,7 +10,7 @@ tests cover the auto-recovery: a non-terminal task with an old updated_at
 gets flipped to 'error' the next time its status is read.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from backend.components.models.record_model import Record
 from backend.components.models.task_model import Task
@@ -21,8 +21,8 @@ def _create_task(session_factory, **overrides) -> Task:
         status="processing_llm",
         result=None,
         error=None,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
     with session_factory() as session:
@@ -55,7 +55,7 @@ def test_stale_non_terminal_task_is_marked_as_error(
     client, create_user, auth_headers, session_factory
 ):
     owner = create_user("dr.mueller")
-    stale_time = datetime.utcnow() - timedelta(minutes=8)
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=8)
     task = _create_task(session_factory, status="processing_llm", updated_at=stale_time)
     _link_record_to_task(session_factory, owner.id, task.id)
 
@@ -78,7 +78,7 @@ def test_recent_non_terminal_task_is_left_untouched(
     client, create_user, auth_headers, session_factory
 ):
     owner = create_user("dr.mueller")
-    recent_time = datetime.utcnow() - timedelta(seconds=30)
+    recent_time = datetime.now(timezone.utc) - timedelta(seconds=30)
     task = _create_task(
         session_factory, status="processing_llm", updated_at=recent_time
     )
@@ -96,7 +96,7 @@ def test_stale_terminal_task_is_left_untouched(
     client, create_user, auth_headers, session_factory
 ):
     owner = create_user("dr.mueller")
-    stale_time = datetime.utcnow() - timedelta(minutes=8)
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=8)
     task = _create_task(session_factory, status="finished", updated_at=stale_time)
     _link_record_to_task(session_factory, owner.id, task.id)
 

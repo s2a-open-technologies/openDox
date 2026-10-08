@@ -9,12 +9,6 @@ updates:
         dependency-type: development
       pip-prod:
         dependency-type: production
-    ignore:
-      # sqlmodel >= 0.0.47 binds datetime columns to a UTC-only type that
-      # rejects naive datetimes; the backend still writes datetime.utcnow().
-      # Lift this once all datetimes are timezone-aware.
-      - dependency-name: "sqlmodel"
-        versions: [">=0.0.47"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: pip

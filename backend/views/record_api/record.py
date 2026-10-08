@@ -25,7 +25,7 @@ import time
 
 # Third party
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from fastapi import Depends, File, Form, HTTPException, Response, UploadFile, WebSocket
@@ -1017,11 +1017,9 @@ async def transcription_status(
     if not task:
         return {"error": "Task not found"}
 
-    if (
-        task.status in _NON_TERMINAL_TASK_STATUSES
-        and datetime.utcnow() - task.updated_at
-        > timedelta(minutes=STALE_TASK_THRESHOLD_MINUTES)
-    ):
+    if task.status in _NON_TERMINAL_TASK_STATUSES and datetime.now(
+        timezone.utc
+    ) - task.updated_at > timedelta(minutes=STALE_TASK_THRESHOLD_MINUTES):
         task.status = "error"
         task.error = "Zeitüberschreitung – keine Antwort vom Verarbeitungsprozess"
         db.add(task)

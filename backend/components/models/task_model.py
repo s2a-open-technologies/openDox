@@ -18,10 +18,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # models/task.py
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
+
+
+def _utcnow() -> datetime:
+    """Return the current time as a timezone-aware UTC datetime."""
+    return datetime.now(timezone.utc)
 
 
 class Task(SQLModel, table=True):
@@ -36,5 +41,5 @@ class Task(SQLModel, table=True):
     # failed_audio_archival_service.py) instead of a local filesystem path —
     # the local chunks/failed/ file was archived after FAILED_AUDIO_RETENTION_DAYS.
     retry_audio_in_s3: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)

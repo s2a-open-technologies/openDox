@@ -17,7 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlmodel import select
 
@@ -34,7 +34,7 @@ def update_task_status(db: Session, task_id: int, status: str, result=None, erro
         return
 
     task.status = status
-    task.updated_at = datetime.utcnow()
+    task.updated_at = datetime.now(timezone.utc)
 
     if result is not None:
         task.result = result

@@ -11,6 +11,7 @@ ffmpeg/
 models_cache/
 node_modules
 .ruff_cache/
+.scratch_fw
 
 # Virtual environments
 .venv

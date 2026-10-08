@@ -11,8 +11,8 @@ Medical transcription platform (AGPL-3.0-or-later), Author: `Christopher Abanill
 ## Dev Commands
 
 ```bash
-# Backend — only valid entrypoint; never `uv run main.py` (causes double init)
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
+# Backend — dev server with hot reload (`uv run main.py` also works, without reload)
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000
 
 # Frontend
 cd frontend && npm run dev    # port 3000, proxies {ROOT_PATH}/api/ → localhost:5000
@@ -260,7 +260,7 @@ OIDC and LDAP settings live in the DB (`OidcSettingsModel`, `LdapSettingsModel`)
 
 ## Gotchas
 
-- **Dev server**: Always `python -m uvicorn main:app`, never `uv run main.py`
+- **Dev server**: `uv run uvicorn main:app --reload` for hot reload; `uv run main.py` starts the app once as well (it passes the app object to `uvicorn.run`, so there is no double init), just without reload
 - **SPA routing**: `SPAStaticFiles` in `run.py` falls back to `index.html` for 404s, but `/api/` routes are not static — they're matched by the router first
 - **WebSocket**: Uses `BASE_PATH` from `api.ts` + `window.location.host`. Vite proxy has `ws: true`
 - **Microphone**: Requires HTTPS (except localhost). `Permissions-Policy` header set in middleware

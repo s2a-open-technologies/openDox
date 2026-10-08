@@ -71,17 +71,17 @@ Swarm baut keine Images: die vier Images (App, Whisper, Parakeet, Garage-Init) m
 ### Backend starten
 
 ```bash
-# Abhängigkeiten installieren
-uv pip install --system -r pyproject.toml
+# Virtuelle Umgebung anlegen und Abhängigkeiten aus uv.lock installieren
+uv sync
 
-# Datenbank-Migrationen anwenden
-alembic upgrade head
+# Datenbank-Migrationen anwenden (laufen beim App-Start auch automatisch)
+uv run alembic upgrade head
 
 # Dev-Server mit Hot-Reload
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 5000
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000
 ```
 
-**Wichtig:** Immer `python -m uvicorn main:app` verwenden, niemals `uv run main.py` (verursacht doppelte Initialisierung).
+Ohne Hot-Reload genügt `uv run main.py` (startet die App einmal auf Port 5000).
 
 ### Frontend starten
 

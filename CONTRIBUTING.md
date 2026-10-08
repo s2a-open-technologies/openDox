@@ -64,7 +64,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install uv
-uv pip install -r pyproject.toml
+uv sync
 
 # Set up environment variables
 cp .env.example .env

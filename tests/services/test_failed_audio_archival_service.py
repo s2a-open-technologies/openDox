@@ -12,7 +12,10 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from cryptography.fernet import Fernet
+
 from backend.components.models.task_model import Task
+from backend.components.security import field_encryption
 from backend.components.services import failed_audio_archival_service as svc
 
 
@@ -77,6 +80,8 @@ def test_skips_task_whose_local_file_is_already_gone(monkeypatch, session_factor
 
 
 def test_archives_wav_directly_without_ffmpeg(monkeypatch, session_factory, tmp_path):
+    # CI has no ENCRYPTION_KEY, which would make encrypt_bytes() a no-op.
+    monkeypatch.setattr(field_encryption, "_fernet", Fernet(Fernet.generate_key()))
     monkeypatch.setattr(svc, "session_factory", session_factory)
     monkeypatch.setattr(svc.audio_storage, "is_configured", lambda: True)
     monkeypatch.setattr(

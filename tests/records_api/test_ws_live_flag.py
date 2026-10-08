@@ -15,9 +15,7 @@ def ws_env(tmp_path, monkeypatch, session_factory, create_user):
     monkeypatch.setattr(
         record_module, "background_transcription_task", lambda *a, **k: None
     )
-    monkeypatch.setattr(
-        record_module, "_pcm_file_to_wav_file", lambda pcm, wav: None
-    )
+    monkeypatch.setattr(record_module, "_pcm_file_to_wav_file", lambda pcm, wav: None)
 
     user = create_user("ws-live-user")
     session_id = "sess-live-flag"

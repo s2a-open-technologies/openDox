@@ -8,7 +8,10 @@ from sqlmodel import Session, SQLModel, create_engine
 from backend.components.models.encryption_key_state import (
     EncryptionKeyState,  # noqa: F401
 )
+from backend.components.models.ldap_model import LdapSettingsModel  # noqa: F401
+from backend.components.models.oidc_model import OidcSettingsModel  # noqa: F401
 from backend.components.models.record_model import Record  # noqa: F401
+from backend.components.models.user_model import User  # noqa: F401
 
 
 @pytest.fixture

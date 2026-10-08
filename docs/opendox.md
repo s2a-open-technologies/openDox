@@ -16,7 +16,7 @@
 - 🏷️ **Kategorien**: jede Aufnahme bekommt eine Kategorie mit eigenem Whisper-Vokabular-Prompt, LLM-System-Prompt und optionalem Per-Kategorie-LLM-Backend
 - 🤖 **KI-Zusammenfassung**: Grammatikkorrektur und Strukturierung über ein beliebiges OpenAI-kompatibles LLM (Ollama, vLLM, Cloud-Anbieter …) — nicht auf Ollama festgelegt
 - 🕵️ **PII-Sanitizer (EntityGuard, optional)**: maskiert Klarnamen vor dem LLM-Call, re-injiziert sie danach wieder in die gespeicherte Zusammenfassung
-- 🔐 **Datenschutz-Funktionen**: Feldweise Verschlüsselung für patientenbezogene Daten (Key-Rotation mit bekannten Lücken, siehe `SECURITY.md`), automatische Löschung des Rohaudios nach erfolgreicher Verarbeitung. Ob ein Betrieb DSGVO-konform ist, hängt von der Konfiguration ab, siehe `docs/data-mapping.md`
+- 🔐 **Datenschutz-Funktionen**: Feldweise Verschlüsselung für patientenbezogene Daten (inkl. Key-Rotation), automatische Löschung des Rohaudios nach erfolgreicher Verarbeitung. Ob ein Betrieb DSGVO-konform ist, hängt von der Konfiguration ab, siehe `docs/data-mapping.md`
 - 📖 **Fachbegriff-Korrektur**: optionale phonetische Korrektur (Kölner Phonetik) mit Kategorie-Glossar und privatem Nutzer-Wörterbuch
 - 🌍 **Mehrsprachige Oberfläche** (Deutsch/English) und optionaler **Desktop-Client** (`docs/client.md`)
 - 🎧 **Optionaler Audio-Download**: komprimierte, verschlüsselte Kopie der Aufnahme (Format/Bitrate wählbar) in einem S3-kompatiblen Objektspeicher (self-hosted Garage per Default)
@@ -922,7 +922,7 @@ class Record(SQLModel, table=True):
 
 ### Key-Rotation
 
-`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** `Record.content`/`summarize`/`pii_mapping` in-place mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: `Record.title`, `User.personal_glossary`, das LDAP-Bind-Passwort und das OIDC-Client-Secret (gleicher Key, aber nicht umverschlüsselt — nach einer Rotation würden sie nicht lesbar sein und müssten neu eingegeben werden) sowie das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — der `"Verschlüsselung"`-Eintrag muss `"online"` sein.
+`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** alle verschlüsselten Spalten in-place (`Record.title`/`content`/`summarize`/`pii_mapping`, `User.personal_glossary`, LDAP-Bind-Passwort, OIDC-Client-Secret) mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — der `"Verschlüsselung"`-Eintrag muss `"online"` sein.
 
 ### Key-Management
 
@@ -1125,7 +1125,6 @@ Legend:
 
 | Methode | Pfad | Beschreibung | Auth |
 |---------|------|--------------|------|
-| POST | `/register` | Benutzer registrieren | ❌ |
 | POST | `/login` | Login (Local → LDAP → OIDC) | ❌ |
 | POST | `/refresh` | Token refreshen | ❌ |
 | POST | `/accept-disclaimer` | „Kein Medizinprodukt"-Hinweis bestätigen (Pflicht vor erster Nutzung) | ✅ |

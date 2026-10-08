@@ -28,7 +28,17 @@ from sqlmodel import Session, select
 from backend.components.models.encryption_key_state import EncryptionKeyState
 
 BATCH_SIZE = 500
-_ENCRYPTED_COLUMNS = ("content", "summarize", "pii_mapping")
+# Every table with ``EncryptedString`` columns: (table, encrypted columns).
+# Each table has an integer ``id`` primary key. Keep in sync with the models —
+# a column missing here stays under the old key and becomes unreadable after a
+# rotation (tests/security/test_key_rotation.py checks the list against the
+# metadata).
+_ENCRYPTED_TABLES = (
+    ("record", ("title", "content", "summarize", "pii_mapping")),
+    ("user", ("personal_glossary",)),
+    ("ldapsettingsmodel", ("bind_user_password",)),
+    ("oidcsettingsmodel", ("client_secret",)),
+)
 
 
 def fingerprint_key(key: bytes) -> str:
@@ -71,40 +81,56 @@ def _migrate_value(
 
 
 def _reencrypt_batch(
-    session: Session, rows, old_fernet: Fernet, new_fernet: Fernet
-) -> int:
+    session: Session,
+    table: str,
+    columns: tuple[str, ...],
+    rows,
+    old_fernet: Fernet,
+    new_fernet: Fernet,
+) -> tuple[int, int]:
     """Re-encrypt one page of rows already fetched from the DB.
 
     Args:
         session: Active DB session (same one the rows were read through).
+        table: Table the rows belong to.
+        columns: Encrypted columns of that table.
         rows: Iterable of row mappings with ``id`` and the encrypted columns.
         old_fernet: Fernet bound to the previous key.
         new_fernet: Fernet bound to the current key.
 
     Returns:
-        Number of rows that had at least one column re-encrypted.
+        A ``(seen, updated)`` tuple: rows holding at least one non-empty
+        encrypted value, and how many of those had a column re-encrypted.
     """
+    seen = 0
     updated = 0
     for row in rows:
+        if not any(row[col] for col in columns):
+            continue
+        seen += 1
         new_values = {}
-        for col in _ENCRYPTED_COLUMNS:
+        for col in columns:
             new_val = _migrate_value(row[col], old_fernet, new_fernet)
             if new_val is not None:
                 new_values[col] = new_val
         if new_values:
-            set_clause = ", ".join(f"{col} = :{col}" for col in new_values)
+            set_clause = ", ".join(f'"{col}" = :{col}' for col in new_values)
             new_values["id"] = row["id"]
             session.execute(
-                text(f"UPDATE record SET {set_clause} WHERE id = :id"), new_values
+                text(f'UPDATE "{table}" SET {set_clause} WHERE id = :id'), new_values
             )
             updated += 1
-    return updated
+    return seen, updated
 
 
-def _reencrypt_all_records(
-    session_factory: Callable[[], Session], old_fernet: Fernet, new_fernet: Fernet
-) -> int:
-    """Page through the record table, re-encrypting under the new key.
+def _reencrypt_table(
+    session_factory: Callable[[], Session],
+    table: str,
+    columns: tuple[str, ...],
+    old_fernet: Fernet,
+    new_fernet: Fernet,
+) -> tuple[int, int]:
+    """Page through one table, re-encrypting its encrypted columns.
 
     Bypasses the ORM's ``EncryptedString`` type decorator on purpose — reading
     through the ORM would auto-decrypt with the *new* key and silently return
@@ -113,16 +139,15 @@ def _reencrypt_all_records(
 
     Args:
         session_factory: Callable returning a new DB session.
+        table: Table to process.
+        columns: Encrypted columns of that table.
         old_fernet: Fernet bound to the previous key.
         new_fernet: Fernet bound to the current key.
 
     Returns:
-        A ``(total_seen, total_updated)`` tuple: how many rows exist in total,
-        and how many of them had at least one column re-encrypted. A mismatch
-        between the two (rows exist but none were updated) signals that
-        ``old_fernet`` couldn't decrypt anything — almost certainly a wrong
-        ``ENCRYPTION_KEY_PREVIOUS``.
+        A ``(seen, updated)`` tuple, see ``_reencrypt_batch``.
     """
+    col_list = ", ".join(f'"{col}"' for col in columns)
     total_seen = 0
     total_updated = 0
     offset = 0
@@ -131,7 +156,7 @@ def _reencrypt_all_records(
             rows = (
                 session.execute(
                     text(
-                        "SELECT id, content, summarize, pii_mapping FROM record "
+                        f'SELECT id, {col_list} FROM "{table}" '
                         "ORDER BY id LIMIT :limit OFFSET :offset"
                     ),
                     {"limit": BATCH_SIZE, "offset": offset},
@@ -141,12 +166,36 @@ def _reencrypt_all_records(
             )
             if not rows:
                 break
-            total_seen += len(rows)
-            total_updated += _reencrypt_batch(session, rows, old_fernet, new_fernet)
+            seen, updated = _reencrypt_batch(
+                session, table, columns, rows, old_fernet, new_fernet
+            )
+            total_seen += seen
+            total_updated += updated
             session.commit()
         if len(rows) < BATCH_SIZE:
             break
         offset += BATCH_SIZE
+    return total_seen, total_updated
+
+
+def _reencrypt_all(
+    session_factory: Callable[[], Session], old_fernet: Fernet, new_fernet: Fernet
+) -> tuple[int, int]:
+    """Re-encrypt every encrypted column in ``_ENCRYPTED_TABLES``.
+
+    Returns:
+        A ``(seen, updated)`` tuple summed over all tables. ``seen > 0`` with
+        ``updated == 0`` signals that ``old_fernet`` couldn't decrypt anything —
+        almost certainly a wrong ``ENCRYPTION_KEY_PREVIOUS``.
+    """
+    total_seen = 0
+    total_updated = 0
+    for table, columns in _ENCRYPTED_TABLES:
+        seen, updated = _reencrypt_table(
+            session_factory, table, columns, old_fernet, new_fernet
+        )
+        total_seen += seen
+        total_updated += updated
     return total_seen, total_updated
 
 
@@ -213,7 +262,7 @@ def run_key_rotation_if_needed(
 
     new_fernet = Fernet(current_key)
     logger.info("run_key_rotation_if_needed: starting batched re-encryption")
-    seen, updated = _reencrypt_all_records(session_factory, old_fernet, new_fernet)
+    seen, updated = _reencrypt_all(session_factory, old_fernet, new_fernet)
     logger.info(
         "run_key_rotation_if_needed: re-encryption pass done (seen=%d, updated=%d)",
         seen,
@@ -222,7 +271,7 @@ def run_key_rotation_if_needed(
 
     if seen > 0 and updated == 0:
         logger.warning(
-            "0 of %d records re-encrypted — ENCRYPTION_KEY_PREVIOUS is likely "
+            "0 of %d encrypted rows re-encrypted — ENCRYPTION_KEY_PREVIOUS is likely "
             "incorrect. Fingerprint left unchanged; rotation will retry on the "
             "next restart.",
             seen,
@@ -235,4 +284,4 @@ def run_key_rotation_if_needed(
         session.add(state)
         session.commit()
 
-    logger.info("Encryption key rotation complete (%d records re-encrypted)", updated)
+    logger.info("Encryption key rotation complete (%d rows re-encrypted)", updated)

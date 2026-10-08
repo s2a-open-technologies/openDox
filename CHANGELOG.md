@@ -12,6 +12,23 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Removed
+
+- **`POST /api/v1/auth/register`.** Der Endpunkt war ohne Login erreichbar und
+  legte ein aktives Konto mit Rolle `user` an. Konten legt jetzt ausschließlich
+  ein Admin an (`POST /api/v1/auth/users`) oder sie entstehen beim ersten
+  LDAP-/OIDC-Login. Das Frontend hat den Endpunkt nicht benutzt.
+
+### Fixed
+
+- **Key-Rotation deckt alle verschlüsselten Spalten ab.** Bisher wurden nur
+  `record.content`/`summarize`/`pii_mapping` umverschlüsselt; `record.title`,
+  `user.personal_glossary`, das LDAP-Bind-Passwort und das OIDC-Client-Secret
+  blieben unter dem alten Key und waren nach einer Rotation nicht mehr lesbar.
+  Ein Test prüft, dass neue `EncryptedString`-Spalten nicht vergessen werden.
+  Wer bereits rotiert hat, muss diese vier Felder neu eingeben bzw. ihre Werte
+  neu setzen.
+
 ### Changed
 
 - **Zeitstempel sind jetzt timezone-aware (UTC).** Das Backend schreibt

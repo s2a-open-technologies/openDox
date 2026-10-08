@@ -95,11 +95,9 @@ When using LDAP/Active Directory (`backend/components/services/ldap.py`):
   by the application
 - Bind credentials should use a service account with minimal privileges
 
-**Open self-registration**: `POST /api/v1/auth/register` needs no login and
-creates an active account with role `user` (`auth_routes.py:register`). Such a
-user sees only their own records, but can sign in and use the transcription
-and LLM pipeline. There is no setting to disable it; restrict it at the
-reverse proxy (block the path) if accounts must be created by admins only.
+**No self-registration**: there is no public sign-up endpoint. Accounts are
+created by an admin (`POST /api/v1/auth/users`) or auto-provisioned on the
+first successful LDAP/OIDC login.
 
 **Not implemented**: no MFA/2FA of any kind (local, LDAP, or OIDC-side) is
 implemented or enforced by this application. If your LDAP/OIDC provider
@@ -239,19 +237,11 @@ docker stack deploy -c docker-swarm.yml -c docker-swarm.rotation.yml opendox
 
 3. Restart/redeploy the container. On startup the app detects the key
    change (via a fingerprint stored in the `EncryptionKeyState` table),
-   re-encrypts every `Record.content`/`summarize`/`pii_mapping` value in
-   place, and logs `Encryption key rotation complete (N records
+   re-encrypts every encrypted column in place (`Record.title`/`content`/
+   `summarize`/`pii_mapping`, `User.personal_glossary`, the LDAP bind password
+   and the OIDC client secret), and logs `Encryption key rotation complete (N rows
    re-encrypted)`. The process is idempotent and safe to interrupt — an
    incomplete run resumes on the next restart with the same key values.
-   **Known gap:** the pass covers only those three `record` columns
-   (`key_rotation.py:_reencrypt_all_records`). `Record.title`,
-   `User.personal_glossary`, `LdapSettingsModel.bind_user_password` and
-   `OidcSettingsModel.client_secret` are encrypted with the same key but are
-   **not** re-encrypted. `decrypt()` silently returns the stored text when a
-   value does not decrypt, so after a rotation these four fields would show
-   ciphertext instead of their content until they are re-entered. Plan for that
-   (re-enter the LDAP/OIDC secrets, export or re-create titles and personal
-   dictionaries) or do not rotate before this is fixed.
    **Note:** the persisted-audio-in-S3 feature (`audio_storage.py`) is
    encrypted with the same `ENCRYPTION_KEY` but is **not** covered by this
    automatic re-encryption pass — it's encrypted/decrypted on

@@ -50,30 +50,6 @@ from backend.views.auth_api.dependencies import get_current_user
 # ── Authentication ──────────────────────────────────────────────────────
 
 
-@auth_bp.post("/register", response_model=UserRead, status_code=201)
-async def register(user_in: UserCreate, db: SessionDep):
-    """Register a new user with a hashed password."""
-    # check i user already exists
-    stmt = select(User).where(User.name == user_in.name)
-    existing_user = db.exec(stmt).first()
-    if existing_user:
-        raise api_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "user_exists", "User already exists"
-        )
-
-    # Create new user
-    db_user = User(
-        name=user_in.name,
-        hashed_password=get_password_hash(user_in.password),
-    )
-
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-
-    return db_user
-
-
 @auth_bp.post("/login", response_model=Token)
 async def login(request: Request, user_in: UserLogin, db: SessionDep):
     """Authenticate via local DB or LDAP and return a token pair."""

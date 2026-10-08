@@ -4,9 +4,13 @@ import logging
 
 from cryptography.fernet import Fernet
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import SQLModel, select
 
 from backend.components.models.encryption_key_state import EncryptionKeyState
+from backend.components.models.ldap_model import LdapSettingsModel
+from backend.components.models.oidc_model import OidcSettingsModel
+from backend.components.models.user_model import User
+from backend.components.security.field_encryption import EncryptedString
 from backend.components.security.key_rotation import (
     _migrate_value,
     fingerprint_key,
@@ -183,3 +187,92 @@ def test_rerun_after_successful_rotation_is_a_noop(session_factory):
     new_fernet = Fernet(KEY_B)
     migrated = _read_record_content(session_factory, 1)
     assert new_fernet.decrypt(migrated.encode()) == b"patient note"
+
+
+def test_every_encrypted_column_is_covered_by_rotation():
+    """A new EncryptedString column must be added to _ENCRYPTED_TABLES."""
+    from backend.components.security.key_rotation import _ENCRYPTED_TABLES
+
+    covered = {(t, c) for t, cols in _ENCRYPTED_TABLES for c in cols}
+    in_models = {
+        (table.name, column.name)
+        for table in SQLModel.metadata.tables.values()
+        for column in table.columns
+        if isinstance(column.type, EncryptedString)
+    }
+    assert in_models == covered
+
+
+def _overwrite(session_factory, table, column, row_id, value):
+    with session_factory() as session:
+        session.execute(
+            text(f'UPDATE "{table}" SET "{column}" = :v WHERE id = :id'),
+            {"v": value, "id": row_id},
+        )
+        session.commit()
+
+
+def _read_raw(session_factory, table, column, row_id):
+    with session_factory() as session:
+        return session.execute(
+            text(f'SELECT "{column}" FROM "{table}" WHERE id = :id'), {"id": row_id}
+        ).scalar_one()
+
+
+def test_rotation_covers_title_and_settings_and_user_columns(session_factory):
+    old_fernet = Fernet(KEY_A)
+    run_key_rotation_if_needed(session_factory, logging.getLogger("test"), KEY_A, None)
+    insert_raw_record(
+        session_factory,
+        record_id=1,
+        content=old_fernet.encrypt(b"c").decode(),
+        summarize=old_fernet.encrypt(b"s").decode(),
+    )
+    with session_factory() as session:
+        session.add(User(name="alice", hashed_password="x"))
+        session.add(
+            LdapSettingsModel(
+                server_host="h",
+                server_port=389,
+                base_dn="d",
+                user_dn="u",
+                bind_user_dn="cn=x",
+            )
+        )
+        session.add(OidcSettingsModel())
+        session.commit()
+    expected = {
+        ("record", "title", 1): b"Titel",
+        ("user", "personal_glossary", 1): "Wörterbuch".encode(),
+        ("ldapsettingsmodel", "bind_user_password", 1): b"ldap-secret",
+        ("oidcsettingsmodel", "client_secret", 1): b"oidc-secret",
+    }
+    for (table, column, row_id), plain in expected.items():
+        _overwrite(
+            session_factory, table, column, row_id, old_fernet.encrypt(plain).decode()
+        )
+
+    run_key_rotation_if_needed(
+        session_factory, logging.getLogger("test"), KEY_B, KEY_A.decode()
+    )
+
+    new_fernet = Fernet(KEY_B)
+    for (table, column, row_id), plain in expected.items():
+        raw = _read_raw(session_factory, table, column, row_id)
+        assert new_fernet.decrypt(raw.encode()) == plain, (table, column)
+    assert _read_fingerprint(session_factory) == fingerprint_key(KEY_B)
+
+
+def test_empty_tables_do_not_trigger_wrong_key_warning(session_factory, caplog):
+    run_key_rotation_if_needed(session_factory, logging.getLogger("test"), KEY_A, None)
+    with session_factory() as session:
+        session.add(User(name="bob", hashed_password="x"))  # no personal_glossary
+        session.commit()
+
+    with caplog.at_level(logging.WARNING):
+        run_key_rotation_if_needed(
+            session_factory, logging.getLogger("test"), KEY_B, KEY_A.decode()
+        )
+
+    assert "likely incorrect" not in caplog.text
+    assert _read_fingerprint(session_factory) == fingerprint_key(KEY_B)

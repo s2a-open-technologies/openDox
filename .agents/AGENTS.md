@@ -228,7 +228,7 @@ The lifespan handler (`contextlib.asynccontextmanager`) cancels both loops on sh
 
 ### Field Encryption
 
-`field_encryption.py` — uses `ENCRYPTION_KEY` env var (Fernet). Required for encrypted patient data. If not set, encryption is silently disabled (logs a warning, unlike `SECRET_KEY`'s critical-and-generate behavior above). `encrypt()`/`decrypt()` operate on `str` (used by the `EncryptedString` SQLAlchemy column type); `encrypt_bytes()`/`decrypt_bytes()` are the binary-safe siblings (same key), used by `audio_storage.py` for the persisted-audio feature.
+`field_encryption.py` — uses `ENCRYPTION_KEY` env var (Fernet). **Mandatory**: `_load_key()` raises `EncryptionKeyError` (critical log) at import if the key is unset, empty or not a Fernet key, so the app never runs unencrypted. Tests get a throwaway key from `tests/conftest.py` when none is configured. Rows written in plaintext before this rule still decrypt as-is (`decrypt()` returns non-decryptable values unchanged) and are not re-encrypted. `encrypt()`/`decrypt()` operate on `str` (used by the `EncryptedString` SQLAlchemy column type); `encrypt_bytes()`/`decrypt_bytes()` are the binary-safe siblings (same key), used by `audio_storage.py` for the persisted-audio feature.
 
 ## Docker Layout
 
@@ -246,7 +246,7 @@ Copy `.env.example` → `.env`:
 - `WHISPER_API_ENDPOINT` / `WHISPER_API_KEY` fallback when DB settings are `None`
 - `PARAKEET_API_ENDPOINT` — Parakeet server URL (default `http://localhost:5001/v1`); if it carries a sub-path (e.g. `.../parakeet/v1`), `ParakeetStreamBackend`/`OpenAICompatibleBackend` preserve it when deriving the WS/HTTP URLs, so it composes with `PARAKEET_ROOT_PATH` below
 - `PARAKEET_ROOT_PATH` / `PARAKEET_PORT` / `PARAKEET_API_KEY` — Parakeet server sub-path, published host port, and bearer-auth key (see Parakeet server entry above); all optional, empty = root path, unpublished port, no auth
-- `ENCRYPTION_KEY` — Fernet key for encrypted patient data (silently disabled if empty)
+- `ENCRYPTION_KEY` — Fernet key for encrypted patient data (required, the app refuses to start without it)
 - `SECRET_KEY` — JWT signing key; no insecure fallback, generated randomly per process (with a critical log warning) if unset — see Authentication
 - `CORS_ALLOWED_ORIGINS` — comma-separated trusted origins; empty/unset allows all origins (logs a warning)
 - `TRUSTED_PROXY_IPS` — comma-separated IPs allowed to set `X-Forwarded-Proto`/`-Host` (used for the OIDC redirect URI, see Authentication); empty/unset auto-detects loopback + the container's Docker gateway IP (`get_trusted_proxy_ips()` in `env.py`) — a same-host reverse proxy's connection through a published port arrives as the gateway IP, not `127.0.0.1`, since Docker NATs it

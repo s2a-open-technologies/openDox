@@ -822,7 +822,7 @@ export default defineConfig(({ mode }) => {
 
 ## 🔒 Datenbankverschlüsselung (DSGVO-konform)
 
-> **⚠️ Wichtig:** Wenn `ENCRYPTION_KEY` nicht gesetzt ist, wird die Verschlüsselung **stillschweigend deaktiviert** — patientenbezogene Daten werden im Klartext gespeichert. Es gibt keine Fehlermeldung, nur einen Warning-Log-Eintrag. Für DSGVO-Konformität muss `ENCRYPTION_KEY` zwingend gesetzt sein.
+> **Wichtig:** `ENCRYPTION_KEY` ist Pflicht. Ist er nicht gesetzt, leer oder kein gültiger Fernet-Key, startet die App nicht (kritischer Log-Eintrag, `EncryptionKeyError`). Eine Klartext-Speicherung durch fehlende Konfiguration gibt es nicht.
 
 ### Fernet-Verschlüsselung (field_encryption.py)
 
@@ -966,7 +966,7 @@ services:
 │     - Patientenbezogene Felder (content, summarize)           │
 │     - AES-128 im Fernet-Format (symmetrisch)                │
 │     - Token-basierte Verschlüsselung (Pseudonymisierung)    │
-│     ⚠️  Achtung: Ohne ENCRYPTION_KEY stillschweigend deaktiviert! │
+│     ✅ ENCRYPTION_KEY ist Pflicht (App startet sonst nicht)   │
 │                                                               │
 │  ✅ Zugriffskontrolle (Art. 32 DSGVO)                         │
 │     - JWT-basierte Authentifizierung                        │
@@ -977,7 +977,7 @@ services:
 │     - Field-level encryption (nicht nur DB-Verschlüsselung)  │
 │     - Memory-safe: Key nie im Code, nur in Environment       │
 │     - Fallback auf Plaintext für Migration (abwärtskompatibel)│
-│     ⚠️  Achtung: Ohne ENCRYPTION_KEY werden Daten im Klartext gespeichert │
+│     ⚠️  Altdaten im Klartext bleiben lesbar, nicht nachverschlüsselt │
 │                                                               │
 │  ✅ Dokumentation (Art. 30 DSGVO)                            │
 │     - Datenfluss-Dokumentation: docs/data-mapping.md          │
@@ -1374,9 +1374,9 @@ Wenn weder `DATABASE_URI` noch `SQL_*`-Variablen gesetzt sind, baut `db_config.p
 
 Für den Vite Dev-Server muss `VITE_ROOT_PATH` in `.env` denselben Wert wie `ROOT_PATH` haben. Ohne diese Variable funktioniert der Proxy und der `api.ts`-Fallback im Dev-Modus nicht korrekt.
 
-### 14. Feldverschlüsselung: Deaktiviert bei fehlendem ENCRYPTION_KEY
+### 14. App startet nicht: ENCRYPTION_KEY fehlt
 
-Wenn `ENCRYPTION_KEY` nicht gesetzt ist, wird die Verschlüsselung **stillschweigend deaktiviert** — patientenbezogene Daten werden im Klartext gespeichert. Es gibt keine Fehlermeldung, nur einen Warning-Log-Eintrag. Für DSGVO-Konformität muss `ENCRYPTION_KEY` zwingend gesetzt sein.
+Ohne gültigen `ENCRYPTION_KEY` (bzw. `ENCRYPTION_KEY_FILE`) bricht der Start mit `EncryptionKeyError` ab. Key erzeugen: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` und in `.env` (Entwicklung) oder als Docker-Secret eintragen. Beim Docker-Compose-Stack ist die Variable in `.env` Pflicht.
 
 ### 15. ruff known-first-party: Platzhalter statt korrektem Wert
 

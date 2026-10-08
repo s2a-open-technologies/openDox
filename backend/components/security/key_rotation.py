@@ -210,8 +210,8 @@ def run_key_rotation_if_needed(
     Args:
         session_factory: Callable returning a new DB session.
         logger: Logger for startup diagnostics.
-        current_key: Raw bytes of the currently active key, or ``None`` if
-            encryption is disabled (in which case this is a no-op).
+        current_key: Raw bytes of the currently active key (``None`` is only
+            accepted for callers that have no key, and makes this a no-op).
         previous_key_raw: The previous key (``ENCRYPTION_KEY_PREVIOUS``), or
             ``None`` if not supplied.
     """

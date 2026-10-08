@@ -22,8 +22,8 @@
 |---|---|---|---|
 | Passwort-Hashing | ✅ | `User.hashed_password`, bcrypt, 12 Runden (`SECURITY.md`) | Salt automatisch pro Passwort |
 | JWT-Signierung ohne unsicheren Fallback | ✅ | `backend/components/security/hashing.py`, `SECRET_KEY` — kein Hardcoded-Default, zufälliger Key + `logger.critical()` falls unset | Invalidiert alle Sessions bei jedem Neustart ohne festen `SECRET_KEY` |
-| Feldverschlüsselung sensibler Daten | ✅ (bei gesetztem Key) | `backend/components/security/field_encryption.py`, Fernet, `EncryptedString`-Spaltentyp | `record.content/summarize/pii_mapping/title`, `LdapSettingsModel.bind_user_password`, `OidcSettingsModel.client_secret` |
-| Verschlüsselung fällt bei fehlendem Key still auf Klartext zurück | ⚠️ | `field_encryption.py` — nur geloggte Warnung, kein Hard-Fail | Audit-Risiko: Betreiber merkt es ggf. nicht |
+| Feldverschlüsselung sensibler Daten | ✅ | `backend/components/security/field_encryption.py`, Fernet, `EncryptedString`-Spaltentyp | `record.content/summarize/pii_mapping/title`, `LdapSettingsModel.bind_user_password`, `OidcSettingsModel.client_secret` |
+| Verschlüsselung ohne Key ausgeschlossen | ✅ | `field_encryption.py:_load_key()` — App startet nicht ohne gültigen `ENCRYPTION_KEY` (`EncryptionKeyError`); Tests: `tests/security/test_field_encryption.py` | Vorher nur Log-Warnung und Klartext-Betrieb. Altzeilen im Klartext bleiben lesbar und werden nicht nachverschlüsselt |
 | `decrypt()` fällt bei `InvalidToken` still auf Klartext zurück | ⚠️ | `field_encryption.py` | Migrations-Komfort, maskiert aber auch Korruption/Falscher-Key-Fehler |
 | Key-Rotation implementiert (nicht nur dokumentiert) | ✅ | `backend/components/security/key_rotation.py`, `docker-swarm.rotation.yml`, `EncryptionKeyState`-Tabelle | Idempotent, resumable nach Unterbrechung Re-verschlüsselt werden alle `EncryptedString`-Spalten (`record`, `user.personal_glossary`, LDAP-Bind-Passwort, OIDC-Secret); ein Test stellt sicher, dass neue Spalten nicht vergessen werden |
 | Secrets nie im Repo | ✅ | `.env` `.gitignore`d, `git log --all -- .env` leer; nur `.env.example` getrackt | `_FILE`-Konvention in `env.py:env_or_file()` |

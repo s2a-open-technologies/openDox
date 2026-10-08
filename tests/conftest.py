@@ -1,12 +1,22 @@
 """Shared fixtures for backend route/service tests."""
 
+import os
+
 import pytest
+from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-import backend.components.models  # noqa: F401  (registers all tables on metadata)
+# ENCRYPTION_KEY is mandatory (the app refuses to start without it). Importing
+# env first lets a developer's .env win; otherwise (CI) use a throwaway key.
+import backend.components.modules.env  # noqa: F401,E402
+
+if not os.environ.get("ENCRYPTION_KEY") and not os.environ.get("ENCRYPTION_KEY_FILE"):
+    os.environ["ENCRYPTION_KEY"] = Fernet.generate_key().decode()
+
+import backend.components.models  # noqa: F401,E402  (registers all tables on metadata)
 from backend.components.security.hashing import create_access_token, get_password_hash
 from backend.components.services import settings_service
 from backend.components.sql.sql_engine import get_session

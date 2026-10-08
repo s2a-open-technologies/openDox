@@ -12,6 +12,17 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **`ENCRYPTION_KEY` ist Pflicht.** Ohne einen gültigen Fernet-Key startet die
+  App nicht mehr (`EncryptionKeyError`, kritischer Log-Eintrag), statt wie
+  bisher mit einer Warnung im Klartext zu speichern. **Beim Update muss der Key
+  gesetzt sein** (`.env` bzw. Docker-Secret `opendox_encryption_key`); bei
+  `docker-compose.yml` bricht `docker compose up` ohne die Variable ab.
+  Bereits im Klartext gespeicherte Altzeilen bleiben lesbar, werden aber nicht
+  automatisch nachverschlüsselt. Der Health-Check „Verschlüsselung“ kennt den
+  Status `disabled` nicht mehr.
+
 ### Removed
 
 - **`POST /api/v1/auth/register`.** Der Endpunkt war ohne Login erreichbar und

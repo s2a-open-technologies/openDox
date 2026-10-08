@@ -31,7 +31,7 @@ Die schnellste Möglichkeit, das gesamte System lokal zu starten:
 git clone https://github.com/daemolition/openDox.git
 cd openDox
 
-# Environment konfigurieren (optional)
+# Environment konfigurieren: ENCRYPTION_KEY ist Pflicht (Erzeugung siehe Konfiguration unten)
 cp .env.example .env
 
 # Alles bauen und starten
@@ -137,7 +137,7 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | `DATABASE_URI` | Volle DB-URI (überschreibt Komponenten, z.B. `sqlite:///test.sqlite3`) | – |
 | `SECRET_KEY` | JWT-Signing-Key. Nicht gesetzt = zufällig generiert pro Prozessstart (invalidiert Sessions bei jedem Neustart) statt unsicherem Fallback | – |
 | `ALGORITHM` | JWT-Algorithmus | `HS256` |
-| `ENCRYPTION_KEY` | Fernet-Key für verschlüsselte Patientendaten (DSGVO/§203 StGB) | – (Verschlüsselung deaktiviert wenn leer) |
+| `ENCRYPTION_KEY` | Fernet-Key für verschlüsselte Patientendaten (DSGVO/§203 StGB) | **Pflicht.** Ohne gültigen Key startet die App nicht. Erzeugen: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `CORS_ALLOWED_ORIGINS` | Komma-getrennte erlaubte CORS-Origins | – (alle erlaubt, loggt Warnung) |
 | `TRUSTED_PROXY_IPS` | IPs, die `X-Forwarded-Proto`/`-Host` setzen dürfen (OIDC-Redirect) | – (Auto-Erkennung: Loopback + Docker-Gateway) |
 | `CLIENT_SERVER_URL` | Server-Adresse, die in die `settings.json` des Desktop-Clients geschrieben wird (Admin → Clients) | – (aus der Anfrage des Admins abgeleitet, inkl. `ROOT_PATH`) |

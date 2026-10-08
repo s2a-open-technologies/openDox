@@ -445,8 +445,6 @@ async def get_services_health(db: SessionDep):
         from backend.components.security import field_encryption, key_rotation
 
         current_key = field_encryption.get_current_key()
-        if current_key is None:
-            return {"name": "Verschlüsselung", "status": "disabled"}
         state = db.exec(select(EncryptionKeyState)).first()
         if state and state.key_fingerprint == key_rotation.fingerprint_key(current_key):
             return {"name": "Verschlüsselung", "status": "online"}

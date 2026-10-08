@@ -126,9 +126,12 @@ symmetric encryption** (`backend/components/security/field_encryption.py`,
 | `OidcSettingsModel.client_secret` | ✅ Yes | Fernet, `EncryptedString` column type |
 | `LlmSettingsModel.llm_api_key`, `sanitizer_api_key`; `WhisperSettingsModel.live_api_key`, `final_api_key`; `Categories.llm_api_key` | ❌ No | Plaintext in the database. `GET /api/v1/settings/llm-settings/`, `ldap-settings/` and `oidc-settings/` are admin-only, and `whisper-settings/` returns its keys to admins only (since the Unreleased security fix, see `CHANGELOG.md`) |
 
-If `ENCRYPTION_KEY` is unset, Fernet encryption is silently disabled for
-all rows marked ✅ above (a warning is logged at startup) — the
-guarantees in this table only hold with a configured key.
+`ENCRYPTION_KEY` is **mandatory**: the application refuses to start if it is
+unset, empty or not a valid Fernet key (`EncryptionKeyError`, critical log
+line), so patient data is never stored unencrypted by misconfiguration.
+Legacy rows that were written in plaintext before the key was enforced are
+still read as-is (`decrypt()` returns a value that does not decrypt
+unchanged); they are not re-encrypted automatically.
 
 **Why field-level encryption?**
 - Searchable metadata remains accessible (title, timestamps)
@@ -420,7 +423,7 @@ other untrusted workloads on the same host).
 
 | Measure | Implementation | Status |
 |---------|---------------|--------|
-| Encryption at rest | Fernet field-level encryption (see table above) | ✅ if `ENCRYPTION_KEY` is set |
+| Encryption at rest | Fernet field-level encryption (see table above) | ✅ (`ENCRYPTION_KEY` is required at startup) |
 | Encryption in transit | Depends entirely on how endpoints (LLM, Whisper, LDAP, reverse proxy) are configured — not enforced by the app | ⚠️ (configure `https://`/`ldaps://`) |
 | Access Control | JWT + optional LDAP/OIDC + role-based (`admin`/`moderator`/`demo_viewer`/`user`) | ✅ |
 | Data minimization | Raw PCM/WAV audio is deleted immediately after a *successful* transcription; on failure it's kept unencrypted in `chunks/failed/` so an admin can retry, and moved encrypted to the object store after `FAILED_AUDIO_RETENTION_DAYS` (default 3) if one is configured — see "Retry for failed transcriptions" in `AGENTS.md`'s Audio File Cleanup section | ⚠️ |

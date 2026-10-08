@@ -97,10 +97,11 @@ PII-Sanitizer aktiv ist).
 | PCM/WAV in `chunks/` | ❌ (kurzlebig) | Unverschlüsselt auf Disk; nach erfolgreicher Verarbeitung gelöscht. Nach Fehlschlag in `chunks/failed/` bis zur Archivierung (siehe unten) |
 | Archiviertes Fehlschlag-Audio (`archive/task_{id}.*.enc`) | ✅ | Anwendungsseitig mit `ENCRYPTION_KEY` verschlüsselt vor dem Upload (`failed_audio_archival_service.py`) |
 
-Ohne gesetzten `ENCRYPTION_KEY` ist Verschlüsselung für alle oben markierten
-✅-Felder **deaktiviert** (Klartext, mit Log-Warnung beim Start) — ein
-gesetzter `ENCRYPTION_KEY` ist Voraussetzung dafür, dass die Zusicherungen
-in diesem Dokument gelten.
+`ENCRYPTION_KEY` ist **Pflicht**: ohne gültigen Fernet-Key startet die App
+nicht, eine Klartext-Speicherung durch Fehlkonfiguration ist damit
+ausgeschlossen. Zeilen, die vor der Einführung dieser Pflicht im Klartext
+geschrieben wurden, bleiben lesbar (`decrypt()` gibt nicht entschlüsselbare
+Werte unverändert zurück) und werden nicht automatisch nachverschlüsselt.
 
 ### Daten in Übertragung (in transit)
 

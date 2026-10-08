@@ -27,36 +27,50 @@ from backend.components.modules.env import env_or_file
 
 logger = logging.getLogger(__name__)
 
-_raw_key = env_or_file("ENCRYPTION_KEY", None)
 
-if _raw_key is None:
-    logger.warning(
-        "ENCRYPTION_KEY is not set — patient data will be stored unencrypted. "
-        "Set ENCRYPTION_KEY to a Fernet key for DSGVO compliance. "
-        "Generate one with: "
-        'python -c "from cryptography.fernet import Fernet; '
-        'print(Fernet.generate_key().decode())"'
-    )
-    _fernet = None
-else:
-    _fernet = Fernet(_raw_key.encode() if isinstance(_raw_key, str) else _raw_key)
+class EncryptionKeyError(RuntimeError):
+    """ENCRYPTION_KEY is missing or not a valid Fernet key."""
 
 
-def get_current_key() -> bytes | None:
-    """Return the raw ``ENCRYPTION_KEY`` bytes currently configured.
+def _load_key() -> str:
+    """Return ``ENCRYPTION_KEY``; refuse to run without a valid one.
 
-    Returns:
-        The key as bytes, or ``None`` if ``ENCRYPTION_KEY`` is not set
-        (encryption disabled).
+    Patient data must never be stored in plaintext, so there is deliberately no
+    "encryption disabled" mode: the application does not start without a key.
+
+    Raises:
+        EncryptionKeyError: If the key is unset, empty or not a Fernet key.
     """
-    if _raw_key is None:
-        return None
+    raw = (env_or_file("ENCRYPTION_KEY", None) or "").strip()
+    if not raw:
+        logger.critical(
+            "ENCRYPTION_KEY is not set. openDox refuses to start without it, "
+            "because patient data must not be stored unencrypted. Generate one "
+            'with: python -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())" and set ENCRYPTION_KEY '
+            "(or ENCRYPTION_KEY_FILE)."
+        )
+        raise EncryptionKeyError("ENCRYPTION_KEY is required but not set")
+    try:
+        Fernet(raw.encode())
+    except ValueError as exc:
+        logger.critical("ENCRYPTION_KEY is not a valid Fernet key: %s", exc)
+        raise EncryptionKeyError("ENCRYPTION_KEY is not a valid Fernet key") from exc
+    return raw
+
+
+_raw_key = _load_key()
+_fernet = Fernet(_raw_key.encode())
+
+
+def get_current_key() -> bytes:
+    """Return the raw ``ENCRYPTION_KEY`` bytes currently configured."""
     return _raw_key.encode() if isinstance(_raw_key, str) else _raw_key
 
 
 def encrypt(value: str) -> str:
-    """Encrypt a string with Fernet, returning plaintext if disabled."""
-    if _fernet is None or not value:
+    """Encrypt a string with Fernet (empty values stay empty)."""
+    if not value:
         return value
     return _fernet.encrypt(value.encode()).decode()
 
@@ -66,7 +80,7 @@ def decrypt(value: str) -> str:
 
     Falls back to plaintext for unencrypted legacy data.
     """
-    if _fernet is None or not value:
+    if not value:
         return value
     try:
         return _fernet.decrypt(value.encode()).decode()
@@ -77,14 +91,14 @@ def decrypt(value: str) -> str:
 
 def encrypt_bytes(data: bytes) -> bytes:
     """Encrypt raw bytes (e.g. audio) with the same key as ``encrypt``."""
-    if _fernet is None or not data:
+    if not data:
         return data
     return _fernet.encrypt(data)
 
 
 def decrypt_bytes(data: bytes) -> bytes:
     """Decrypt bytes produced by ``encrypt_bytes``."""
-    if _fernet is None or not data:
+    if not data:
         return data
     return _fernet.decrypt(data)
 

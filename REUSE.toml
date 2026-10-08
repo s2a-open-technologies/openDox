@@ -81,6 +81,7 @@ path = [
   "frontend/tsconfig.json",
   "frontend/tsconfig.node.json",
   "frontend/public/**",
+  "frontend/src/i18n/locales/**",
   "backend/static/**",
 ]
 precedence = "aggregate"

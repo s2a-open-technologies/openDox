@@ -12,8 +12,31 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-10-08
+
 ### Added
 
+- **Admin → Clients: Desktop-Client verteilen und zentral einstellen** —
+  Download-Links auf die Installer des openDox-Clients (neuestes GitHub-Release,
+  `releases/latest/download/…`; der Server speichert keine Installer), eine
+  fertige `settings.json` mit der Adresse dieses Servers und ausgefüllte
+  Intune-/SCCM-Befehle (`GET /api/v1/settings/client-distribution/`, Admin und
+  Demo-Viewer).
+- **Client-Richtlinie** — Live-Ansicht, Diktiermikro-Modus, Zwischenablage
+  (aus Verlauf heraushalten, Leeren nach N Sekunden) und Allow-Liste der
+  Zielprogramme gelten global für alle Clients dieses Servers und haben Vorrang
+  vor deren lokaler `settings.json`. Neue Tabelle `clientsettingsmodel`
+  (Migration `c5e9a2d4f7b1`); `GET /api/v1/settings/client-config/` ist bewusst
+  ohne Login abrufbar (der Client braucht sie vor der Anmeldung, der Inhalt ist
+  nicht geheim), `PUT` nur für Admins.
+- **Env-Variablen `CLIENT_SERVER_URL`** (Server-Adresse in der Client-
+  `settings.json`, Standard: aus der Anfrage des Admins abgeleitet, inkl.
+  `ROOT_PATH`) und **`CLIENT_DOWNLOAD_BASE_URL`** (Quelle der Installer-Links).
+- **WebSocket `/ws/record?live=0`** — Clients ohne Live-Ansicht (openDox-Client)
+  können die Live-Transkription pro Aufnahme abschalten: das Audio wird nur
+  aufgezeichnet, kein Parakeet-Stream und keine Live-Inferenz; die
+  Transkription nach dem Stop läuft unverändert. Ohne Parameter bleibt alles
+  wie bisher.
 - **Mehrsprachige Oberfläche (Deutsch/English)** — komplette UI über
   `i18next`/`react-i18next`; Übersetzungen als JSON unter
   `frontend/src/i18n/locales/<lang>/`, weitere Sprachen brauchen nur einen
@@ -40,6 +63,16 @@ section as the GitHub Release notes.
 - Fehlerantworten mit `detail` sind bei den umgestellten Fällen ein Objekt
   statt eines Strings (API-Clients, die `detail` als Text lesen, nutzen
   `detail.message`).
+
+### Security
+
+- **Einstellungs-Endpunkte gaben Geheimnisse ohne Anmeldung heraus.** `GET /api/v1/settings/`
+  `llm-settings/`, `ldap-settings/`, `oidc-settings/` und `whisper-settings/` waren ohne Login
+  erreichbar und lieferten LLM-/Sanitizer-/ASR-API-Keys, das LDAP-Bind-Passwort und das
+  OIDC-Client-Secret. Jetzt: `llm-`, `ldap-` und `oidc-settings` nur für Admin (Demo-Viewer
+  sehen sie ohne die Geheimnisse), `whisper-settings` bleibt öffentlich (die Recorder brauchen
+  `live_backend` vor dem Login), enthält die API-Keys aber nur noch für Admins. **Wer eine Instanz
+  aus dem Netz erreichbar betrieben hat, sollte diese Zugangsdaten rotieren.**
 
 ## [0.8.2] — 2026-09-29
 
@@ -218,7 +251,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/daemolition/openDox/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.2
 [0.8.0]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.0
 [0.1.0]: https://github.com/daemolition/openDox/releases/tag/v0.1.0

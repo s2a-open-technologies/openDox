@@ -6,7 +6,7 @@
 
 openDox ist eine webbasierte Plattform für die medizinische Dokumentation. Ärzte und medizinisches Fachpersonal können Audioaufnahmen (z. B. Patienten-Anamnesen) aufzeichnen, automatisch transkribieren, korrigieren und von einem externen Sprachmodell (LLM) zusammenfassen lassen.
 
-**Wichtig:** openDox ist **kein Medizinprodukt** gemäß MPG. Alle maschinell erstellten Texte müssen von qualifiziertem Personal überprüft werden. Wer eine eigene Instanz betreibt, trägt die Verantwortung für regulatorische Konformität in der eigenen Jurisdiktion — siehe [`DISCLAIMER.md`](DISCLAIMER.md).
+**Wichtig:** openDox ist **kein Medizinprodukt** (Abgrenzung zur MDR: [`docs/zweckbestimmung.md`](docs/zweckbestimmung.md)). Alle maschinell erstellten Texte müssen von qualifiziertem Personal überprüft werden. Wer eine eigene Instanz betreibt, trägt die Verantwortung für regulatorische Konformität in der eigenen Jurisdiktion — siehe [`DISCLAIMER.md`](DISCLAIMER.md).
 
 ## Stack
 
@@ -14,7 +14,9 @@ openDox ist eine webbasierte Plattform für die medizinische Dokumentation. Ärz
 |---------|-------------|
 | **Backend** | Python 3.12+, FastAPI, SQLModel, Alembic |
 | **Frontend** | React 18, TypeScript, Vite, shadcn/ui, Tailwind CSS |
-| **Transkription** | Externe OpenAI-kompatible Whisper-API (Docker) |
+| **Transkription** | Zweistufig: Live per Parakeet (VAD-Streaming über WebSocket), final per Whisper (faster-whisper, OpenAI-kompatible API); beide als Docker-Services mitgeliefert |
+| **Oberfläche** | Mehrsprachig (Deutsch/English, `i18next`), Sprache pro Nutzer |
+| **Desktop-Client** | Optional: separater openDox-Client (Go/Wails), Verteilung und Richtlinie im Admin-Bereich, siehe [`docs/client.md`](docs/client.md) |
 | **Zusammenfassung** | Externes LLM via LangChain/OpenAI-kompatible API |
 | **Datenbank** | PostgreSQL (Docker) oder SQLite (Fallback) |
 | **Auth** | JWT (python-jose + bcrypt), optional LDAP (inkl. Gruppen-Rollenmapping) oder OIDC/SSO |
@@ -105,17 +107,17 @@ npm run build
 ### Transkriptions-Pipeline
 
 1. **Aufnahme**: Browser nimmt Audio über `MediaRecorder` + `AudioWorklet` auf
-2. **Live-Transkription** (optional): Audio-Chunks werden per WebSocket an das Backend geschickt und von der Whisper-API in Echtzeit transkribiert
-3. **Finale Transkription**: Nach Stopp der Aufnahme werden alle Audio-Chunks zu einer Datei zusammengefügt und erneut an die Whisper-API geschickt
+2. **Live-Transkription** (optional, pro Aufnahme abschaltbar mit `?live=0`): Audio-Frames gehen per WebSocket ans Backend und von dort an den Parakeet-Server, der per VAD segmentiert und Text mit Zeichensetzung zurückstreamt (alternativ Whisper-API in festen Chunks)
+3. **Finale Transkription**: Nach Stopp der Aufnahme werden alle Audio-Chunks zu einer Datei zusammengefügt und erneut an die Whisper-API geschickt (optional mit phonetischer Fachbegriff-Korrektur und PII-Sanitizer vor dem LLM, siehe [`docs/pii.md`](docs/pii.md))
 4. **LLM-Zusammenfassung**: Der transkribierte Text wird zusammen mit einem kategoriespezifischen Prompt an ein externes LLM geschickt (z. B. Ollama, vLLM, OpenAI-kompatibel)
 
 ### Kategorien
 
-Beim Start einer Aufnahme wird eine medizinische Kategorie gewählt (z. B. Kardiologie, Orthopädie). Jede Kategorie hat einen eigenen System-Prompt, der sowohl der Whisper-API (für Fachtermini) als auch dem LLM (für Zusammenfassung) übergeben wird.
+Beim Start einer Aufnahme wird eine medizinische Kategorie gewählt (z. B. Kardiologie, Orthopädie). Jede Kategorie hat einen eigenen System-Prompt für das LLM, einen kurzen Whisper-Prompt (Schreibweisen) und ein Korrektur-Glossar für Fachbegriffe; optional kann sie ein eigenes LLM-Backend nutzen.
 
 ### Audio-Download (optional)
 
-Nach der finalen Transkription kann eine komprimierte, verschlüsselte MP3-Kopie der Aufnahme für den späteren Download aufbewahrt werden (Admin-UI → „Audio"-Tab: an/aus, Bitrate, Sample-Rate). Die Datei wird client-seitig mit dem `ENCRYPTION_KEY` verschlüsselt und landet im konfigurierten S3-kompatiblen Objektspeicher, nie unverschlüsselt auf der Platte. Die rohe PCM/WAV-Aufnahme selbst wird davon unabhängig nach der Transkription immer gelöscht (DSGVO-Datenminimierung).
+Nach der finalen Transkription kann eine komprimierte, verschlüsselte Kopie (MP3/OGG/FLAC/WAV) der Aufnahme für den späteren Download aufbewahrt werden (Admin-UI → „Audio"-Tab: an/aus, Bitrate, Sample-Rate). Die Datei wird client-seitig mit dem `ENCRYPTION_KEY` verschlüsselt und landet im konfigurierten S3-kompatiblen Objektspeicher, nie unverschlüsselt auf der Platte. Die rohe PCM/WAV-Aufnahme wird davon unabhängig nach erfolgreicher Transkription gelöscht (DSGVO-Datenminimierung); bei einem Fehlschlag bleibt sie für einen Retry erhalten und wird nach `FAILED_AUDIO_RETENTION_DAYS` (Standard 3) verschlüsselt in den Objektspeicher archiviert.
 
 ### Static Files
 
@@ -132,7 +134,7 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 
 | Variable | Beschreibung | Default |
 |----------|--------------|---------|
-| `SQL_USER` / `SQL_PASS` / `SQL_HOST` / `SQL_PORT` / `SQL_DB` | PostgreSQL-Komponenten | postgres/postgres/localhost/5432/opendox |
+| `SQL_USER` / `SQL_PASS` / `SQL_HOST` / `SQL_PORT` / `SQL_DB` | PostgreSQL-Komponenten | postgres/postgres/localhost/5432/aidox |
 | `DATABASE_URI` | Volle DB-URI (überschreibt Komponenten, z.B. `sqlite:///test.sqlite3`) | – |
 | `SECRET_KEY` | JWT-Signing-Key. Nicht gesetzt = zufällig generiert pro Prozessstart (invalidiert Sessions bei jedem Neustart) statt unsicherem Fallback | – |
 | `ALGORITHM` | JWT-Algorithmus | `HS256` |
@@ -143,9 +145,20 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | `CLIENT_DOWNLOAD_BASE_URL` | Basis-URL der Installer-Downloads im Admin-Bereich | neuestes GitHub-Release von `opendox-client` |
 | `WHISPER_API_ENDPOINT` | Whisper-API-URL (Fallback, wenn keine DB-Settings gesetzt sind) | `http://localhost:9100/v1` |
 | `WHISPER_API_KEY` | Whisper-API-Key | `loc-123` |
+| `FAILED_AUDIO_RETENTION_DAYS` | Tage, bis Audio fehlgeschlagener Transkriptionen in den Objektspeicher archiviert wird | `3` |
 | `S3_ENDPOINT_URL` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | S3-kompatibler Objektspeicher für Audio-Downloads | zeigt im Docker-Compose-Stack auf den mitgelieferten `garage`-Service |
 
 Vollständige Liste inkl. Kommentaren: [`.env.example`](.env.example).
+
+## Tests
+
+```bash
+pytest tests/                  # Backend
+cd frontend && npm run test    # Frontend (vitest)
+ruff check . && ruff format --check .
+```
+
+CI (`.github/workflows/ci.yml`) führt beides bei jedem Push/PR auf `master` aus.
 
 ## Datenbank-Migrationen
 
@@ -171,6 +184,23 @@ Im Docker-Image laufen Migrationen automatisch vor dem App-Start (`entrypoint.sh
 | `docker-swarm.yml` / `create_docker_secrets.sh` | Produktions-Deploy (Docker Swarm) mit echten Secrets |
 | `AGENTS.md` (auch als `CLAUDE.md` verlinkt) | Detaillierte Entwickler-Dokumentation |
 
+## Dokumentation und Governance
+
+| Dokument | Inhalt |
+|----------|--------|
+| [`docs/zweckbestimmung.md`](docs/zweckbestimmung.md) | Bestimmungsgemäßer Zweck, Abgrenzung zur MDR |
+| [`DISCLAIMER.md`](DISCLAIMER.md) | Kein-Medizinprodukt- und Haftungshinweis |
+| [`docs/data-mapping.md`](docs/data-mapping.md) | Datenflüsse, Verschlüsselung, Aufbewahrung (Ausgangspunkt für Art. 30 DSGVO) |
+| [`docs/pii.md`](docs/pii.md) | PII-Sanitizer (EntityGuard) |
+| [`docs/audit-checklist-opendox.md`](docs/audit-checklist-opendox.md) | Selbstauskunft für Audits, mit Fundstellen und offenen Lücken |
+| [`docs/hospital-audit-frameworks.md`](docs/hospital-audit-frameworks.md) | Einordnung gegen ISO 27001, BSI, NIS2, CRA, MDR, DSGVO |
+| [`docs/client.md`](docs/client.md) | Desktop-Client |
+| [`docs/opendox.md`](docs/opendox.md) | Ausführliche Gesamtdokumentation |
+| [`SECURITY.md`](SECURITY.md) | Meldeweg für Schwachstellen, technische Maßnahmen (Art. 32) |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), [`CHANGELOG.md`](CHANGELOG.md) | Mitarbeit, Verhaltenskodex, Änderungen |
+
+Releases entstehen nur auf Anweisung des Maintainers (Tag `vX.Y.Z` löst den Release-Workflow aus); SBOMs (CycloneDX) pro Image erzeugt der manuelle Docker-Publish-Workflow.
+
 ## Lizenz
 
 **AGPL-3.0-or-later**
@@ -181,4 +211,4 @@ Dieses Programm ist freie Software. Details siehe `LICENSE`.
 
 ---
 
-*Kein Medizinprodukt gemäß Medizinproduktegesetz (MPG).*
+*Kein Medizinprodukt.*

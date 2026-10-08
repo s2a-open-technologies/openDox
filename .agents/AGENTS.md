@@ -165,6 +165,12 @@ PCM chunks (the live-recording scratch buffer) intentionally stay **local and ep
 
 `pyproject.toml`'s `[project].version` is the single source of truth for the whole app (frontend + backend ship in one Docker image). `backend/run.py:_read_app_version()` reads it at startup and sets `FastAPI(title="openDox", version=...)` (shows up in `/docs`) plus a public `GET /api/version` route. Bump with `scripts/bump_version.py` (see Dev Commands) — never hand-edit the version in `pyproject.toml`/`frontend/package.json` separately, the lockfile needs `npm install --package-lock-only` to resync.
 
+**Release rule — don't bump after every feature.** Committing and pushing to `master` is free and happens continuously; new entries go under `## [Unreleased]` in `CHANGELOG.md`. A version is only cut when the maintainer says to release. Bumping moves `[Unreleased]` under `## [X.Y.Z]`, and **pushing the `vX.Y.Z` tag** is what triggers `.github/workflows/release.yml` (GitHub Release with that CHANGELOG section as notes; it fails if the heading is missing). Never bump, tag or push a tag on your own initiative. Meaning of the numbers while on 0.x: minor = something worth announcing to users, patch = fixes/small changes; an additional UI language (locale files only) counts as patch. Steps when asked to release:
+
+1. `.venv/bin/python scripts/bump_version.py minor|patch` **without** `--commit` (the system `python3` is 3.10 and lacks `tomllib`).
+2. `uv lock` — the script does not stage `uv.lock`, which embeds the project version; check that `git diff uv.lock` only changes that one line.
+3. `git add pyproject.toml frontend/package.json frontend/package-lock.json CHANGELOG.md uv.lock`, commit `chore: bump version to vX.Y.Z`, then `git tag vX.Y.Z`. Push the tag only when the maintainer wants the release published.
+
 ### Authentication
 
 Three methods, layered in this order in `auth_routes.py:login()`:

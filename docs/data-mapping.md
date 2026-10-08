@@ -66,7 +66,7 @@ PII-Sanitizer aktiv ist).
 | Patientenbezogene Identifikatoren | Namen, Orte, Daten, die im Transkript vorkommen (nicht strukturiert, Freitext) | Teil von `record.content`/`record.summarize`; ggf. maskiert falls Sanitizer aktiv |
 | Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle, UI-Sprache, privates Korrektur-Wörterbuch (`personal_glossary`, nie für Admins einsehbar) | `User`-Tabelle |
 | Zugangsdaten zu Drittsystemen | LDAP-Bind-Passwort, OIDC-Client-Secret, API-Keys für LLM/Whisper/Sanitizer | Settings-Tabellen (siehe Verschlüsselung unten) |
-| Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes Audio (Format konfigurierbar: MP3/WAV/FLAC/OGG) | `chunks/` (temporär, bei fehlgeschlagener Transkription länger, siehe unten), Objektspeicher (optional, dauerhaft bis Löschung) |
+| Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes Audio (Format konfigurierbar: MP3/WAV/FLAC/OGG) | `chunks/` (temporär, bei fehlgeschlagener Transkription länger, siehe unten), Objektspeicher (optional, dauerhaft bis Löschung; dort auch archiviertes Fehlschlag-Audio unter `archive/`) |
 
 ## Verarbeitungsschritte im Detail
 
@@ -79,7 +79,8 @@ PII-Sanitizer aktiv ist).
 | 5 | LLM-Zusammenfassung | Sanitisierter oder Klartext + Kategorie-Prompt | LLM-Endpunkt — **Adresse vom Betreiber frei konfigurierbar, OpenAI-kompatibel** | `backend/components/llm/llm_model.py` |
 | 6 | Persistierung | Transkript, Zusammenfassung, PII-Mapping | PostgreSQL, verschlüsselt | `record_model.py` |
 | 7 | Audio-Download (optional) | Komprimiertes Audio | Objektspeicher (S3-kompatibel), verschlüsselt vor Upload | `audio_storage.py`, `background_transcription_service.py` |
-| 8 | Login | Zugangsdaten | Lokale DB, oder externer LDAP-/OIDC-Server | `auth_routes.py`, `ldap.py`, `oidc_routes.py` |
+| 8 | Client-Richtlinie abrufen | Keine personenbezogenen Daten (Programmnamen, Schalter) | Desktop-Client, `GET /api/v1/settings/client-config/` bewusst ohne Login | `settings_routes.py` (`get_client_config`) |
+| 9 | Login | Zugangsdaten | Lokale DB, oder externer LDAP-/OIDC-Server | `auth_routes.py`, `ldap.py`, `oidc_routes.py` |
 
 ## Verschlüsselung im Detail
 
@@ -93,7 +94,8 @@ PII-Sanitizer aktiv ist).
 | `record.title` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `LdapSettingsModel.bind_user_password` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `OidcSettingsModel.client_secret` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
-| PCM/WAV in `chunks/` | ❌ (aber kurzlebig) | Unverschlüsselt auf Disk, wird nach erfolgreicher/fehlgeschlagener Verarbeitung immer gelöscht (siehe unten) |
+| PCM/WAV in `chunks/` | ❌ (kurzlebig) | Unverschlüsselt auf Disk; nach erfolgreicher Verarbeitung gelöscht. Nach Fehlschlag in `chunks/failed/` bis zur Archivierung (siehe unten) |
+| Archiviertes Fehlschlag-Audio (`archive/task_{id}.*.enc`) | ✅ | Anwendungsseitig mit `ENCRYPTION_KEY` verschlüsselt vor dem Upload (`failed_audio_archival_service.py`) |
 
 Ohne gesetzten `ENCRYPTION_KEY` ist Verschlüsselung für alle oben markierten
 ✅-Felder **deaktiviert** (Klartext, mit Log-Warnung beim Start) — ein
@@ -146,13 +148,16 @@ Drittland im Spiel ist:**
   Stale-Session-Cleanup (>30 Min. Inaktivität) und eine
   Startup-Bereinigung verwaister Dateien — siehe `AGENTS.md` Abschnitt
   „Audio File Cleanup". **Bei einer fehlgeschlagenen Transkription wird
-  die Datei stattdessen unverschlüsselt in `chunks/failed/` aufbewahrt**
-  (kein automatisches Ablaufdatum), damit ein Admin die Verarbeitung über
-  „Fehlgeschlagene Transkriptionen" erneut anstoßen kann — sie bleibt dort
-  bis zu einem erfolgreichen Retry oder einer manuellen Bereinigung durch
-  den Betreiber liegen. Es gibt **keine** Konfigurationsoption, das rohe
-  Audio einer erfolgreich verarbeiteten Aufnahme dauerhaft aufzubewahren —
-  der Fehlerfall ist die einzige Ausnahme von der sofortigen Löschung.
+  die Datei stattdessen unverschlüsselt in `chunks/failed/` aufbewahrt**,
+  damit ein Admin die Verarbeitung über „Fehlgeschlagene Transkriptionen"
+  erneut anstoßen kann. Ein Hintergrund-Job (alle 6 h,
+  `failed_audio_archival_service.py`) verschiebt Dateien, deren Task
+  `FAILED_AUDIO_RETENTION_DAYS` (Standard 3) nicht erneut versucht wurde,
+  **verschlüsselt** in den Objektspeicher (`archive/…`); ohne konfigurierten
+  Objektspeicher passiert das nicht und die Datei bleibt unverschlüsselt
+  lokal liegen. Ein Retry holt sie zurück und löscht das Archiv-Objekt. Es gibt
+  **keine** Konfigurationsoption, das rohe Audio einer erfolgreich
+  verarbeiteten Aufnahme dauerhaft aufzubewahren.
 - **Transkript, Zusammenfassung, PII-Mapping**: bleiben bis zur manuellen
   Löschung des Datensatzes durch einen Nutzer bestehen (kein automatisches
   Ablaufdatum).
@@ -160,19 +165,27 @@ Drittland im Spiel ist:**
   bleibt bis zur manuellen Löschung des Datensatzes bestehen, wird dann aus
   dem Objektspeicher entfernt.
 
-## Bekannte Lücken (Stand: siehe Git-Historie)
+## Bekannte Lücken (Stand: 2026-10-08)
 
 - Ob Verbindungen zu extern konfigurierten Endpunkten (LLM, Sanitizer, LDAP)
   TLS nutzen, liegt vollständig in der Verantwortung der Konfiguration —
   die Anwendung erzwingt es nicht.
-- `chunks/failed/` (rohes Audio nach fehlgeschlagener Transkription, siehe
-  oben) hat kein automatisches Ablaufdatum — liegt unverschlüsselt auf der
-  Platte, bis ein Admin erfolgreich einen Retry durchführt oder die Datei
-  manuell entfernt.
+- `chunks/failed/` (rohes Audio nach fehlgeschlagener Transkription) liegt
+  bis zur Archivierung (Standard 3 Tage) **unverschlüsselt** auf der Platte.
+  Ohne konfigurierten Objektspeicher entfällt die Archivierung, die Datei
+  bleibt dann bis zu einem Retry oder manueller Bereinigung dort.
+- Der Endpunkt `GET /api/v1/settings/whisper-settings/` ist ohne Login
+  erreichbar (die Recorder brauchen `live_backend` vor der Anmeldung), liefert
+  API-Keys aber nur noch an Admins. Bis zum Fix (siehe `CHANGELOG.md`,
+  Abschnitt Security, Unreleased) waren LLM-/ASR-/LDAP-/OIDC-Zugangsdaten
+  ohne Login lesbar; betroffene Instanzen sollten sie rotieren.
+- Kein Self-Service-Export und kein Audit-Log (siehe
+  [`audit-checklist-opendox.md`](audit-checklist-opendox.md)).
 
 ## Verweise
 
 - [`docs/pii.md`](pii.md) — detaillierter Ablauf der PII-Sanitisierung
+- [`docs/client.md`](client.md) — Datenfluss des Desktop-Clients (eigenes Repo mit eigener `data-mapping.md`)
 - [`DISCLAIMER.md`](../DISCLAIMER.md) — „Kein Medizinprodukt"-Hinweis
 - `AGENTS.md` (Repo-Root, auch als `CLAUDE.md` verlinkt) — technische
   Architekturdokumentation, u.a. Abschnitte „Field Encryption", „Audio File

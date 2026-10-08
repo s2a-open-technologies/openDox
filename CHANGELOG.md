@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-08
+
 ### Changed
 
 - **`ENCRYPTION_KEY` ist Pflicht.** Ohne einen gültigen Fernet-Key startet die
@@ -22,6 +24,25 @@ section as the GitHub Release notes.
   Bereits im Klartext gespeicherte Altzeilen bleiben lesbar, werden aber nicht
   automatisch nachverschlüsselt. Der Health-Check „Verschlüsselung“ kennt den
   Status `disabled` nicht mehr.
+
+- **Zeitstempel sind jetzt timezone-aware (UTC).** Das Backend schreibt
+  `datetime.now(timezone.utc)` statt des naiven `utcnow()`; Voraussetzung für
+  `sqlmodel` ≥ 0.0.47, dessen Datetime-Spalten naive Werte ablehnen. Migration
+  `e3b7c1a95d42` wandelt `task.created_at`/`updated_at` und
+  `user.disclaimer_accepted_at` unter PostgreSQL in `timestamptz` um (bestehende
+  Werte gelten als UTC); SQLite bleibt unverändert. `sqlmodel` auf 0.0.48.
+- **`pyproject.toml` pinnt nur noch direkte Abhängigkeiten.** Transitive Pakete
+  stehen nur noch in `uv.lock`; die bisherigen exakten Pins führten bei
+  Dependabot-Gruppen-PRs zu unauflösbaren Kombinationen.
+
+- **Log-Zeilen im uvicorn-Format** (`INFO:     …`, farbig im Terminal) und
+  Logger tragen den Namen ihres Moduls statt immer des Logger-Hilfsmoduls.
+- **Abhängigkeiten aktualisiert** (FastAPI 0.142, langchain 1.4, openai 3,
+  cryptography 50, ruff 0.16, Frontend-Minor-Updates). Dependabot hält npm- und
+  Node-Majors sowie `onnxruntime-gpu` ≥ 1.30 (keine arm64-Wheels) zurück.
+- **Parakeet-Live braucht eine GPU.** Die Doku sagt jetzt klar, dass das
+  Streaming auf der CPU nicht echtzeitfähig ist; ohne GPU `live_backend` auf
+  „disabled“ stellen oder Clients mit `?live=0` verbinden.
 
 ### Removed
 
@@ -39,18 +60,6 @@ section as the GitHub Release notes.
   Ein Test prüft, dass neue `EncryptedString`-Spalten nicht vergessen werden.
   Wer bereits rotiert hat, muss diese vier Felder neu eingeben bzw. ihre Werte
   neu setzen.
-
-### Changed
-
-- **Zeitstempel sind jetzt timezone-aware (UTC).** Das Backend schreibt
-  `datetime.now(timezone.utc)` statt des naiven `utcnow()`; Voraussetzung für
-  `sqlmodel` ≥ 0.0.47, dessen Datetime-Spalten naive Werte ablehnen. Migration
-  `e3b7c1a95d42` wandelt `task.created_at`/`updated_at` und
-  `user.disclaimer_accepted_at` unter PostgreSQL in `timestamptz` um (bestehende
-  Werte gelten als UTC); SQLite bleibt unverändert. `sqlmodel` auf 0.0.48.
-- **`pyproject.toml` pinnt nur noch direkte Abhängigkeiten.** Transitive Pakete
-  stehen nur noch in `uv.lock`; die bisherigen exakten Pins führten bei
-  Dependabot-Gruppen-PRs zu unauflösbaren Kombinationen.
 
 ## [0.8.3] — 2026-10-08
 
@@ -291,7 +300,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/daemolition/openDox/compare/v0.8.3...v0.9.0
 [0.8.3]: https://github.com/daemolition/openDox/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.2
 [0.8.0]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.0

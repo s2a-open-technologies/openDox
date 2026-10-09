@@ -276,9 +276,20 @@ See `backend/components/security/key_rotation.py` for the implementation.
 | Fixed in | Issue | Action for operators |
 |---|---|---|
 | 0.8.3 | `GET /api/v1/settings/{llm,ldap,oidc,whisper}-settings/` returned API keys, the LDAP bind password and the OIDC client secret without login | Rotate those credentials if an instance of 0.8.2 or older was reachable from untrusted networks |
-| after 0.8.3 (unreleased) | `POST /api/v1/auth/register` let anyone create an account | Removed; accounts are created by admins or on first LDAP/OIDC login |
-| after 0.8.3 (unreleased) | Key rotation did not re-encrypt `record.title`, `user.personal_glossary`, the LDAP bind password and the OIDC client secret | Fixed; if you rotated with an older version, re-enter those four values |
-| after 0.8.3 (unreleased) | The app ran with plaintext storage when `ENCRYPTION_KEY` was unset | Now refuses to start without a key |
+| 0.9.0 | `POST /api/v1/auth/register` let anyone create an account | Removed; accounts are created by admins or on first LDAP/OIDC login |
+| 0.9.0 | Key rotation did not re-encrypt `record.title`, `user.personal_glossary`, the LDAP bind password and the OIDC client secret | Fixed; if you rotated with an older version, re-enter those four values |
+| 0.9.0 | The app ran with plaintext storage when `ENCRYPTION_KEY` was unset | Now refuses to start without a key |
+| after 0.9.0 (unreleased) | `python-jose` (JWT/OIDC) had an unpatched algorithm-confusion advisory and is unmaintained | Replaced by PyJWT; no operator action |
+
+## Known open advisories
+
+Frontend dev/build-time dependencies that can only be fixed by a major upgrade,
+which is done by hand rather than via Dependabot:
+
+| Package | Why it stays open for now | Plan |
+|---|---|---|
+| `braces`, `postcss-selector-parser` | Tailwind 3 toolchain; build time only, not part of the shipped bundle, processes our own files | Fixed with the Tailwind 4 migration |
+| `react-router` 6.x | Routing edge cases; fix is in 7.x | Separate migration to react-router 7 |
 
 ---
 

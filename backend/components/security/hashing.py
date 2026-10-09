@@ -21,7 +21,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Union
 
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from passlib.context import CryptContext
 
 from backend.components.modules.env import env_or_file
@@ -86,7 +87,6 @@ def decode_token(token: str) -> Union[dict, None]:
     """Decode and verify a JWT, returning the payload or None on failure."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(payload)
         return payload
-    except JWTError:
+    except PyJWTError:
         return None

@@ -12,6 +12,14 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Security
+- `python-jose` (unmaintained, unpatched algorithm-confusion advisory) replaced by `PyJWT[crypto]` for local JWTs and OIDC id_token verification; invalid id_token signatures now return 502 instead of an unhandled error. `ecdsa` and `rsa` drop out as transitive dependencies.
+- Locked transitive packages updated for open advisories (urllib3, anyio, pyasn1, starlette, langsmith, mako); frontend `http-cache-semantics` fixed.
+- `decode_token()` no longer prints the token payload to stdout.
+
+### Removed
+- Unused, stale `requirements.txt` (pip freeze); `pyproject.toml` + `uv.lock` are the only dependency sources.
+
 ## [0.9.0] — 2026-10-08
 
 ### Changed

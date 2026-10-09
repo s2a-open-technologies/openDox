@@ -24,6 +24,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from itsdangerous import BadSignature, URLSafeSerializer
+from jwt import PyJWTError
 from sqlmodel import select
 
 from backend.components.models.oidc_model import OidcSettingsModel
@@ -191,7 +192,7 @@ async def oidc_callback(request: Request, db: SessionDep):
     # --- 3. Verify id_token + fetch userinfo (claims union) ---
     try:
         claims = service.verify_id_token(id_token)
-    except OidcDiscoveryError as exc:
+    except (OidcDiscoveryError, PyJWTError) as exc:
         raise HTTPException(
             status_code=502, detail=f"Token-Validierung fehlgeschlagen: {exc}"
         ) from exc

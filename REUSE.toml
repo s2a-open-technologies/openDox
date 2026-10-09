@@ -47,7 +47,6 @@ path = [
   ".python-version",
   "entrypoint.sh",
   "create_docker_secrets.sh",
-  "requirements.txt",
   "docker-compose.yml",
   "docker-swarm.yml",
   "docker-swarm.rotation.yml",

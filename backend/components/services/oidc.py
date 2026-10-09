@@ -22,7 +22,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 import httpx
-from jose import jwt
+import jwt
 
 logger = logging.getLogger(__name__)
 
@@ -199,10 +199,9 @@ class OidcService:
             raise OidcDiscoveryError(f"No JWKS key matching kid={kid}")
         claims = jwt.decode(
             id_token,
-            key=key,
+            key=jwt.PyJWK(key).key,
             algorithms=["RS256", "ES256", "RS512"],
             audience=self.settings.client_id,
-            options={"verify_at_hash": False},
         )
         return claims
 

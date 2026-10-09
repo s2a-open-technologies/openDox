@@ -155,9 +155,9 @@ sequenceDiagram
 | **Migrationen** | Alembic | ≥1.15.2 | Schema-Management |
 | **Datenbank** | PostgreSQL | 15 | Primärspeicher (Default-DB: `aidox`) |
 | **Fallback-DB** | SQLite3 | - | Development |
-| **Auth** | python-jose + bcrypt | ≥3.5.0 | JWT-Token |
+| **Auth** | PyJWT + bcrypt | ≥2.10 | JWT-Token |
 | **LDAP** | ldap3 | ≥2.9.1 | Enterprise-Auth |
-| **OIDC/SSO** | itsdangerous + httpx + python-jose | - | Signierter State, Token-Exchange, JWKS-Verifikation |
+| **OIDC/SSO** | itsdangerous + httpx + PyJWT | - | Signierter State, Token-Exchange, JWKS-Verifikation |
 | **LLM-Client** | LangChain | ≥1.2.0 | LLM-Orchestrierung (jedes OpenAI-kompatible Backend, nicht nur Ollama) |
 | **PII-Sanitizer-Client** | requests | - | HTTP-Client für den optionalen EntityGuard-Sanitizer |
 | **Live-ASR** | Parakeet (onnx-asr, Silero-VAD) | - | VAD-segmentiertes WS-Streaming, GPU-Default mit CPU-Fallback |

@@ -19,7 +19,7 @@ openDox ist eine webbasierte Plattform für die medizinische Dokumentation. Ärz
 | **Desktop-Client** | Optional: separater openDox-Client (Go/Wails), Verteilung und Richtlinie im Admin-Bereich, siehe [`docs/client.md`](docs/client.md) |
 | **Zusammenfassung** | Externes LLM via LangChain/OpenAI-kompatible API |
 | **Datenbank** | PostgreSQL (Docker) oder SQLite (Fallback) |
-| **Auth** | JWT (python-jose + bcrypt), optional LDAP (inkl. Gruppen-Rollenmapping) oder OIDC/SSO |
+| **Auth** | JWT (PyJWT + bcrypt), optional LDAP (inkl. Gruppen-Rollenmapping) oder OIDC/SSO |
 | **Objektspeicher** | S3-kompatibel (self-hosted Garage per Default, austauschbar) für persistierte Audio-Downloads |
 
 ## Schnellstart (Docker)

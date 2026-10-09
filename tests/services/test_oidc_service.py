@@ -7,13 +7,17 @@ so the signature-verification path is genuinely covered, not just mocked
 away.
 """
 
+import base64
+import hashlib
+import hmac
+import json
 from types import SimpleNamespace
 
 import httpx
+import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from jose import jwk, jwt
 
 from backend.components.services.oidc import OidcDiscoveryError, OidcService
 
@@ -181,11 +185,9 @@ def rsa_keypair():
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     )
-    public_pem = private_key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    public_jwk = json.loads(
+        jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key())
     )
-    public_jwk = jwk.construct(public_pem, algorithm="RS256").to_dict()
     public_jwk["kid"] = "test-kid"
     return SimpleNamespace(private_pem=private_pem, public_jwk=public_jwk)
 
@@ -249,7 +251,36 @@ def test_verify_id_token_rejects_wrong_audience(
         headers={"kid": "test-kid"},
     )
 
-    with pytest.raises(jwt.JWTClaimsError):
+    with pytest.raises(jwt.InvalidAudienceError):
+        OidcService(_settings()).verify_id_token(id_token)
+
+
+def test_verify_id_token_rejects_hs256_signed_with_public_key(
+    monkeypatch, discovery_get, rsa_keypair
+):
+    """Algorithm confusion: an HS256 token keyed with the public JWK must fail."""
+
+    def fake_get(url, headers=None, timeout=None):
+        if url == DISCOVERY_DOC["jwks_uri"]:
+            return _FakeResponse({"keys": [rsa_keypair.public_jwk]})
+        return _FakeResponse(DISCOVERY_DOC)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    def b64(raw: bytes) -> bytes:
+        return base64.urlsafe_b64encode(raw).rstrip(b"=")
+
+    signing_input = (
+        b64(json.dumps({"alg": "HS256", "kid": "test-kid"}).encode())
+        + b"."
+        + b64(json.dumps({"sub": "42", "aud": "my-client"}).encode())
+    )
+    signature = hmac.new(
+        json.dumps(rsa_keypair.public_jwk).encode(), signing_input, hashlib.sha256
+    ).digest()
+    id_token = (signing_input + b"." + b64(signature)).decode()
+
+    with pytest.raises(jwt.PyJWTError):
         OidcService(_settings()).verify_id_token(id_token)
 
 

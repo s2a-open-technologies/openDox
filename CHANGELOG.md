@@ -17,6 +17,9 @@ section as the GitHub Release notes.
 - Locked transitive packages updated for open advisories (urllib3, anyio, pyasn1, starlette, langsmith, mako); frontend `http-cache-semantics` fixed.
 - `decode_token()` no longer prints the token payload to stdout.
 
+### Changed
+- Frontend: `react-router-dom` 6 replaced by `react-router` 7 (fixes the open react-router advisory).
+
 ### Removed
 - Unused, stale `requirements.txt` (pip freeze); `pyproject.toml` + `uv.lock` are the only dependency sources.
 

@@ -289,7 +289,6 @@ which is done by hand rather than via Dependabot:
 | Package | Why it stays open for now | Plan |
 |---|---|---|
 | `braces`, `postcss-selector-parser` | Tailwind 3 toolchain; build time only, not part of the shipped bundle, processes our own files | Fixed with the Tailwind 4 migration |
-| `react-router` 6.x | Routing edge cases; fix is in 7.x | Separate migration to react-router 7 |
 
 ---
 

@@ -21,7 +21,7 @@
 import { useTranslation } from 'react-i18next';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BASE_PATH } from '@/api';
@@ -59,10 +59,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter basename={BASE_PATH} future={{
-      v7_startTransition: true,
-      v7_relativeSplatPath: true,
-    }}>
+    <BrowserRouter basename={BASE_PATH}>
       <ThemeProvider>
         <AuthProvider>
           <TooltipProvider>

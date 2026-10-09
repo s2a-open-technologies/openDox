@@ -18,7 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { NavLink as RouterNavLink, NavLinkProps } from "react-router-dom";
+import { NavLink as RouterNavLink, NavLinkProps } from "react-router";
 import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 

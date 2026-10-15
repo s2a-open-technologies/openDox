@@ -86,11 +86,11 @@
     "globals": "^15.15.0",
     "jsdom": "^29.1.1",
     "license-checker-rseidelsohn": "^5.0.1",
-    "postcss": "^8.5.29",
+    "postcss": "^8.5.30",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.71.1",
-    "vite": "^8.3.2",
+    "typescript-eslint": "^8.71.2",
+    "vite": "^8.3.4",
     "vitest": "^4.1.10"
   },
   "overrides": {

@@ -68,9 +68,10 @@ needed. Each build also emits a CycloneDX SBOM artifact per image variant
 (`anchore/sbom-action`, pinned to the pushed manifest digest) plus
 `provenance`/`sbom` attestations — voluntary, since CRA obligations don't
 apply to non-commercial AGPL v3 OSS (see `docs/hospital-audit-frameworks.md`
-§7); there is intentionally no CVE-scan gate behind it. Newly published
-packages start private; switch each to public in its own Package Settings if
-that's the intent.
+§7); there is intentionally no CVE-scan gate behind it. Every image carries OCI labels and index annotations (`image.source` links the package to the
+repository, plus license, vendor, version, description). Newly published
+packages start private; switch each to public in its own Package Settings (web UI only, the API
+has no endpoint for it; the org must allow public packages) if that's the intent.
 
 **Backend tests** — pytest, config in `pyproject.toml` (`[tool.pytest.ini_options]`: `pythonpath=["."]`, `testpaths=["tests"]`):
 

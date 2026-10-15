@@ -12,36 +12,43 @@ jobs:
     name: ${{ matrix.name }} (${{ matrix.device || 'default' }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: opendox
             dockerfile: Dockerfile
             context: .
             tag_suffix: ""
+            description: "openDox: medical transcription platform (backend and web UI)"
           - name: opendox-garage-init
             dockerfile: garage/init/Dockerfile
             context: ./garage/init
             tag_suffix: ""
+            description: "openDox: one-shot setup of the bundled Garage S3 storage"
           - name: opendox-whisper
             dockerfile: whisper_server/Dockerfile
             context: .
             device: gpu
             tag_suffix: ""
+            description: "openDox: Whisper transcription server (faster-whisper, GPU)"
           - name: opendox-whisper
             dockerfile: whisper_server/Dockerfile
             context: .
             device: cpu
             tag_suffix: "cpu-"
+            description: "openDox: Whisper transcription server (faster-whisper, CPU)"
           - name: opendox-parakeet
             dockerfile: parakeet_server/Dockerfile
             context: .
             device: gpu
             tag_suffix: ""
+            description: "openDox: Parakeet live transcription server (GPU)"
           - name: opendox-parakeet
             dockerfile: parakeet_server/Dockerfile
             context: .
             device: cpu
             tag_suffix: "cpu-"
+            description: "openDox: Parakeet live transcription server (CPU)"
     steps:
       - uses: actions/checkout@v7
 
@@ -59,9 +66,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Labels (image config) and annotations (manifest + index) on every image:
+      # `org.opencontainers.image.source` links the package to this repository on
+      # GitHub; for a multi-arch image the index-level annotation is what the
+      # package page reads. Tags stay explicit below.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.name }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.vendor=S2A Open Technologies gGmbH
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          annotations: |
+            org.opencontainers.image.title=${{ matrix.name }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.vendor=S2A Open Technologies gGmbH
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
       - uses: docker/build-push-action@v7
         id: build
         with:
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64

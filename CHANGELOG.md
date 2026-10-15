@@ -12,6 +12,9 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Changed
+- The Docker images published by `docker-publish.yml` carry OCI labels and annotations (source repository, license, vendor, version, description), so the GHCR packages link to this repository. One failing image no longer cancels the others (`fail-fast: false`).
+
 ## [0.10.1] — 2026-10-15
 
 ### Changed

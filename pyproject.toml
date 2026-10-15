@@ -1,6 +1,6 @@
 [project]
 name = "project-red"
-version = "0.10.0"
+version = "0.10.1"
 description = "Medical transcription platform with FastAPI backend and React frontend"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}

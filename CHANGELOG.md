@@ -12,6 +12,21 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+- Several app instances can run side by side (see `docs/scaling.md`: nothing extra on one node, an nginx `hash` on `session_id` across nodes):
+  - Settings changes reach every instance within `SETTINGS_CACHE_TTL_S` (default 30 s).
+  - The login rate limit counts in Redis instead of per process.
+  - Periodic jobs run on one instance per tick (Redis leader lock).
+  - Concurrent starts no longer collide on migrations or the key rotation (PostgreSQL advisory locks).
+  - The startup cleanup no longer deletes recordings that other instances are still writing.
+  - Audio of a failed transcription goes straight to S3 (if configured), so any instance can retry it.
+  - `TRUSTED_PROXY_IPS` now also accepts CIDR ranges.
+- Resuming a recording on an app instance that does not hold its earlier audio is now refused with a clear error (`recording_audio_unavailable`, WebSocket close 1011) instead of silently continuing in a new, empty file.
+- Final Whisper transcription now removes silence client-side before the server call (Silero VAD via `onnxruntime`, `vad_segmenter.py`): only speech is sent, in chunks of at most 28 s, in parallel and with a connection-error retry. It is always on and works the same against every Whisper server — vLLM hallucinated text on silence, looped on a `prompt` (WER 9 % -> 36 %) and rejected uploads over 25 MB. The pause length is `vad_min_silence_ms`; the "Qualität" settings tab is now always visible. If any chunk fails, no partial transcript is returned.
+
+### Fixed
+- A recording session rebuilt after the session store lost it (server restart without Redis, Redis data lost) no longer empties the PCM file of that recording: the audio already on disk is kept and appended to (`pcm_file.open_session_audio()`; a half-written sample at the end is cut off).
+
 ### Security
 - `python-jose` (unmaintained, unpatched algorithm-confusion advisory) replaced by `PyJWT[crypto]` for local JWTs and OIDC id_token verification; invalid id_token signatures now return 502 instead of an unhandled error. `ecdsa` and `rsa` drop out as transitive dependencies.
 - Locked transitive packages updated for open advisories (urllib3, anyio, pyasn1, starlette, langsmith, mako); frontend `http-cache-semantics` fixed.
@@ -19,8 +34,10 @@ section as the GitHub Release notes.
 
 ### Changed
 - Frontend: `react-router-dom` 6 replaced by `react-router` 7 (fixes the open react-router advisory).
+- Frontend: Tailwind CSS 3 -> 4 (CSS-first config in `src/index.css`, `tailwind.config.ts` removed, `tailwindcss-animate` -> `tw-animate-css`, `tailwind-merge` 3); removed the unused `lovable-tagger` dev plugin. `npm audit` is clean.
 
 ### Removed
+- Near-live Whisper (`live_backend = "api"`: fixed chunks, overlap, LLM smoothing) — live text is Parakeet-only. Removes `chunk_correction_service.py`, `text_dedup.py`, the `chunk_length_s`/`overlap_s`/`left_context_s`/`live_beam_size`/`live_api_model` settings (migration `955c92f50534`; rows with `live_backend = 'api'` become `'disabled'`) and the matching admin fields. Old settings backups still restore; the removed fields are ignored.
 - Unused, stale `requirements.txt` (pip freeze); `pyproject.toml` + `uv.lock` are the only dependency sources.
 
 ## [0.9.0] — 2026-10-08

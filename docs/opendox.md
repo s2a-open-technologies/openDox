@@ -176,7 +176,7 @@ sequenceDiagram
 | **Language** | TypeScript | ≥5.8.3 | Typsicherheit |
 | **Build** | Vite | ≥5.4.19 | Dev-Server, Bundling |
 | **UI-Kit** | shadcn/ui | - | Radix-basierte Components |
-| **Styling** | Tailwind CSS | ≥3.4.17 | Utility-First CSS |
+| **Styling** | Tailwind CSS | ≥4.3 | Utility-First CSS |
 | **State** | React Context | - | Auth, Theme |
 | **API-Prefix** | api.ts (BASE_PATH) | - | Runtime ROOT_PATH Injection |
 | **Data Fetching** | TanStack Query | ≥5.83.0 | Server-State |
@@ -213,17 +213,10 @@ def _create_live_backend(self) -> ASRBackend:
         # und relayt partial/committed/final-Nachrichten — kein fixer Chunk-Takt
         return ParakeetStreamBackend(endpoint=endpoint, api_key=settings.live_api_key)
 
-    # Default / "api" (Whisper, fester Chunk-Takt statt Streaming)
-    if not settings.live_api_endpoint:
-        return DisabledBackend()
-    return OpenAICompatibleBackend(
-        endpoint=settings.live_api_endpoint,
-        model=settings.live_api_model or "whisper-1",
-        api_key=settings.live_api_key,
-    )
+    return DisabledBackend()  # unbekannter Wert
 ```
 
-`chunk_length_s`/`overlap_s`/`left_context_s`/`merge_overlapping_text` gelten **nur** für den `"api"`-Pfad (Whisper) — beim Parakeet-Streaming-Pfad übernimmt die Segmentierung intern der Parakeet-Server per Silero-VAD.
+Ein Near-live-Whisper-Pfad (feste Chunks mit Überlappung und LLM-Glättung) existiert nicht mehr — Live-Text kommt ausschließlich von Parakeet. Dessen Segmentierung übernimmt intern der Parakeet-Server per Silero-VAD. Die finale Whisper-Transkription entfernt Stille dagegen immer im Backend (`vad_segmenter.py`), bevor sie an den Server geht.
 
 ### Frontend: AudioWorklet (Recorder.tsx)
 
@@ -312,7 +305,7 @@ const uploadChunk = (chunk: Blob, sessionId: string) => {
 
 - **Session-Anlage**: `session_store.get_by_session()`/`create_session()` — PCM wird immer auf Disk geschrieben (`chunks/session_{id}.pcm`), nie im RAM gehalten, unabhängig vom gewählten Session-Store-Backend (Redis speichert nur Metadaten).
 - **Parakeet-Streaming-Pfad** (`isinstance(backend, ParakeetStreamBackend)`): jedes empfangene Float32-PCM-Frame wird direkt und ungepuffert an die WebSocket-Verbindung des Parakeet-Servers weitergeleitet. Der Server segmentiert intern per Silero-VAD an Sprechpausen und schickt `{"partial": ...}` (offenes Segment, alle 0.4s neu dekodiert) bzw. `{"committed": ..., "delta": ...}` (abgeschlossenes Segment) zurück — `delta` wird ans `stableTranscript` angehängt, `partial` rendert als Live-Tail. Kein LLM-Korrekturschritt, da Parakeet bereits fertige Interpunktion liefert.
-- **Whisper-`"api"`-Pfad**: fester Chunk-Takt (Default 3s, `overlap_s` für Übergangs-Überlappung), `chunk_correction_service.py` glättet alle 5 Chunks per LLM (Satzzeichen/Übergänge zwischen Chunk-Grenzen).
+- **Ohne Streaming-Session** (Live aus oder Parakeet nicht erreichbar): Die Aufnahme läuft weiter und wird gespeichert, es gibt nur keinen Live-Text. Die finale Transkription hängt nicht davon ab.
 - **Kein `initial_prompt` im Live-Pfad**: Whisper neigt dazu, den Prompt-Text zu wiederholen, was im Live-Transkript zu Duplikaten führt — anders als bei der finalen Transkription, wo `category.whisper_prompt` als Vokabular-Hint übergeben wird.
 - **Beenden**: Auf ein `STOP`-Event bzw. Verbindungsabbruch konvertiert `finalize()` die PCM-Datei zu WAV und startet `background_transcription_task` als Hintergrund-Task (finale Whisper-Transkription → optionale PII-Sanitisierung → LLM-Zusammenfassung → optionale Audio-Persistierung). Die WAV-Datei wird bei Erfolg gelöscht, bei einem Fehler stattdessen für einen manuellen Retry aufbewahrt (siehe Abschnitt „Audio-Download").
 
@@ -468,7 +461,7 @@ Der eigentliche Live-Pfad: `record.py` leitet jedes empfangene Float32-PCM-Frame
 - **Offenes Segment**: wird alle 0.4s neu dekodiert und als `{"partial": <Text>}` zurückgeschickt (Live-Tail im Frontend)
 - **Abgeschlossenes Segment**: bei erkannter Pause committed und als `{"committed": ..., "delta": ...}` zurückgeschickt — `record.py` hängt `delta` an `stableTranscript` an
 - **Ende der Aufnahme**: `{"final": ...}`
-- `chunk_length_s`/`overlap_s`/`left_context_s`/`merge_overlapping_text` (die Whisper-Chunk-Parameter) gelten hier **nicht** — die Segmentierung ist vollständig serverseitig
+- Die Segmentierung ist vollständig serverseitig
 
 ---
 

@@ -259,6 +259,62 @@ describe("Recorder", () => {
     await waitFor(() => expect(screen.getByText("Aufnahme bereit")).toBeInTheDocument());
   });
 
+  it("shows the server's specific message when a resumed recording cannot continue here", async () => {
+    setupMediaMocks();
+    const onFinalTranscription = vi.fn();
+    const user = userEvent.setup();
+    renderRecorder({ onFinalTranscription });
+
+    await user.click(screen.getByRole("button"));
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    await waitFor(() => expect(FakeAudioWorkletNode.instances).toHaveLength(1));
+    const ws = FakeWebSocket.instances[0];
+    const worklet = FakeAudioWorkletNode.instances[0];
+
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({
+          error: "Earlier audio of this recording is not available on this server instance",
+          code: "recording_audio_unavailable",
+        }),
+      });
+      ws.onclose?.();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining("anderen Server-Instanz")
+    );
+    // Not the generic message on top, and no polling for a transcript that will never come.
+    expect(toast.error).not.toHaveBeenCalledWith(
+      "Verbindung unterbrochen – bitte Aufnahme neu starten"
+    );
+    expect(onFinalTranscription).not.toHaveBeenCalled();
+    // The capture pipeline is still shut down.
+    expect(worklet.disconnect).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText("Aufnahme bereit")).toBeInTheDocument());
+  });
+
+  it("ignores an error message without a code (existing auth errors keep their behaviour)", async () => {
+    setupMediaMocks();
+    const onFinalTranscription = vi.fn();
+    const user = userEvent.setup();
+    renderRecorder({ onFinalTranscription });
+
+    await user.click(screen.getByRole("button"));
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const ws = FakeWebSocket.instances[0];
+
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ error: "Invalid or expired token" }) });
+      ws.onclose?.();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "Verbindung unterbrochen – bitte Aufnahme neu starten"
+    );
+    expect(onFinalTranscription).toHaveBeenCalledWith("sess-abc", undefined);
+  });
+
   it("confirms the stop dialog, sends the stop event and shows the processing spinner", async () => {
     setupMediaMocks();
     const user = userEvent.setup();

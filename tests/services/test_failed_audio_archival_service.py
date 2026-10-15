@@ -185,3 +185,25 @@ def test_failed_upload_leaves_local_file_and_task_untouched(
         refreshed = session.get(Task, task.id)
         assert refreshed.retry_audio_in_s3 is False
         assert refreshed.retry_audio_path == str(src)
+
+
+def test_archive_task_audio_encrypts_uploads_and_returns_key(monkeypatch, tmp_path):
+    monkeypatch.setattr(field_encryption, "_fernet", Fernet(Fernet.generate_key()))
+    monkeypatch.setattr(
+        svc,
+        "get_audio_settings",
+        lambda: SimpleNamespace(
+            audio_format="wav", audio_bitrate="64k", audio_sample_rate=16000
+        ),
+    )
+    upload = MagicMock()
+    monkeypatch.setattr(svc.audio_storage, "upload_bytes", upload)
+    src = tmp_path / "session_x.wav"
+    src.write_bytes(b"raw-wav-bytes")
+
+    key = svc.archive_task_audio(7, str(src))
+
+    assert key == "archive/task_7.wav.enc"
+    stored_key, payload = upload.call_args[0]
+    assert stored_key == key and payload != b"raw-wav-bytes"
+    assert src.exists()  # removing the local file is the caller's decision

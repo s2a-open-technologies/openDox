@@ -37,6 +37,7 @@ dependencies = [
     "pip-licenses>=5.0.0",
     "reuse>=5.0.0",
     "rapidfuzz>=3.14.6",
+    "onnxruntime>=1.20",
 ]
 
 [[tool.uv.index]]

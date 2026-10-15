@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 # Standard library
+import time
 from typing import Optional
 
 # Third party
@@ -34,10 +35,28 @@ from backend.components.sql.sql_engine import get_session_factory
 logger = get_logger(__name__)
 
 
+DEFAULT_CACHE_TTL_S = 30
+
+
+def _cache_ttl_s() -> float:
+    """Seconds a loaded settings row stays cached (``SETTINGS_CACHE_TTL_S``).
+
+    A short TTL is what lets several app instances see an admin's change
+    without a restart: ``invalidate_cache()`` only reaches the instance that
+    handled the request. ``0`` disables expiry (cache until invalidated).
+    """
+    raw = env_or_file("SETTINGS_CACHE_TTL_S", str(DEFAULT_CACHE_TTL_S))
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return float(DEFAULT_CACHE_TTL_S)
+
+
 class SettingsService:
     """Service for managing Whisper, ASR, and LLM settings.
 
     Provides cached access to settings with automatic fallback to defaults.
+    Cached rows expire after ``SETTINGS_CACHE_TTL_S`` (default 30 s).
     """
 
     _instance: Optional["SettingsService"] = None
@@ -54,22 +73,32 @@ class SettingsService:
     def __init__(self):
         if not hasattr(self, "_session_factory"):
             self._session_factory = get_session_factory()
+        if not hasattr(self, "_loaded_at"):
+            self._loaded_at: dict[str, float] = {}
+
+    def _stale(self, name: str) -> bool:
+        """True if cache ``name`` was never loaded or its TTL has run out."""
+        loaded = self._loaded_at.get(name)
+        if loaded is None:
+            return True
+        ttl = _cache_ttl_s()
+        return ttl > 0 and time.monotonic() - loaded >= ttl
 
     def get_settings(self) -> WhisperSettingsModel:
         """Get current Whisper settings from database or create defaults."""
-        if self._whisper_settings is None:
+        if self._whisper_settings is None or self._stale("whisper"):
             self._load_whisper_settings()
         return self._whisper_settings
 
     def get_llm_settings(self) -> LlmSettingsModel:
         """Get current LLM settings from database or create defaults."""
-        if self._llm_settings is None:
+        if self._llm_settings is None or self._stale("llm"):
             self._load_llm_settings()
         return self._llm_settings
 
     def get_audio_settings(self) -> AudioSettingsModel:
         """Get current audio download settings from database or create defaults."""
-        if self._audio_settings is None:
+        if self._audio_settings is None or self._stale("audio"):
             self._load_audio_settings()
         return self._audio_settings
 
@@ -116,10 +145,12 @@ class SettingsService:
                     settings.final_api_key = env_key
 
             self._whisper_settings = settings
+            self._loaded_at["whisper"] = time.monotonic()
             logger.info("Whisper settings loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load Whisper settings: {e}, using defaults")
             self._whisper_settings = WhisperSettingsModel()
+            self._loaded_at["whisper"] = time.monotonic()
         finally:
             session.close()
 
@@ -135,10 +166,12 @@ class SettingsService:
                 session.commit()
                 session.refresh(settings)
             self._llm_settings = settings
+            self._loaded_at["llm"] = time.monotonic()
             logger.info("LLM settings loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load LLM settings: {e}, using defaults")
             self._llm_settings = LlmSettingsModel()
+            self._loaded_at["llm"] = time.monotonic()
         finally:
             session.close()
 
@@ -154,10 +187,12 @@ class SettingsService:
                 session.commit()
                 session.refresh(settings)
             self._audio_settings = settings
+            self._loaded_at["audio"] = time.monotonic()
             logger.info("Audio settings loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load audio settings: {e}, using defaults")
             self._audio_settings = AudioSettingsModel()
+            self._loaded_at["audio"] = time.monotonic()
         finally:
             session.close()
 
@@ -166,6 +201,7 @@ class SettingsService:
         self._whisper_settings = None
         self._llm_settings = None
         self._audio_settings = None
+        self._loaded_at = {}
         logger.debug("Settings cache invalidated")
 
     def reload(self) -> WhisperSettingsModel:
@@ -191,13 +227,8 @@ def get_settings() -> WhisperSettingsModel:
     return get_settings_service().get_settings()
 
 
-def get_whisper_params(live: bool) -> dict:
-    """Build the anti-hallucination parameter dict for a transcription call.
-
-    Args:
-        live: True for live (chunked) transcription, False for the final pass.
-              Only the beam size differs between the two.
-    """
+def get_whisper_params() -> dict:
+    """Build the anti-hallucination parameter dict for the final transcription."""
     s = get_settings()
     return {
         "temperature": s.temperature,
@@ -208,7 +239,7 @@ def get_whisper_params(live: bool) -> dict:
         "compression_ratio_threshold": s.compression_ratio_threshold,
         "log_prob_threshold": s.log_prob_threshold,
         "hallucination_silence_threshold": s.hallucination_silence_threshold,
-        "beam_size": s.live_beam_size if live else s.final_beam_size,
+        "beam_size": s.final_beam_size,
     }
 
 

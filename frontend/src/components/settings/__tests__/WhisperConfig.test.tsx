@@ -43,15 +43,11 @@ const baseSettings = {
   live_backend: "api",
   live_api_endpoint: "http://live.example.com:9000",
   live_api_key: "live-key",
-  live_api_model: "large-v3-turbo",
   final_backend: "api",
   final_api_endpoint: "http://final.example.com:9000",
   final_api_key: "final-key",
   final_api_model: "large-v3",
   language: "de",
-  chunk_length_s: 5,
-  overlap_s: 1,
-  left_context_s: 1,
   temperature: 0.0,
   vad_filter: true,
   vad_min_silence_ms: 500,
@@ -60,7 +56,6 @@ const baseSettings = {
   compression_ratio_threshold: 2.4,
   log_prob_threshold: -1.0,
   hallucination_silence_threshold: null,
-  live_beam_size: 1,
   final_beam_size: 5,
   term_correction_enabled: false,
   term_correction_threshold: 85.0,
@@ -94,7 +89,6 @@ describe("WhisperConfig", () => {
     await user.click(screen.getByRole("tab", { name: "Live" }));
     expect(screen.getByDisplayValue("http://live.example.com:9000")).toBeInTheDocument();
     expect(screen.getByDisplayValue("live-key")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("large-v3-turbo")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Final" }));
     expect(screen.getByDisplayValue("http://final.example.com:9000")).toBeInTheDocument();
@@ -102,22 +96,25 @@ describe("WhisperConfig", () => {
     expect(screen.getByDisplayValue("large-v3")).toBeInTheDocument();
   });
 
-  it("shows the Qualität tab and chunk fields for the api live backend", async () => {
-    const authFetch = vi.fn().mockResolvedValue(jsonResponse({ ...baseSettings, live_backend: "api" }));
-    const user = userEvent.setup();
-    renderWithAuthFetch(authFetch);
+  it.each(["parakeet", "disabled"])(
+    "always shows the Qualität tab with the final beam size (live backend: %s)",
+    async (liveBackend) => {
+      const authFetch = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ ...baseSettings, live_backend: liveBackend }));
+      const user = userEvent.setup();
+      renderWithAuthFetch(authFetch);
 
-    await screen.findByText("Allgemeine Einstellungen");
-    expect(screen.getByRole("tab", { name: "Qualität" })).toBeInTheDocument();
+      await screen.findByText("Allgemeine Einstellungen");
+      await user.click(screen.getByRole("tab", { name: "Qualität" }));
 
-    await user.click(screen.getByRole("tab", { name: "Live" }));
-    expect(screen.getByText("Chunk-Länge (Sek.)")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Parakeet läuft mit Silero-VAD-gesteuertem Streaming/)
-    ).not.toBeInTheDocument();
-  });
+      expect(screen.getByText("Beam-Size")).toBeInTheDocument();
+      expect(screen.getByText("VAD min. Stille (ms)")).toBeInTheDocument();
+      expect(screen.queryByText("Beam-Size Live")).not.toBeInTheDocument();
+    }
+  );
 
-  it("hides the Qualität tab and shows the parakeet info note for the parakeet backend", async () => {
+  it("shows the parakeet info note and no near-live Whisper fields", async () => {
     const authFetch = vi
       .fn()
       .mockResolvedValue(jsonResponse({ ...baseSettings, live_backend: "parakeet" }));
@@ -125,13 +122,14 @@ describe("WhisperConfig", () => {
     renderWithAuthFetch(authFetch);
 
     await screen.findByText("Allgemeine Einstellungen");
-    expect(screen.queryByRole("tab", { name: "Qualität" })).not.toBeInTheDocument();
-
     await user.click(screen.getByRole("tab", { name: "Live" }));
+
     expect(
       screen.getByText(/Parakeet läuft mit Silero-VAD-gesteuertem Streaming/)
     ).toBeInTheDocument();
     expect(screen.queryByText("Chunk-Länge (Sek.)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Überlappung (Sek.)")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Whisper API" })).not.toBeInTheDocument();
   });
 
   it("saves settings and shows a success toast", async () => {

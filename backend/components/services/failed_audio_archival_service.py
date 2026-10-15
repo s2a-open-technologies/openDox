@@ -85,6 +85,31 @@ def _encode_for_archive(
             os.remove(tmp_path)
 
 
+def archive_task_audio(task_id: int, file_path: str) -> str:
+    """Encrypt ``file_path`` and upload it to S3 for a later retry.
+
+    Used both by the periodic archival below and, right when a transcription
+    fails, by ``background_transcription_service`` — so the audio is reachable
+    from every app instance instead of sitting on one instance's local disk.
+    The caller removes the local file and records the key on the task.
+
+    Returns:
+        The S3 object key (``archive/task_{id}.{ext}.enc``).
+
+    Raises:
+        OSError, subprocess.CalledProcessError, RuntimeError: If reading,
+            transcoding or uploading fails.
+    """
+    audio_settings = get_audio_settings()
+    fmt = (audio_settings.audio_format or "mp3").lower()
+    bitrate = audio_settings.audio_bitrate or "64k"
+    sample_rate = audio_settings.audio_sample_rate or 16000
+    data, ext = _encode_for_archive(file_path, fmt, bitrate, sample_rate)
+    key = f"archive/task_{task_id}.{ext}.enc"
+    audio_storage.upload_bytes(key, encrypt_bytes(data))
+    return key
+
+
 def archive_stale_failed_audio(retention_days: int) -> int:
     """Move ``chunks/failed/`` audio older than ``retention_days`` to S3.
 
@@ -112,11 +137,6 @@ def archive_stale_failed_audio(retention_days: int) -> int:
             _warned_unconfigured = True
         return 0
 
-    audio_settings = get_audio_settings()
-    fmt = (audio_settings.audio_format or "mp3").lower()
-    bitrate = audio_settings.audio_bitrate or "64k"
-    sample_rate = audio_settings.audio_sample_rate or 16000
-
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     db = session_factory()
     archived = 0
@@ -135,9 +155,7 @@ def archive_stale_failed_audio(retention_days: int) -> int:
             if not file_path or not os.path.exists(file_path):
                 continue
             try:
-                data, ext = _encode_for_archive(file_path, fmt, bitrate, sample_rate)
-                key = f"archive/task_{task.id}.{ext}.enc"
-                audio_storage.upload_bytes(key, encrypt_bytes(data))
+                key = archive_task_audio(task.id, file_path)
                 os.remove(file_path)
                 task.retry_audio_path = key
                 task.retry_audio_in_s3 = True

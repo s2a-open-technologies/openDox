@@ -22,5 +22,6 @@
   "no_audio_for_record": "No audio file available for this recording",
   "user_exists": "User already exists",
   "user_not_found": "User not found",
-  "cannot_delete_self": "You cannot delete yourself"
+  "cannot_delete_self": "You cannot delete yourself",
+  "recording_audio_unavailable": "This recording cannot be continued here: its earlier audio is on another server instance. Please start the recording again."
 }

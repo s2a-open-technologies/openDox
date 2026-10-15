@@ -18,12 +18,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import struct
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import requests
 
 from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
+from backend.components.services.vad_segmenter import (
+    DEFAULT_MIN_SILENCE_MS,
+    decode_audio,
+    segment_speech,
+)
 
 from .base import ASRBackend
 
@@ -33,12 +40,19 @@ logger = get_logger(__name__)
 class OpenAICompatibleBackend(ASRBackend):
     """API-based ASR backend compatible with OpenAI API format.
 
-    Supports any OpenAI-compatible transcription endpoint.
-    Audio is converted to a proper WAV file before upload.
+    Supports any OpenAI-compatible transcription endpoint. Before upload the
+    audio is run through a client-side voice activity detection: silence is cut
+    out and the speech is sent as WAV chunks of at most 28 s, in parallel. This
+    behaves the same against every server (some hallucinate on silence, loop on
+    a prompt or reject long uploads) and means silence is never transcribed.
     """
 
     # Sample rate expected by the pipeline (WebSocket delivers 16kHz float32 PCM)
     SAMPLE_RATE = 16000
+    # Chunks of one recording sent to the server at the same time.
+    MAX_PARALLEL_CHUNKS = 4
+    # Extra attempts after a connection error / timeout (stale keep-alive etc.).
+    CONNECTION_RETRIES = 2
 
     def __init__(
         self,
@@ -109,55 +123,26 @@ class OpenAICompatibleBackend(ASRBackend):
 
         return header + int16_array.tobytes()
 
-    def _prepare_audio_file(
+    def _post_chunk(
         self,
-        audio: bytes | np.ndarray | str,
-    ) -> tuple[bytes, str]:
-        """Prepare audio data as a file-like payload for multipart upload.
-
-        Returns (file_bytes, filename) tuple.
-        """
-        if isinstance(audio, str):
-            # File path – read raw bytes, server decodes via ffmpeg
-            ext = audio.split(".")[-1] if "." in audio else "wav"
-            with open(audio, "rb") as f:
-                return f.read(), f"audio.{ext}"
-
-        # Convert bytes/numpy to a proper WAV file
-        wav_bytes = self._pcm_to_wav(audio)
-        return wav_bytes, "audio.wav"
-
-    def transcribe(
-        self,
-        audio: bytes | np.ndarray | str,
-        language: str = "de",
-        beam_size: int = 5,
-        prompt: str | None = None,
-        params: dict | None = None,
+        wav_bytes: bytes,
+        language: str,
+        beam_size: int,
+        prompt: str | None,
+        params: dict | None,
     ) -> str:
-        """Transcribe audio using OpenAI-compatible API.
+        """Send one WAV chunk and return its text.
 
-        Args:
-            audio: Audio data (PCM bytes, numpy array) or file path
-            language: Language code
-            beam_size: Beam size forwarded to the server
-            prompt: Optional prompt for context continuation
-            params: Extra anti-hallucination / faster-whisper parameters sent as
-                form fields (vad_filter, temperature, condition_on_previous_text,
-                no_speech_threshold, …). Unknown fields are ignored by servers
-                that don't support them.
-
-        Returns:
-            Transcribed text
+        Raises:
+            RuntimeError: On a non-200 answer or an unexpected response format.
+            requests.exceptions.RequestException: If the server stays unreachable.
         """
-        audio_bytes, filename = self._prepare_audio_file(audio)
-
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         files = {
-            "file": (filename, audio_bytes, "audio/wav"),
+            "file": ("audio.wav", wav_bytes, "audio/wav"),
             "model": (None, self.model),
         }
 
@@ -180,30 +165,95 @@ class OpenAICompatibleBackend(ASRBackend):
                 value = "true" if value else "false"
             files[key] = (None, str(value))
 
+        for attempt in range(self.CONNECTION_RETRIES + 1):
+            try:
+                response = requests.post(
+                    self.endpoint, headers=headers, files=files, timeout=self.timeout
+                )
+                break
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+            ):
+                if attempt == self.CONNECTION_RETRIES:
+                    raise
+                time.sleep(0.5 * (attempt + 1))
+
+        if response.status_code != 200:
+            raise RuntimeError(f"API error: {response.status_code} - {response.text}")
+
+        result = response.json()
+        if "text" in result:
+            return result["text"].strip()
+        if "transcription" in result:
+            return result["transcription"].strip()
+        raise RuntimeError(f"Unexpected API response format: {result}")
+
+    def transcribe(
+        self,
+        audio: bytes | np.ndarray | str,
+        language: str = "de",
+        beam_size: int = 5,
+        prompt: str | None = None,
+        params: dict | None = None,
+    ) -> str:
+        """Transcribe audio using OpenAI-compatible API.
+
+        Silence is removed locally first; only speech is sent to the server.
+
+        Args:
+            audio: Audio data (PCM bytes, numpy array) or file path
+            language: Language code
+            beam_size: Beam size forwarded to the server
+            prompt: Optional prompt for context continuation (sent per chunk)
+            params: Extra anti-hallucination / faster-whisper parameters sent as
+                form fields (vad_filter, temperature, condition_on_previous_text,
+                no_speech_threshold, …). Unknown fields are ignored by servers
+                that don't support them. ``vad_min_silence_ms`` additionally
+                sets the pause length of the local voice activity detection.
+
+        Returns:
+            Transcribed text. Empty if no speech was found or if any chunk
+            failed (a partial transcript is never returned silently).
+        """
         try:
-            response = requests.post(
-                self.endpoint, headers=headers, files=files, timeout=self.timeout
+            samples = decode_audio(audio)
+            min_silence = int(
+                (params or {}).get("vad_min_silence_ms") or DEFAULT_MIN_SILENCE_MS
+            )
+            chunks = segment_speech(samples, min_silence_ms=min_silence)
+        except Exception as e:
+            logger.error(f"Error preparing audio for ASR API: {e}")
+            return ""
+
+        if not chunks:
+            logger.info("No speech detected, skipping ASR API call")
+            return ""
+
+        logger.info(
+            f"VAD: {len(samples) / self.SAMPLE_RATE:.1f}s audio -> "
+            f"{sum(len(c) for c in chunks) / self.SAMPLE_RATE:.1f}s speech "
+            f"in {len(chunks)} chunk(s)"
+        )
+
+        def send(chunk: np.ndarray) -> str:
+            return self._post_chunk(
+                self._pcm_to_wav(chunk), language, beam_size, prompt, params
             )
 
-            if response.status_code == 200:
-                result = response.json()
-                if "text" in result:
-                    return result["text"].strip()
-                elif "transcription" in result:
-                    return result["transcription"].strip()
-                else:
-                    logger.warning(f"Unexpected API response format: {result}")
-                    return str(result)
-            else:
-                logger.error(f"API error: {response.status_code} - {response.text}")
-                return ""
-
+        try:
+            with ThreadPoolExecutor(
+                max_workers=min(self.MAX_PARALLEL_CHUNKS, len(chunks))
+            ) as pool:
+                texts = list(pool.map(send, chunks))  # keeps recording order
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection error to ASR API: {e}")
             return ""
         except Exception as e:
             logger.error(f"Error calling ASR API: {e}")
             return ""
+
+        return " ".join(t for t in texts if t)
 
     def supports_streaming(self) -> bool:
         """REST API does not support true streaming without WebSocket support."""
@@ -225,10 +275,3 @@ class OpenAICompatibleBackend(ASRBackend):
         except Exception as e:
             logger.warning(f"Health check failed: {e}")
             return False
-
-    def get_chunk_config(self) -> dict:
-        """For API backends, use larger chunks to reduce HTTP overhead."""
-        return {
-            "chunk_length_s": 5,
-            "overlap_s": 0,
-        }

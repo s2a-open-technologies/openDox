@@ -47,15 +47,11 @@ interface WhisperSettings {
     live_backend: string;
     live_api_endpoint: string;
     live_api_key: string;
-    live_api_model: string;
     final_backend: string;
     final_api_endpoint: string;
     final_api_key: string;
     final_api_model: string;
     language: string;
-    chunk_length_s: number;
-    overlap_s: number;
-    left_context_s: number;
     // Anti-hallucination / faster-whisper tuning
     temperature: number;
     vad_filter: boolean;
@@ -65,7 +61,6 @@ interface WhisperSettings {
     compression_ratio_threshold: number;
     log_prob_threshold: number;
     hallucination_silence_threshold: number | null;
-    live_beam_size: number;
     final_beam_size: number;
     // Phonetic/fuzzy post-correction of the final transcript
     term_correction_enabled: boolean;
@@ -88,18 +83,14 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         result: null,
     });
     const [config, setConfig] = useState<WhisperSettings>({
-        live_backend: 'api',
+        live_backend: 'parakeet',
         live_api_endpoint: '',
         live_api_key: '',
-        live_api_model: '',
         final_backend: 'api',
         final_api_endpoint: '',
         final_api_key: '',
         final_api_model: '',
         language: 'de',
-        chunk_length_s: 3,
-        overlap_s: 0,
-        left_context_s: 1,
         temperature: 0.0,
         vad_filter: true,
         vad_min_silence_ms: 500,
@@ -108,7 +99,6 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         compression_ratio_threshold: 2.4,
         log_prob_threshold: -1.0,
         hallucination_silence_threshold: null,
-        live_beam_size: 1,
         final_beam_size: 5,
         term_correction_enabled: false,
         term_correction_threshold: 85.0,
@@ -119,18 +109,14 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             .then(res => res.json())
             .then((data: WhisperSettingsResponse) => {
                 setConfig({
-                    live_backend: data.live_backend || 'api',
+                    live_backend: data.live_backend || 'parakeet',
                     live_api_endpoint: data.live_api_endpoint || '',
                     live_api_key: data.live_api_key || '',
-                    live_api_model: data.live_api_model || '',
                     final_backend: data.final_backend || 'api',
                     final_api_endpoint: data.final_api_endpoint || '',
                     final_api_key: data.final_api_key || '',
                     final_api_model: data.final_api_model || '',
                     language: data.language || 'de',
-                    chunk_length_s: data.chunk_length_s ?? 3,
-                    overlap_s: data.overlap_s ?? 0,
-                    left_context_s: data.left_context_s ?? 1,
                     temperature: data.temperature ?? 0.0,
                     vad_filter: data.vad_filter ?? true,
                     vad_min_silence_ms: data.vad_min_silence_ms ?? 500,
@@ -139,7 +125,6 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                     compression_ratio_threshold: data.compression_ratio_threshold ?? 2.4,
                     log_prob_threshold: data.log_prob_threshold ?? -1.0,
                     hallucination_silence_threshold: data.hallucination_silence_threshold ?? null,
-                    live_beam_size: data.live_beam_size ?? 1,
                     final_beam_size: data.final_beam_size ?? 5,
                     term_correction_enabled: data.term_correction_enabled ?? false,
                     term_correction_threshold: data.term_correction_threshold ?? 85.0,
@@ -190,13 +175,11 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             <h3 className="text-lg font-medium">{t('title')}</h3>
             
             <Tabs defaultValue="general" className="w-full">
-                <TabsList className={`grid w-full ${config.live_backend === 'api' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                     <TabsTrigger value="general">{t('tabs.general')}</TabsTrigger>
                     <TabsTrigger value="live">{t('tabs.live')}</TabsTrigger>
                     <TabsTrigger value="final">{t('tabs.final')}</TabsTrigger>
-                    {config.live_backend === 'api' && (
-                        <TabsTrigger value="quality">{t('tabs.quality')}</TabsTrigger>
-                    )}
+                    <TabsTrigger value="quality">{t('tabs.quality')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="general">
@@ -241,7 +224,6 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="parakeet">{t('live.backends.parakeet')}</SelectItem>
-                                        <SelectItem value="api">Whisper API</SelectItem>
                                         <SelectItem value="disabled">{t('live.backends.disabled')}</SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -257,7 +239,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     <div className="space-y-2">
                                         <Label>{t('apiEndpoint')}</Label>
                                         <Input
-                                            placeholder={config.live_backend === 'parakeet' ? 'http://parakeet:5001/v1' : 'http://localhost:9000'}
+                                            placeholder="http://parakeet:5001/v1"
                                             disabled={readOnly}
                                             value={config.live_api_endpoint}
                                             onChange={(e) => updateField('live_api_endpoint', e.target.value)}
@@ -273,37 +255,6 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                             onChange={(e) => updateField('live_api_key', e.target.value)}
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{t('model')}</Label>
-                                        <Input
-                                            placeholder="nemo-parakeet-tdt-0.6b-v3"
-                                            disabled={readOnly}
-                                            value={config.live_api_model}
-                                            onChange={(e) => updateField('live_api_model', e.target.value)}
-                                        />
-                                    </div>
-                                    {config.live_backend !== 'parakeet' && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label>{t('live.chunkLength')}</Label>
-                                                <Input
-                                                    type="number" min={1} max={10}
-                                                    disabled={readOnly}
-                                                    value={config.chunk_length_s}
-                                                    onChange={(e) => updateField('chunk_length_s', parseInt(e.target.value) || 3)}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label>{t('live.overlap')}</Label>
-                                                <Input
-                                                    type="number" min={0} max={2} step={0.5}
-                                                    disabled={readOnly}
-                                                    value={config.overlap_s}
-                                                    onChange={(e) => updateField('overlap_s', parseFloat(e.target.value) || 0)}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
                                 </>
                             )}
                             <div className="flex gap-2 pt-2">
@@ -502,25 +453,14 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     onChange={(e) => updateField('hallucination_silence_threshold', e.target.value === '' ? null : parseFloat(e.target.value))}
                                 />
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>{t('quality.beamLive')}</Label>
-                                    <Input
-                                        type="number" min={1} max={10}
-                                        disabled={readOnly}
-                                        value={config.live_beam_size}
-                                        onChange={(e) => updateField('live_beam_size', parseInt(e.target.value) || 1)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>{t('quality.beamFinal')}</Label>
-                                    <Input
-                                        type="number" min={1} max={10}
-                                        disabled={readOnly}
-                                        value={config.final_beam_size}
-                                        onChange={(e) => updateField('final_beam_size', parseInt(e.target.value) || 5)}
-                                    />
-                                </div>
+                            <div className="space-y-2">
+                                <Label>{t('quality.beamFinal')}</Label>
+                                <Input
+                                    type="number" min={1} max={10}
+                                    disabled={readOnly}
+                                    value={config.final_beam_size}
+                                    onChange={(e) => updateField('final_beam_size', parseInt(e.target.value) || 5)}
+                                />
                             </div>
                         </CardContent>
                     </Card>

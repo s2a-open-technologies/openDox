@@ -226,3 +226,87 @@ def test_retain_audio_for_retry_does_not_nest_failed_dirs(tmp_path):
 
     assert not os.path.isdir(failed_dir / "failed")
     assert src.exists()
+
+
+# --- failed audio goes straight to S3 so any app instance can retry it --------
+
+
+class _FakeTask:
+    retry_audio_path = None
+    retry_audio_in_s3 = False
+
+
+class _FakeDb:
+    def __init__(self):
+        self.task = _FakeTask()
+        self.committed = 0
+
+    def get(self, model, task_id):
+        return self.task
+
+    def add(self, obj):
+        pass
+
+    def commit(self):
+        self.committed += 1
+
+    def rollback(self):
+        pass
+
+
+def _s3(monkeypatch, *, configured=True, key="archive/task_42.wav.enc", error=None):
+    from backend.components.services import failed_audio_archival_service as arch
+
+    monkeypatch.setattr(arch.audio_storage, "is_configured", lambda: configured)
+    calls = []
+
+    def fake_archive(task_id, file_path):
+        calls.append((task_id, file_path))
+        if error:
+            raise error
+        return key
+
+    monkeypatch.setattr(arch, "archive_task_audio", fake_archive)
+    return calls
+
+
+def test_failed_audio_is_uploaded_to_s3_and_local_copy_removed(tmp_path, monkeypatch):
+    src = tmp_path / "session_abc.wav"
+    src.write_bytes(b"fake-audio")
+    calls = _s3(monkeypatch)
+    db = _FakeDb()
+
+    svc._retain_audio_for_retry(db, 42, str(src))
+
+    assert calls == [(42, str(src))]
+    assert db.task.retry_audio_in_s3 is True
+    assert db.task.retry_audio_path == "archive/task_42.wav.enc"
+    assert not src.exists()
+    assert not (tmp_path / "failed").exists()  # nothing left on local disk
+
+
+def test_local_retention_is_used_when_s3_is_not_configured(tmp_path, monkeypatch):
+    src = tmp_path / "session_abc.wav"
+    src.write_bytes(b"fake-audio")
+    calls = _s3(monkeypatch, configured=False)
+    db = _FakeDb()
+
+    svc._retain_audio_for_retry(db, 42, str(src))
+
+    assert calls == []
+    assert (tmp_path / "failed" / "task_42.wav").exists()
+    assert db.task.retry_audio_in_s3 is False
+
+
+def test_failed_s3_upload_falls_back_to_local_retention(tmp_path, monkeypatch):
+    """A recording is never lost just because the object store is down."""
+    src = tmp_path / "session_abc.wav"
+    src.write_bytes(b"fake-audio")
+    _s3(monkeypatch, error=RuntimeError("s3 down"))
+    db = _FakeDb()
+
+    svc._retain_audio_for_retry(db, 42, str(src))
+
+    assert (tmp_path / "failed" / "task_42.wav").exists()
+    assert db.task.retry_audio_in_s3 is False
+    assert db.task.retry_audio_path.endswith("task_42.wav")

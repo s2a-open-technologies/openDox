@@ -175,6 +175,56 @@ def _license_cell(raw: str) -> str:
     return first_line + ("…" if "\n" in raw.strip() else "")
 
 
+_MIT_TEXT = [
+    "Permission is hereby granted, free of charge, to any person obtaining a copy",
+    'of this software and associated documentation files (the "Software"), to deal',
+    "in the Software without restriction, including without limitation the rights",
+    "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+    "copies of the Software, and to permit persons to whom the Software is",
+    "furnished to do so, subject to the following conditions:",
+    "",
+    "The above copyright notice and this permission notice shall be included in all",
+    "copies or substantial portions of the Software.",
+    "",
+    'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR',
+    "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+    "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+    "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+    "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+    "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+    "SOFTWARE.",
+]
+
+# Files and code shipped inside the repository (not installed packages), so they
+# never show up in the dependency lists above.
+BUNDLED_NOTICES = [
+    "## Bundled files and adapted code",
+    "",
+    "### Silero VAD model",
+    "",
+    "`backend/components/assets/silero_vad_v6.onnx` — voice activity detection model,",
+    "https://github.com/snakers4/silero-vad, MIT License.",
+    "Copyright (c) 2020-present Silero Team",
+    "",
+    *_MIT_TEXT,
+    "",
+    "### faster-whisper VAD code",
+    "",
+    "`backend/components/modules/silero_vad.py` adapts the speech-timestamp logic and",
+    "the batched model call from `faster_whisper/vad.py`,",
+    "https://github.com/SYSTRAN/faster-whisper, MIT License.",
+    "Copyright (c) 2023 SYSTRAN",
+    "",
+    *_MIT_TEXT,
+    "",
+    "### Test audio",
+    "",
+    "`tests/fixtures/speech_pause_de.wav` — synthetic speech generated with Piper TTS",
+    "(voice `de_DE-thorsten-medium`, trained on the CC0 Thorsten-Voice dataset).",
+    "",
+]
+
+
 def write_third_party_notices(backend: list[dict], frontend: list[dict]) -> None:
     """Regenerate THIRD_PARTY_NOTICES.md from current dependency license data.
 
@@ -211,6 +261,7 @@ def write_third_party_notices(backend: list[dict], frontend: list[dict]) -> None
             f"| {p['name']} | {p['version']} | {_license_cell(p['license'])} |"
         )
     lines.append("")
+    lines += BUNDLED_NOTICES
 
     (REPO_ROOT / "THIRD_PARTY_NOTICES.md").write_text(
         "\n".join(lines), encoding="utf-8"

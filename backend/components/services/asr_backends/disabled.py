@@ -50,10 +50,3 @@ class DisabledBackend(ASRBackend):
     def health_check(self) -> bool:
         """Always healthy (does nothing)."""
         return True
-
-    def get_chunk_config(self) -> dict:
-        """Return default config (not used when disabled)."""
-        return {
-            "chunk_length_s": 5,
-            "overlap_s": 0,
-        }

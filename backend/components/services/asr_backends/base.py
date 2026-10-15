@@ -70,15 +70,3 @@ class ASRBackend(ABC):
             True if backend is ready to transcribe
         """
         pass
-
-    def get_chunk_config(self) -> dict:
-        """Get recommended chunk configuration for this backend.
-
-        Returns:
-            Dict with 'chunk_length_s' and 'overlap_s' keys
-        """
-        # Default configuration
-        return {
-            "chunk_length_s": 5,
-            "overlap_s": 0,
-        }

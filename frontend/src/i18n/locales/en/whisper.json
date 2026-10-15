@@ -28,9 +28,7 @@
       "parakeet": "Parakeet (recommended)",
       "disabled": "Disabled"
     },
-    "parakeetHint": "Parakeet uses Silero-VAD-driven streaming: text grows while speaking and freezes at pauses. Chunk length, overlap and left context are controlled by the server and are not relevant here.",
-    "chunkLength": "Chunk length (sec.)",
-    "overlap": "Overlap (sec.)"
+    "parakeetHint": "Parakeet uses Silero-VAD-driven streaming: text grows while speaking and freezes at pauses. The Parakeet server handles the segmentation."
   },
   "apiEndpoint": "API endpoint",
   "apiKeyOptional": "API key (optional)",
@@ -52,8 +50,8 @@
   },
   "quality": {
     "title": "Quality & anti-hallucination",
-    "description": "Prevents invented filler words during silence. Passed on to the Whisper server.",
-    "vadFilter": "VAD filter (remove silence)",
+    "description": "Prevents invented filler words during silence. Silence is always removed in the backend first (only speech is sent to the Whisper server); \"VAD min. silence\" sets the pause length used for cutting. The other values are passed on to the Whisper server.",
+    "vadFilter": "Server-side VAD filter (additional)",
     "condPrev": "Condition on previous text",
     "vadMinSilence": "VAD min. silence (ms)",
     "temperature": "Temperature (0 = deterministic)",
@@ -62,8 +60,7 @@
     "logProb": "Log-prob threshold",
     "hallucinationSilence": "Hallucination silence threshold (sec., optional)",
     "off": "off",
-    "beamLive": "Beam size live",
-    "beamFinal": "Beam size final"
+    "beamFinal": "Beam size"
   },
   "save": "Save settings",
   "saved": "Settings saved"

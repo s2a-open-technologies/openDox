@@ -28,10 +28,9 @@ class WhisperSettingsModel(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # Live (Near-Real-Time) Transcription Settings
-    live_backend: str = Field(default="parakeet")  # "parakeet", "api", "disabled"
+    live_backend: str = Field(default="parakeet")  # "parakeet", "disabled"
     live_api_endpoint: Optional[str] = Field(default=None)
     live_api_key: Optional[str] = Field(default=None)
-    live_api_model: Optional[str] = Field(default=None)
 
     # Final Transcription Settings
     final_backend: str = Field(default="api")  # "api"
@@ -41,9 +40,6 @@ class WhisperSettingsModel(SQLModel, table=True):
 
     # Common Settings
     language: str = Field(default="de")
-    chunk_length_s: int = Field(default=3)
-    overlap_s: float = Field(default=0.0)
-    left_context_s: float = Field(default=1.0)
 
     # Anti-hallucination / faster-whisper tuning (sent to the Whisper server
     # as transcription parameters). Defaults mirror the proven config that was
@@ -56,7 +52,6 @@ class WhisperSettingsModel(SQLModel, table=True):
     compression_ratio_threshold: float = Field(default=2.4)
     log_prob_threshold: float = Field(default=-1.0)
     hallucination_silence_threshold: Optional[float] = Field(default=2.0)
-    live_beam_size: int = Field(default=1)
     final_beam_size: int = Field(default=5)
 
     # Phonetic/fuzzy post-correction of the final transcript against a

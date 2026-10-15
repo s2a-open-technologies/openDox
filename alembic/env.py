@@ -24,7 +24,7 @@ from logging.config import fileConfig
 # Add project root to sys.path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 from sqlmodel import SQLModel
 
 from alembic import context
@@ -52,6 +52,11 @@ if config.config_file_name is not None:
 # All models are registered in SQLModel.metadata via imports above
 target_metadata = SQLModel.metadata
 
+# Arbitrary constant shared by every app instance: with several instances
+# starting at once only one may migrate; the others wait here and then find
+# nothing left to do. Session-level PostgreSQL advisory lock.
+MIGRATION_LOCK_KEY = 7243189005
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
@@ -76,6 +81,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        is_postgres = connection.dialect.name == "postgresql"
+        if is_postgres:
+            connection.execute(
+                text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY}
+            )
+            connection.commit()  # the lock is per session and survives this
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
@@ -84,8 +96,17 @@ def run_migrations_online() -> None:
             render_as_batch=alembic_uri.startswith("sqlite"),
         )
 
-        with context.begin_transaction():
-            context.run_migrations()
+        try:
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if is_postgres:
+                connection.rollback()  # clear a failed transaction before unlocking
+                connection.execute(
+                    text("SELECT pg_advisory_unlock(:key)"),
+                    {"key": MIGRATION_LOCK_KEY},
+                )
+                connection.commit()
 
 
 if context.is_offline_mode():

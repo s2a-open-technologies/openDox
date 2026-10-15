@@ -31,6 +31,7 @@ from typing import Any, Dict, Optional
 import redis
 
 from backend.components.modules.logger import get_logger
+from backend.components.services.pcm_file import open_session_audio
 
 logger = get_logger(__name__)
 
@@ -56,10 +57,8 @@ def _deserialize_value(key: str, value: Optional[str]) -> Any:
         return int(value) if value else 0
     if key == "category_id":
         return int(value) if value else None
-    if key in ("audio_file_size", "last_index", "last_cleanup_len"):
+    if key in ("audio_file_size", "last_index"):
         return int(value) if value else 0
-    if key in ("last_cleanup_time",):
-        return float(value) if value else 0.0
     if key in ("created_at", "last_activity"):
         return datetime.fromisoformat(value) if value else datetime.now()
     if key == "audio_file_path":
@@ -124,7 +123,7 @@ class RedisSessionStore:
         _audio_dir = audio_dir or "."
         os.makedirs(_audio_dir, exist_ok=True)
         _audio_path = os.path.join(_audio_dir, f"session_{session_id}.pcm")
-        open(_audio_path, "wb").close()
+        audio_size = open_session_audio(_audio_path)
 
         now = datetime.now()
         session_data = {
@@ -137,11 +136,9 @@ class RedisSessionStore:
             "last_activity": _serialize_value(now),
             "status": "recording",
             "audio_file_path": _audio_path,
-            "audio_file_size": "0",
+            "audio_file_size": str(audio_size),
             "last_index": "0",
             "live_text": "",
-            "last_cleanup_time": "0.0",
-            "last_cleanup_len": "0",
         }
 
         pipe = self._redis.pipeline()
@@ -245,6 +242,20 @@ class RedisSessionStore:
         )
         self._redis.expire(self._key(user_id), self._ttl)
         self._redis.expire(self._map_key(session_id), self._ttl)
+
+    def active_audio_paths(self) -> set[str]:
+        """Absolute PCM paths of all known sessions, across every app instance."""
+        paths: set[str] = set()
+        cursor = 0
+        while True:
+            cursor, keys = self._redis.scan(cursor, match="session:*", count=100)
+            for key in keys:
+                path = self._redis.hget(key, "audio_file_path")
+                if path:
+                    paths.add(os.path.abspath(path))
+            if cursor == 0:
+                break
+        return paths
 
     def cleanup_stale_sessions(self, max_age_minutes: int = 30) -> int:
         """Remove sessions inactive for longer than max_age_minutes.

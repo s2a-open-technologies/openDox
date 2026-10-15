@@ -21,7 +21,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import os
-import time
 
 # Third party
 import uuid
@@ -46,7 +45,6 @@ from backend.components.models.user_model import User
 from backend.components.modules.api_errors import api_error
 from backend.components.modules.audio import normalize_quiet_pcm
 from backend.components.modules.logger import get_logger
-from backend.components.modules.text_dedup import merge_overlapping_text
 from backend.components.security.field_encryption import decrypt_bytes
 from backend.components.security.hashing import decode_token
 from backend.components.services import audio_storage
@@ -87,39 +85,6 @@ def _require_owner(current_user: User, owner_id: int) -> None:
     """
     if current_user.id != owner_id and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized for this resource")
-
-
-async def _run_periodic_cleanup(session_id: str, websocket: WebSocket) -> None:
-    """Smooth chunk-boundary punctuation in the live transcript via LLM.
-
-    Non-blocking.
-    """
-    from backend.components.services.chunk_correction_service import smooth_transcript
-
-    session = session_store.get_by_session(session_id)
-    if not session:
-        return
-    snapshot = session.get("live_text", "").strip()
-    if not snapshot:
-        return
-    try:
-        cleaned = await asyncio.to_thread(smooth_transcript, snapshot)
-        if not cleaned or cleaned == snapshot:
-            return
-        session = session_store.get_by_session(session_id)
-        if not session:
-            return
-        current = session.get("live_text", "")
-        if current.startswith(snapshot):
-            tail = current[len(snapshot) :]
-            new_text = (cleaned + tail).strip()
-        else:
-            new_text = cleaned
-        session_store.set_live_state(session_id, session.get("last_index", 0), new_text)
-        await websocket.send_json({"session_id": session_id, "cleanup": new_text})
-        logger.info("[SMOOTH] cleanup sent (%d chars)", len(new_text))
-    except Exception as e:
-        logger.debug("[SMOOTH] failed: %s", e)
 
 
 OUTPUT_DIR = "chunks"
@@ -406,6 +371,23 @@ async def cancel_session(
     return {"status": "cancelled", "session_id": session_id}
 
 
+def _audio_unavailable(path: str, recorded_size: int) -> bool:
+    """True if a resumed recording's earlier audio is not (fully) on this instance.
+
+    ``recorded_size`` is what the previous connection stored in the session when
+    it ended. Nothing recorded yet (0) means nothing can be lost. The file is
+    opened for appending below, which would silently create a new empty file on
+    an instance that never had it, so a missing or shorter file must be refused.
+    A longer file is fine: the last sync can lag behind a crashed connection.
+    """
+    if recorded_size <= 0 or not path:
+        return False
+    try:
+        return os.path.getsize(path) < recorded_size
+    except OSError:
+        return True
+
+
 # Websocket Connection for live transcription
 @record_bp.websocket("/ws/record")
 async def websocket_record(websocket: WebSocket, db: SessionDep):
@@ -504,8 +486,24 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     local_last_index: int = session["last_index"] if session else 0
     local_live_text: str = session.get("live_text", "") if session else ""
     local_user_id: int = session["user_id"] if session else user_id_int
-    last_cleanup_time: float = session.get("last_cleanup_time", 0.0) if session else 0.0
-    last_cleanup_len: int = session.get("last_cleanup_len", 0) if session else 0
+
+    if session and _audio_unavailable(local_audio_path, local_audio_size):
+        # The earlier audio lives on another app instance. Refuse instead of
+        # appending to a new, empty file; leave the session and files alone so
+        # the instance that has them can still resume it.
+        print(f"[WS-RESUME-REFUSED] session={session_id}: audio not on this instance")
+        try:
+            await websocket.send_json(
+                {
+                    "error": "Earlier audio of this recording is not available "
+                    "on this server instance",
+                    "code": "recording_audio_unavailable",
+                }
+            )
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+        return
 
     # On resume: push the accumulated transcript back so the client gets it again.
     if session and session.get("live_text"):
@@ -523,7 +521,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     # ── Streaming live ASR (Parakeet VAD-segmented) ──────────────────────
     # When the configured live backend supports streaming (Parakeet over WS),
     # we forward every PCM frame directly and relay partial/committed messages
-    # back to the frontend, instead of the fixed-chunk + merge-overlap path.
+    # back to the frontend.
     stream_session = None
     backend = None
     use_streaming = False
@@ -635,127 +633,10 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
                         print(f"[STREAM-FEED-ERROR] {e}")
                     continue
 
-                # Live ASR
-                try:
-                    backend = get_live_asr()
-
-                    # chunk_length_s * 16000 samples/s * 4 bytes/sample (float32)
-                    bytes_per_chunk = 3 * 16000 * 4  # default 3s chunks
-                    bytes_per_overlap = 0
-                    bytes_per_left_context = 0
-                    is_parakeet = False
-                    whisper_params = None
-                    try:
-                        from backend.components.services.settings_service import (
-                            get_settings,
-                            get_whisper_params,
-                        )
-
-                        settings = get_settings()
-                        bytes_per_chunk = settings.chunk_length_s * 16000 * 4
-                        bytes_per_overlap = int(settings.overlap_s * 16000 * 4)
-                        if settings.live_backend == "parakeet":
-                            bytes_per_overlap = 0
-                            is_parakeet = True
-                            bytes_per_left_context = int(
-                                settings.left_context_s * 16000 * 4
-                            )
-                            bytes_per_left_context -= bytes_per_left_context % 4
-                        whisper_params = get_whisper_params(live=True)
-                    except Exception:
-                        pass
-
-                    new_data_len = local_audio_size - local_last_index
-
-                    if new_data_len >= bytes_per_chunk:
-                        start = local_last_index
-                        # Read some extra audio from before `start` as pure
-                        # acoustic context for Parakeet — this does NOT move
-                        # `start`/`new_index`, it's read-only look-back.
-                        read_start = max(0, start - bytes_per_left_context)
-                        read_len = (start - read_start) + bytes_per_chunk
-                        with open(local_audio_path, "rb") as _f:
-                            _f.seek(read_start)
-                            audio_slice = _f.read(read_len)
-                        new_index = start + bytes_per_chunk - bytes_per_overlap
-
-                        # Normalize quiet audio so Whisper doesn't hallucinate
-                        # filler phrases instead of returning silence.
-                        _pcm = np.frombuffer(audio_slice, dtype=np.float32)
-                        audio_slice = normalize_quiet_pcm(_pcm).tobytes()
-
-                        # Whisper tends to repeat text from the prompt, causing
-                        # duplication in the live transcript. Skip the prompt.
-                        _ = None  # live_prompt intentionally unused
-
-                        logger.info(
-                            "[ASR] chunk %.1fs | overlap %.1fs | "
-                            "left_ctx %.1fs | params=%s",
-                            len(audio_slice) / (16000 * 4),
-                            bytes_per_overlap / (16000 * 4),
-                            bytes_per_left_context / (16000 * 4),
-                            whisper_params,
-                        )
-                        # Transcribe in background thread (non-blocking)
-                        result_text = await asyncio.to_thread(
-                            backend.transcribe,
-                            audio=audio_slice,
-                            language="de",
-                            prompt=None,
-                            params=whisper_params,
-                        )
-
-                        # Always advance the index — even on empty result — so the
-                        # same audio slice is never re-transcribed in the next loop.
-                        local_last_index = new_index
-
-                        if result_text:
-                            if is_parakeet:
-                                local_live_text = merge_overlapping_text(
-                                    local_live_text, result_text
-                                )
-                            else:
-                                local_live_text = (
-                                    local_live_text + " " + result_text
-                                ).strip()
-                            # Persist to Redis only after transcription (~every 3s)
-                            session_store.set_live_state(
-                                session_id, new_index, local_live_text
-                            )
-
-                            if client_connected:
-                                try:
-                                    await websocket.send_json(
-                                        {"session_id": session_id, "text": result_text}
-                                    )
-                                except Exception as e:
-                                    print(f"[WS-SEND-ERROR] {e}")
-
-                            # Periodic LLM cleanup every 30s
-                            _now = time.monotonic()
-                            live_len = len(local_live_text)
-                            if (
-                                client_connected
-                                and _now - last_cleanup_time >= 30.0
-                                and live_len > last_cleanup_len
-                            ):
-                                last_cleanup_time = _now
-                                last_cleanup_len = live_len
-                                session_store.update_session(
-                                    local_user_id,
-                                    {
-                                        "last_cleanup_time": _now,
-                                        "last_cleanup_len": live_len,
-                                    },
-                                )
-                                asyncio.create_task(
-                                    _run_periodic_cleanup(session_id, websocket)
-                                )
-
-                except Exception as e:
-                    print(f"[LIVE-ASR-ERROR] {e}")
-
-                continue  # naechster Loop
+                # No streaming session (live view off or the Parakeet connection
+                # failed): the audio is still on disk and the final transcription
+                # does not depend on live text, so there is nothing else to do.
+                continue
 
             # Ignoriere sonstige Nachrichtentypen
             print(f"[WS-UNKNOWN] {msg}")

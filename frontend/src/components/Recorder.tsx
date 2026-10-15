@@ -78,6 +78,9 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const isPausedRef = useRef(false);
   const wsFinishedRef = useRef(false);
+  // Set when the server explained why it closed the socket (error with a code),
+  // so onclose does not add the generic "connection lost" message on top.
+  const serverErrorShownRef = useRef(false);
   const processingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [liveEnabled, setLiveEnabled] = useState(true);
@@ -134,14 +137,16 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      if (data.partial) {
-        setLiveTranscript(data.partial);
+      if (data.error && data.code) {
+        // The server refused to continue (e.g. the earlier audio of a resumed
+        // recording is on another instance) and closes the socket right after.
+        serverErrorShownRef.current = true;
+        toast.error(t(`errors:${data.code}`, { defaultValue: data.error }));
+        return;
       }
 
-      if (data.cleanup !== undefined) {
-        // Periodic LLM cleanup replaced the full stable transcript
-        setStableTranscript(data.cleanup);
-        setLiveTranscript("");
+      if (data.partial) {
+        setLiveTranscript(data.partial);
       }
 
       if (data.text !== undefined) {
@@ -201,12 +206,15 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
           clearTimeout(processingTimeoutRef.current);
           processingTimeoutRef.current = null;
         }
-        toast.error(t("recorder.connectionLost"));
-        if (onFinalTranscription && sessionIdRef.current) {
-          onFinalTranscription(sessionIdRef.current, undefined);
+        if (!serverErrorShownRef.current) {
+          toast.error(t("recorder.connectionLost"));
+          if (onFinalTranscription && sessionIdRef.current) {
+            onFinalTranscription(sessionIdRef.current, undefined);
+          }
         }
       }
       wsFinishedRef.current = false;
+      serverErrorShownRef.current = false;
     };
   };
 
@@ -380,7 +388,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     <div className="flex flex-col w-full h-full items-center justify-start p-6 bg-background dark:bg-zinc-950 transition-colors duration-300">
 
       {/* Main Card */}
-      <div className="w-full max-w-5xl bg-card border border-border shadow-sm rounded-xl overflow-hidden flex flex-col h-[85dvh]">
+      <div className="w-full max-w-5xl bg-card border border-border shadow-xs rounded-xl overflow-hidden flex flex-col h-[85dvh]">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-wrap gap-2 bg-zinc-50/50 dark:bg-zinc-900/50">
@@ -444,7 +452,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
 
         {/* Live bar spectrum, next to the live transcript */}
         {liveEnabled && isRecording && !isPaused && (
-          <div className="w-full flex justify-center pb-2 bg-gradient-to-t from-background/50 to-transparent">
+          <div className="w-full flex justify-center pb-2 bg-linear-to-t from-background/50 to-transparent">
             <BarVisualizer analyser={analyser} />
           </div>
         )}

@@ -277,9 +277,10 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
-      # Must stay at 1: /app/chunks (live-recording PCM scratch space, plus
-      # chunks/failed/ retained-for-retry audio) is local-disk-only and keyed
-      # by session_id/task_id, with no cross-instance sharing.
+      # 1 by default. Several replicas on ONE node work as they are: they share
+      # the app-chunks volume, so a reconnect finds its PCM on any of them (pin
+      # them to that node with deploy.placement.constraints). Across nodes a
+      # reconnect must return to the same replica, see docs/scaling.md.
       replicas: 1
       restart_policy:
         condition: any

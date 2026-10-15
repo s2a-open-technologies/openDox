@@ -29,7 +29,11 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from backend.components.modules.env import env_or_file, get_trusted_proxy_ips
+from backend.components.modules.env import (
+    env_or_file,
+    get_trusted_proxy_ips,
+    is_trusted_proxy,
+)
 from backend.components.modules.logger import get_logger, initialize_logging
 from backend.views.auth_api import auth_bp, oidc_bp
 from backend.views.record_api import record_bp
@@ -57,13 +61,18 @@ class SPAStaticFiles(StaticFiles):
 def _run_key_rotation(logger):
     from backend.components.modules.env import env_or_file
     from backend.components.security import field_encryption, key_rotation
+    from backend.components.sql.advisory_lock import KEY_ROTATION_LOCK, advisory_lock
     from backend.components.sql.sql_engine import get_session_factory
 
     current_key = field_encryption.get_current_key()
     previous_key_raw = env_or_file("ENCRYPTION_KEY_PREVIOUS", None)
-    key_rotation.run_key_rotation_if_needed(
-        get_session_factory(), logger, current_key, previous_key_raw
-    )
+    # One instance rotates; the others wait here, then see an unchanged
+    # fingerprint and do nothing (no false "key likely incorrect" warning, no
+    # duplicate baseline row on a fresh install).
+    with advisory_lock(KEY_ROTATION_LOCK):
+        key_rotation.run_key_rotation_if_needed(
+            get_session_factory(), logger, current_key, previous_key_raw
+        )
 
 
 def _read_app_version(project_root: str) -> str:
@@ -97,28 +106,28 @@ def _inject_root_path(static_dir: str, root_path: str) -> None:
         f.write(html)
 
 
-def _cleanup_orphaned_chunk_files(logger) -> None:
-    """Remove session_*.pcm / session_*.wav files left over from a previous crash.
+def _cleanup_orphaned_chunk_files(logger, min_age_s: float) -> None:
+    """Remove abandoned session_*.pcm / session_*.wav files from ``chunks/``.
 
-    Runs once at startup, before the server accepts connections. At that point
-    no sessions exist yet (Redis is either fresh or in-memory is empty), so any
-    leftover file in the chunks directory is by definition orphaned.
+    Runs at startup and then every few minutes from the stale-session loop.
+    Several app instances may share ``chunks/``, so a file is only removed if it
+    has not been written to for ``min_age_s`` and no session in the store
+    references it (see ``chunk_cleanup``). Not leader-locked on purpose: it only
+    looks at this instance's filesystem.
     """
-    chunks_dir = "chunks"
-    if not os.path.isdir(chunks_dir):
+    from backend.components.services.chunk_cleanup import (
+        cleanup_orphaned_chunk_files,
+    )
+    from backend.components.services.session_store import session_store
+
+    try:
+        active = session_store.active_audio_paths()
+    except Exception as exc:
+        # Without the session list we cannot tell paused recordings from
+        # orphans; skip rather than delete something resumable.
+        logger.warning("Chunk cleanup skipped, session store unavailable: %s", exc)
         return
-    removed = 0
-    for name in os.listdir(chunks_dir):
-        if name.startswith("session_") and (
-            name.endswith(".pcm") or name.endswith(".wav")
-        ):
-            try:
-                os.remove(os.path.join(chunks_dir, name))
-                removed += 1
-            except OSError:
-                pass
-    if removed:
-        logger.info("Startup cleanup: removed %d orphaned chunk file(s)", removed)
+    cleanup_orphaned_chunk_files("chunks", active, min_age_s)
 
 
 async def _stale_session_cleanup_loop(logger) -> None:
@@ -129,14 +138,21 @@ async def _stale_session_cleanup_loop(logger) -> None:
     deletes the session and the file. The loop runs every 10 minutes; the task
     is cancelled automatically when the lifespan context exits.
     """
+    from backend.components.services.leader_lock import try_acquire
     from backend.components.services.session_store import session_store
 
     while True:
         await asyncio.sleep(600)
         try:
-            count = await asyncio.to_thread(session_store.cleanup_stale_sessions, 30)
-            if count:
-                logger.info("Cleaned up %d stale recording session(s)", count)
+            # Local files: every instance cleans its own filesystem.
+            await asyncio.to_thread(_cleanup_orphaned_chunk_files, logger, 1800)
+            # Shared Redis sessions: one instance per tick is enough.
+            if try_acquire("stale-sessions", 540):
+                count = await asyncio.to_thread(
+                    session_store.cleanup_stale_sessions, 30
+                )
+                if count:
+                    logger.info("Cleaned up %d stale recording session(s)", count)
         except Exception as exc:
             logger.warning("Stale-session cleanup failed: %s", exc)
 
@@ -154,11 +170,14 @@ async def _failed_audio_archival_loop(logger) -> None:
     from backend.components.services.failed_audio_archival_service import (
         archive_stale_failed_audio,
     )
+    from backend.components.services.leader_lock import try_acquire
 
     retention_days = int(env_or_file("FAILED_AUDIO_RETENTION_DAYS", "3"))
     while True:
         await asyncio.sleep(6 * 3600)
         try:
+            if not try_acquire("failed-audio-archival", 6 * 3600 - 300):
+                continue
             count = await asyncio.to_thread(archive_stale_failed_audio, retention_days)
             if count:
                 logger.info("Archived %d stale failed-task audio file(s) to S3", count)
@@ -179,10 +198,13 @@ async def _auto_archive_loop(logger) -> None:
     from backend.components.services.auto_archive_service import (
         auto_archive_old_records,
     )
+    from backend.components.services.leader_lock import try_acquire
 
     while True:
         await asyncio.sleep(6 * 3600)
         try:
+            if not try_acquire("auto-archive", 6 * 3600 - 300):
+                continue
             count = await asyncio.to_thread(auto_archive_old_records)
             if count:
                 logger.info("Auto-archived %d old record(s)", count)
@@ -194,12 +216,12 @@ async def _auto_archive_loop(logger) -> None:
 async def lifespan(app: FastAPI):
     """FastAPI lifespan: startup cleanup + background tasks, graceful shutdown.
 
-    On startup: remove orphaned chunk files from a previous crash, then start
-    the stale-session cleanup loop. On shutdown: cancel the loop so the event
-    loop can stop cleanly.
+    On startup: remove orphaned chunk files from a previous crash (never files
+    another instance is still writing), then start the background loops. On
+    shutdown: cancel the loops so the event loop can stop cleanly.
     """
     logger = get_logger(__name__)
-    _cleanup_orphaned_chunk_files(logger)
+    _cleanup_orphaned_chunk_files(logger, min_age_s=300)
     cleanup_task = asyncio.create_task(_stale_session_cleanup_loop(logger))
     logger.info("Stale-session cleanup loop started (interval=600s, max_age=30min)")
     archival_task = asyncio.create_task(_failed_audio_archival_loop(logger))
@@ -289,7 +311,7 @@ def create_app():
         # oidc_routes._build_redirect_uri to decide whether X-Forwarded-Proto/
         # -Host may be trusted at all.
         request.state.trusted_proxy = bool(
-            request.client and request.client.host in trusted_proxy_ips
+            request.client and is_trusted_proxy(request.client.host, trusted_proxy_ips)
         )
         return await call_next(request)
 

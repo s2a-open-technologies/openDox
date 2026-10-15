@@ -29,6 +29,7 @@ from typing import Any, Dict, Optional
 
 from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger
+from backend.components.services.pcm_file import open_session_audio
 
 logger = get_logger(__name__)
 
@@ -58,7 +59,7 @@ class SessionStore:
         _audio_dir = audio_dir or "."
         os.makedirs(_audio_dir, exist_ok=True)
         _audio_path = os.path.join(_audio_dir, f"session_{session_id}.pcm")
-        open(_audio_path, "wb").close()
+        audio_size = open_session_audio(_audio_path)
 
         session_data = {
             "session_id": session_id,
@@ -70,11 +71,9 @@ class SessionStore:
             "last_activity": datetime.now(),
             "status": "recording",
             "audio_file_path": _audio_path,
-            "audio_file_size": 0,
+            "audio_file_size": audio_size,
             "last_index": 0,
             "live_text": "",
-            "last_cleanup_time": 0.0,
-            "last_cleanup_len": 0,
         }
 
         self._sessions[user_id] = session_data
@@ -153,6 +152,14 @@ class SessionStore:
         if session is not None:
             session["last_index"] = last_index
             session["live_text"] = live_text
+
+    def active_audio_paths(self) -> set[str]:
+        """Absolute PCM paths of all known sessions (live or paused)."""
+        return {
+            os.path.abspath(s["audio_file_path"])
+            for s in self._sessions.values()
+            if s.get("audio_file_path")
+        }
 
     def cleanup_stale_sessions(self, max_age_minutes: int = 30) -> int:
         """Remove sessions inactive for longer than max_age_minutes."""

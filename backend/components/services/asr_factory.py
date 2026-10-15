@@ -43,17 +43,26 @@ class ASRFactory:
     def __init__(self):
         self._live_backend: Optional[ASRBackend] = None
         self._final_backend: Optional[ASRBackend] = None
+        # The settings object each backend was built from. The settings cache
+        # hands out a new object after it reloads (TTL expiry or another app
+        # instance's change), which is the cue to rebuild.
+        self._live_settings = None
+        self._final_settings = None
 
     def get_live_backend(self) -> ASRBackend:
         """Get or create the live transcription backend."""
-        if self._live_backend is None:
+        settings = get_settings()
+        if self._live_backend is None or settings is not self._live_settings:
             self._live_backend = self._create_live_backend()
+            self._live_settings = settings
         return self._live_backend
 
     def get_final_backend(self) -> ASRBackend:
         """Get or create the final transcription backend."""
-        if self._final_backend is None:
+        settings = get_settings()
+        if self._final_backend is None or settings is not self._final_settings:
             self._final_backend = self._create_final_backend()
+            self._final_settings = settings
         return self._final_backend
 
     def _create_live_backend(self) -> ASRBackend:
@@ -78,17 +87,11 @@ class ASRFactory:
                 endpoint=endpoint, api_key=settings.live_api_key
             )
 
-        # Default / "api" (Whisper)
-        if not settings.live_api_endpoint:
-            logger.error("Live backend set to 'api' but no endpoint configured")
-            return DisabledBackend()
-
-        logger.info(f"Using API backend for live: {settings.live_api_endpoint}")
-        return OpenAICompatibleBackend(
-            endpoint=settings.live_api_endpoint,
-            api_key=settings.live_api_key,
-            model=settings.live_api_model or "nemo-parakeet-tdt-0.6b-v3",
+        logger.error(
+            f"Unknown live backend {settings.live_backend!r}, live transcription "
+            "disabled"
         )
+        return DisabledBackend()
 
     def _create_final_backend(self) -> ASRBackend:
         """Create backend for final transcription based on settings."""
@@ -110,6 +113,8 @@ class ASRFactory:
         """Reset cached backends. Call after settings change."""
         self._live_backend = None
         self._final_backend = None
+        self._live_settings = None
+        self._final_settings = None
         logger.info("ASR backends reset")
 
 

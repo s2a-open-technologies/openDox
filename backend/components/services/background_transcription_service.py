@@ -180,6 +180,46 @@ def _resolve_correction_glossary(
     return _build_correction_glossary(category_glossary, personal_glossary)
 
 
+def _archive_failed_audio_to_s3(db, task_id: int, file_path: str) -> bool:
+    """Upload a failed task's audio to S3 right away, if S3 is configured.
+
+    With several app instances the admin's retry request can land on any of
+    them, so the audio must not stay on the local disk of the instance that
+    happened to run the task. Returns False (caller keeps it locally) when S3
+    is not configured or the upload fails: a recording is never dropped because
+    the object store is down.
+    """
+    # Imported here: failed_audio_archival_service imports this module.
+    from backend.components.services import failed_audio_archival_service as archive
+
+    if not archive.audio_storage.is_configured():
+        return False
+    try:
+        key = archive.archive_task_audio(task_id, file_path)
+        task = db.get(Task, task_id)
+        if task:
+            task.retry_audio_path = key
+            task.retry_audio_in_s3 = True
+            db.add(task)
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"[TASK {task_id}] S3 upload of failed audio failed, keeping it "
+            f"locally: {e}"
+        )
+        return False
+
+    logger.warning(f"[TASK {task_id}] Kept audio for retry in S3: {key}")
+    try:
+        os.remove(file_path)
+    except OSError as e:
+        # The task already points at S3; a leftover scratch file is harmless
+        # (the orphan cleanup removes it).
+        logger.warning(f"[TASK {task_id}] Could not delete local audio: {e}")
+    return True
+
+
 def _retain_audio_for_retry(db, task_id: int, file_path: str) -> None:
     """Move a failed task's source audio out of the ephemeral scratch dir.
 
@@ -189,6 +229,8 @@ def _retain_audio_for_retry(db, task_id: int, file_path: str) -> None:
     find it again.
     """
     if not file_path or not os.path.exists(file_path):
+        return
+    if _archive_failed_audio_to_s3(db, task_id, file_path):
         return
     try:
         parent = os.path.dirname(file_path) or "."
@@ -258,7 +300,7 @@ def background_transcription_task(
 
         update_task_status(db, task_id, "transcribing")
 
-        final_params = get_whisper_params(live=False)
+        final_params = get_whisper_params()
         if file_path:
             text = backend.transcribe(
                 file_path, prompt=category_whisper_prompt, params=final_params

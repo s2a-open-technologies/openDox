@@ -163,14 +163,6 @@ class ParakeetStreamBackend(ASRBackend):
             logger.warning(f"Parakeet stream health check failed: {e}")
             return False
 
-    def get_chunk_config(self) -> dict:
-        """Streaming backend segments internally; chunk config is irrelevant.
-
-        Returns a sentinel config so the non-streaming path in ``record.py``
-        is never taken for this backend.
-        """
-        return {"chunk_length_s": 0, "overlap_s": 0}
-
 
 class ParakeetStreamSession:
     """One streaming transcription session over a WebSocket.

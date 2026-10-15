@@ -86,3 +86,9 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Christopher Abanilla <christopher.abanilla@gmx.de>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = ["backend/components/assets/silero_vad_v6.onnx"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2020-present Silero Team"
+SPDX-License-Identifier = "MIT"

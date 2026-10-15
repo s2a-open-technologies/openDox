@@ -22,5 +22,6 @@
   "no_audio_for_record": "Keine Audiodatei für diese Aufnahme vorhanden",
   "user_exists": "Benutzer existiert bereits",
   "user_not_found": "Benutzer nicht gefunden",
-  "cannot_delete_self": "Sie können sich nicht selbst löschen"
+  "cannot_delete_self": "Sie können sich nicht selbst löschen",
+  "recording_audio_unavailable": "Diese Aufnahme kann hier nicht fortgesetzt werden: Ihr bisheriges Audio liegt auf einer anderen Server-Instanz. Bitte die Aufnahme neu starten."
 }

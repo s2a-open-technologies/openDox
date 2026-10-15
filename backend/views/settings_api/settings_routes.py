@@ -160,7 +160,6 @@ async def update_whisper_settings(
     settings.live_backend = settings_in.live_backend
     settings.live_api_endpoint = settings_in.live_api_endpoint
     settings.live_api_key = settings_in.live_api_key
-    settings.live_api_model = settings_in.live_api_model
 
     settings.final_backend = settings_in.final_backend
     settings.final_api_endpoint = settings_in.final_api_endpoint
@@ -168,9 +167,6 @@ async def update_whisper_settings(
     settings.final_api_model = settings_in.final_api_model
 
     settings.language = settings_in.language
-    settings.chunk_length_s = settings_in.chunk_length_s
-    settings.overlap_s = settings_in.overlap_s
-    settings.left_context_s = settings_in.left_context_s
 
     # Anti-hallucination / faster-whisper tuning
     settings.temperature = settings_in.temperature
@@ -183,7 +179,6 @@ async def update_whisper_settings(
     settings.hallucination_silence_threshold = (
         settings_in.hallucination_silence_threshold
     )
-    settings.live_beam_size = settings_in.live_beam_size
     settings.final_beam_size = settings_in.final_beam_size
 
     settings.term_correction_enabled = settings_in.term_correction_enabled
@@ -862,6 +857,11 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
     }
 
 
+def _known_fields(model_cls: type, row_data: dict[str, Any]) -> dict[str, Any]:
+    """Drop keys the model no longer has (fields removed since the backup)."""
+    return {k: v for k, v in row_data.items() if k in model_cls.model_fields}
+
+
 def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     """Restore settings from a backup dict into the database.
 
@@ -889,6 +889,10 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
         row_data = settings.get(key)
         if not row_data or not isinstance(row_data, dict):
             continue
+        row_data = _known_fields(model_cls, row_data)
+        if model_cls is WhisperSettingsModel and row_data.get("live_backend") == "api":
+            # Near-live Whisper was removed; older backups still select it.
+            row_data["live_backend"] = "disabled"
         existing = db.exec(select(model_cls)).first()
         if existing:
             for field, value in row_data.items():
@@ -916,7 +920,7 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
                 # silently stop working after restoring an older backup
                 # (mirrors the migration's own backfill).
                 row_data = {**row_data, "glossary": row_data.get("whisper_prompt")}
-            db.add(model_cls(**row_data))
+            db.add(model_cls(**_known_fields(model_cls, row_data)))
 
     db.commit()
     get_settings_service().invalidate_cache()

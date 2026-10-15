@@ -28,9 +28,7 @@
       "parakeet": "Parakeet (empfohlen)",
       "disabled": "Deaktiviert"
     },
-    "parakeetHint": "Parakeet läuft mit Silero-VAD-gesteuertem Streaming: Text wächst beim Sprechen und friert bei Sprechpausen ein. Chunk-Länge, Überlappung und Left-Context werden vom Server gesteuert und sind hier nicht relevant.",
-    "chunkLength": "Chunk-Länge (Sek.)",
-    "overlap": "Überlappung (Sek.)"
+    "parakeetHint": "Parakeet läuft mit Silero-VAD-gesteuertem Streaming: Text wächst beim Sprechen und friert bei Sprechpausen ein. Die Segmentierung übernimmt der Parakeet-Server."
   },
   "apiEndpoint": "API Endpoint",
   "apiKeyOptional": "API Key (optional)",
@@ -52,8 +50,8 @@
   },
   "quality": {
     "title": "Qualität & Anti-Halluzination",
-    "description": "Verhindert erfundene Füllwörter bei Stille. Werden an den Whisper-Server übergeben.",
-    "vadFilter": "VAD-Filter (Stille entfernen)",
+    "description": "Verhindert erfundene Füllwörter bei Stille. Stille wird immer schon im Backend entfernt (nur Sprache geht an den Whisper-Server); „VAD min. Stille“ legt fest, ab welcher Pausenlänge geschnitten wird. Die übrigen Werte werden an den Whisper-Server übergeben.",
+    "vadFilter": "VAD-Filter des Servers (zusätzlich)",
     "condPrev": "Auf vorherigen Text bedingen",
     "vadMinSilence": "VAD min. Stille (ms)",
     "temperature": "Temperatur (0 = deterministisch)",
@@ -62,8 +60,7 @@
     "logProb": "Log-Prob-Schwelle",
     "hallucinationSilence": "Halluzinations-Stille-Schwelle (Sek., optional)",
     "off": "aus",
-    "beamLive": "Beam-Size Live",
-    "beamFinal": "Beam-Size Final"
+    "beamFinal": "Beam-Size"
   },
   "save": "Einstellungen speichern",
   "saved": "Einstellungen gespeichert"

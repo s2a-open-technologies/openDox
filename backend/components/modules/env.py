@@ -17,6 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import ipaddress
 import os
 
 from dotenv import load_dotenv
@@ -70,11 +71,31 @@ def _detect_docker_gateway() -> str | None:
     return None
 
 
+def is_trusted_proxy(host: str, trusted: list[str]) -> bool:
+    """True if ``host`` is one of the trusted proxy addresses or inside a range.
+
+    ``TRUSTED_PROXY_IPS`` entries are single addresses or CIDR ranges
+    (``10.0.1.0/24``). Ranges matter when the proxy is a container in an
+    overlay network whose address changes on every deploy.
+    """
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    for entry in trusted:
+        try:
+            if address in ipaddress.ip_network(entry, strict=False):
+                return True
+        except ValueError:
+            continue  # not an address or range; ignore it
+    return False
+
+
 def get_trusted_proxy_ips() -> list[str]:
     """Return the IPs a reverse proxy is allowed to connect from.
 
-    Honors ``TRUSTED_PROXY_IPS`` (comma-separated) if set. Otherwise
-    defaults to loopback plus the auto-detected Docker gateway IP, which
+    Honors ``TRUSTED_PROXY_IPS`` (comma-separated addresses or CIDR ranges) if
+    set. Otherwise defaults to loopback plus the auto-detected Docker gateway IP, which
     covers "a reverse proxy on the same host" in both bare-metal (loopback)
     and containerized (NAT'd via the gateway) deployments.
     """

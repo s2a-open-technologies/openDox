@@ -103,3 +103,69 @@ def test_get_llm_settings_creates_default_row_when_none_exists(patched_engine):
 
     assert result is not None
     assert patched_engine(LlmSettingsModel) is not None
+
+
+# --- cache expiry: another app instance may have changed the settings --------
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    fake = _Clock()
+    monkeypatch.setattr(settings_service.time, "monotonic", fake)
+    monkeypatch.setenv("SETTINGS_CACHE_TTL_S", "30")
+    return fake
+
+
+def _set_language(engine_query, language):
+    from sqlmodel import Session, select
+
+    from backend.components.models.settings_model import WhisperSettingsModel
+    from backend.components.sql import sql_engine
+
+    with Session(sql_engine.engine) as session:
+        row = session.exec(select(WhisperSettingsModel)).first()
+        row.language = language
+        session.add(row)
+        session.commit()
+
+
+def test_settings_are_cached_within_ttl(patched_engine, clock):
+    service = settings_service.SettingsService()
+    first = service.get_settings()
+    clock.now += 29
+    assert service.get_settings() is first
+
+
+def test_change_made_by_another_instance_is_seen_after_ttl(patched_engine, clock):
+    service = settings_service.SettingsService()
+    assert service.get_settings().language == "de"
+
+    _set_language(patched_engine, "en")  # what another replica would have saved
+    assert service.get_settings().language == "de"  # still cached
+
+    clock.now += 31
+    assert service.get_settings().language == "en"
+
+
+def test_llm_and_audio_settings_expire_too(patched_engine, clock):
+    service = settings_service.SettingsService()
+    llm, audio = service.get_llm_settings(), service.get_audio_settings()
+    clock.now += 31
+    assert service.get_llm_settings() is not llm
+    assert service.get_audio_settings() is not audio
+
+
+def test_ttl_zero_keeps_the_cache_until_invalidated(patched_engine, clock, monkeypatch):
+    monkeypatch.setenv("SETTINGS_CACHE_TTL_S", "0")
+    service = settings_service.SettingsService()
+    first = service.get_settings()
+    clock.now += 100000
+    assert service.get_settings() is first

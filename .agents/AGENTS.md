@@ -4,7 +4,7 @@ Agent guide for the openDox repository. (Repo-root `AGENTS.md` and `CLAUDE.md` a
 
 # openDox: Agent Guide
 
-Medical transcription platform (AGPL-3.0-or-later), Author: `Christopher Abanilla <christopher.abanilla@gmx.de>`: record audio → transcribe (Whisper/Parakeet) → optionally sanitize PII → summarize via LLM, organized by medical category.
+Medical transcription platform (AGPL-3.0-or-later), Copyright holder: S2A Open Technologies gGmbH, Author: `Christopher Abanilla <christopher.abanilla@gmx.de>`: record audio → transcribe (Whisper/Parakeet) → optionally sanitize PII → summarize via LLM, organized by medical category.
 
 **Not a certified medical device** ("Kein Medizinprodukt") — this disclaimer must stay in the recording dialog and transcript view, in the repo-level `DISCLAIMER.md`, and in the mandatory first-login acceptance gate (`DisclaimerGate.tsx`, gated on `User.disclaimer_accepted_at` in `App.tsx`'s `ProtectedRoute`) — never remove or make any of the three bypassable.
 

@@ -1,7 +1,7 @@
 """openDox - Medical transcription platform.
 
-Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
-SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+Copyright (C) 2025  S2A Open Technologies gGmbH
+SPDX-FileCopyrightText: 2025 S2A Open Technologies gGmbH
 SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 One-off (but reusable — run it again after adding new headered files)
 maintenance script: inserts REUSE-compliant SPDX short-form tags right
-after the existing "Copyright (C) <year> Christopher Abanilla ..." line in
+after the existing "Copyright (C) <year> S2A Open Technologies gGmbH" line in
 every file that already carries the project's full-text AGPL header,
 regardless of comment style (Python docstring, TS/TSX block comment,
 Dockerfile "#" comments) — the insertion works by slicing off whatever
@@ -55,7 +55,11 @@ EXCLUDE_DIR_PARTS = {
     ".git",
 }
 
-COPYRIGHT_RE = re.compile(r"Copyright \(C\) (\d{4})\s+Christopher Abanilla")
+COPYRIGHT_HOLDER = "S2A Open Technologies gGmbH"
+# The old holder is still matched so headers written before the transfer get tagged too.
+COPYRIGHT_RE = re.compile(
+    r"Copyright \(C\) (\d{4})\s+(?:S2A Open Technologies gGmbH|Christopher Abanilla)"
+)
 # Split so this file's own source doesn't itself look like an (invalid,
 # templated) SPDX tag to `reuse lint`'s line scanner or to this script's own
 # "already done" check below.
@@ -89,8 +93,7 @@ def add_spdx_to_file(path: Path) -> bool:
         prefix = line[: match.start()]
         newline = "\n" if line.endswith("\n") else ""
         spdx_lines = [
-            f"{prefix}SPDX-FileCopyrightText: {year} Christopher Abanilla "
-            f"<christopher.abanilla@gmx.de>{newline}",
+            f"{prefix}SPDX-FileCopyrightText: {year} {COPYRIGHT_HOLDER}{newline}",
             f"{prefix}{SPDX_MARKER}: {SPDX_LICENSE_EXPR}{newline}",
         ]
         lines[i + 1 : i + 1] = spdx_lines

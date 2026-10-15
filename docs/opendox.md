@@ -1,6 +1,6 @@
 # openDox – Medizinische Transkriptionsplattform
 
-> **AGPL-3.0-or-later** | Copyright (C) 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+> **AGPL-3.0-or-later** | Copyright (C) 2025 S2A Open Technologies gGmbH
 > 
 > Dieses Programm ist freie Software: Sie können es unter den Bedingungen der GNU Affero General Public License weiterverteilen und/oder modifizieren.
 
@@ -1431,7 +1431,7 @@ Besonderer Dank an die Open-Source-Community:
 
 ```
 openDox - Medical transcription platform
-Copyright (C) 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+Copyright (C) 2025 S2A Open Technologies gGmbH
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by

@@ -6,8 +6,8 @@ anti-hallucination parameters (vad_filter, condition_on_previous_text,
 temperature, no_speech_threshold, …) as multipart form fields so the main
 application can tune transcription per request via its settings.
 
-Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
-SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+Copyright (C) 2025  S2A Open Technologies gGmbH
+SPDX-FileCopyrightText: 2025 S2A Open Technologies gGmbH
 SPDX-License-Identifier: AGPL-3.0-or-later
 
 This program is free software: you can redistribute it and/or modify

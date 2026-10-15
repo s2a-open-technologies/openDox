@@ -204,7 +204,7 @@ Releases entstehen nur auf Anweisung des Maintainers (Tag `vX.Y.Z` löst den Rel
 
 **AGPL-3.0-or-later**
 
-Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
+Copyright (C) 2025  S2A Open Technologies gGmbH
 
 Dieses Programm ist freie Software. Details siehe `LICENSE`.
 

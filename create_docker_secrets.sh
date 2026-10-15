@@ -1,6 +1,6 @@
 #!/bin/sh
 # openDox - Medical transcription platform
-# Copyright (C) 2026 Christopher Abanilla <christopher.abanilla@gmx.de>
+# Copyright (C) 2026 S2A Open Technologies gGmbH
 #
 # Creates all Docker Swarm secrets referenced by docker-swarm.yml. Safe to
 # re-run: existing secrets are left untouched (Swarm secrets are immutable —

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #  openDox - Parakeet ASR server (Silero VAD + Parakeet TDT v3 ONNX)
-#  Copyright (C) 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
-#  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+#  Copyright (C) 2025 S2A Open Technologies gGmbH
+#  SPDX-FileCopyrightText: 2025 S2A Open Technologies gGmbH
 #  SPDX-License-Identifier: AGPL-3.0-or-later
 #
 #  Defaults to the NVIDIA GPU image (CUDA 12.4.1 + cuDNN) so the container

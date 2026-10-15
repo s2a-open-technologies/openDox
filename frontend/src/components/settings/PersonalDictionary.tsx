@@ -1,7 +1,7 @@
 /*
   openDox - Medical transcription platform
-  Copyright (C) 2025  Christopher Abanilla <christopher.abanilla@gmx.de>
-  SPDX-FileCopyrightText: 2025 Christopher Abanilla <christopher.abanilla@gmx.de>
+  Copyright (C) 2025  S2A Open Technologies gGmbH
+  SPDX-FileCopyrightText: 2025 S2A Open Technologies gGmbH
   SPDX-License-Identifier: AGPL-3.0-or-later
 
   This program is free software: you can redistribute it and/or modify

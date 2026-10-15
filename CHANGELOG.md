@@ -14,6 +14,7 @@ section as the GitHub Release notes.
 
 ### Changed
 - Copyright holder of all source files, `REUSE.toml` and the README is now **S2A Open Technologies gGmbH** (rights transferred); Christopher Abanilla remains the author (`AUTHORS`). The license (AGPL-3.0-or-later) is unchanged.
+- Contact address for security reports, the code of conduct and the author entry is now `christopher.abanilla@s2a-ot.digital`.
 
 ## [0.10.0] — 2026-10-15
 

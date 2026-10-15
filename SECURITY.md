@@ -11,7 +11,7 @@
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: **christopher.abanilla@gmx.de**
+Instead, please report them via email to: **christopher.abanilla@s2a-ot.digital**
 (dedicated `security@` alias TBD — replace once one exists).
 
 We will acknowledge receipt of your vulnerability report within 48 hours and send you regular updates about our progress.
@@ -578,7 +578,7 @@ trivy image opendox:latest
 # Contact
 
 **Security Contact:**
-- Email: christopher.abanilla@gmx.de (dedicated `security@` alias TBD)
+- Email: christopher.abanilla@s2a-ot.digital (dedicated `security@` alias TBD)
 
 **Responsible Disclosure:**
 We follow a 90-day disclosure policy. After fix confirmation, we will:

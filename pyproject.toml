@@ -5,7 +5,7 @@ description = "Medical transcription platform with FastAPI backend and React fro
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
 authors = [
-    {name = "Christopher Abanilla", email = "christopher.abanilla@gmx.de"},
+    {name = "Christopher Abanilla", email = "christopher.abanilla@s2a-ot.digital"},
 ]
 requires-python = ">=3.12"
 dependencies = [

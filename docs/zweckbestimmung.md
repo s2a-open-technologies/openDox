@@ -114,7 +114,7 @@ Die Software wird ohne Gewährleistung bereitgestellt (AGPL-3.0-or-later,
 
 ## 7. Hersteller und Kontakt
 
-Christopher Abanilla · christopher.abanilla@gmx.de
+Christopher Abanilla · christopher.abanilla@s2a-ot.digital
 Lizenz: AGPL-3.0-or-later · Quellcode: <https://github.com/daemolition/openDox>
 
 ## Verwandte Dokumente

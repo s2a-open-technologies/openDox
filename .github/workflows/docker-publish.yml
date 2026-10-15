@@ -50,6 +50,17 @@ jobs:
             tag_suffix: "cpu-"
             description: "openDox: Parakeet live transcription server (CPU)"
     steps:
+      # The Parakeet images bundle their ONNX model (several GB) and are built for two
+      # platforms, which exceeds the free disk space of a standard runner
+      # ("no space left on device" while exporting layers). Remove the preinstalled
+      # toolchains this workflow does not need.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force > /dev/null
+          df -h /
+
       - uses: actions/checkout@v7
 
       - name: Determine version

@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-15
+
 ### Added
 - Several app instances can run side by side (see `docs/scaling.md`: nothing extra on one node, an nginx `hash` on `session_id` across nodes):
   - Settings changes reach every instance within `SETTINGS_CACHE_TTL_S` (default 30 s).
@@ -328,7 +330,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/daemolition/openDox/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/daemolition/openDox/compare/v0.8.3...v0.9.0
 [0.8.3]: https://github.com/daemolition/openDox/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.2

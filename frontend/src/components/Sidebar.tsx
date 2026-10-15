@@ -82,7 +82,7 @@ const Sidebar = ({
 
   const content = (
     <>
-      <div className="p-4 border-b border-border z-10 relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex flex-col gap-2">
+      <div className="p-4 border-b border-border z-10 relative bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/60 flex flex-col gap-2">
         <div className="flex items-center justify-center w-full">
           <Logo className="h-16 w-full px-2" />
         </div>

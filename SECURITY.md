@@ -283,11 +283,9 @@ See `backend/components/security/key_rotation.py` for the implementation.
 
 ## Known open advisories
 
-Frontend dev/build-time dependencies that can only be fixed by a major upgrade,
-which is done by hand rather than via Dependabot:
+None at the time of writing (`pip`/`uv` and `npm audit` clean). Frontend major upgrades are done by hand rather than via Dependabot, so a new advisory that needs one can stay open until it is scheduled; it will be listed here.
 
-| Package | Why it stays open for now | Plan |
-|---|---|---|
+---|---|---|
 | `braces`, `postcss-selector-parser` | Tailwind 3 toolchain; build time only, not part of the shipped bundle, processes our own files | Fixed with the Tailwind 4 migration |
 
 ---

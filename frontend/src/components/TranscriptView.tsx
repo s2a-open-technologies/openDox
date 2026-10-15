@@ -402,7 +402,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
                 onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
                 onCut={(e) => { if (!confirmed) e.preventDefault(); }}
                 title={!confirmed ? t("confirmFirst") : undefined}
-                className={`flex-1 min-h-0 font-sans shadow-sm text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
+                className={`flex-1 min-h-0 font-sans shadow-xs text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
               />
             ) : (
               <div
@@ -422,7 +422,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       </div>
 
 
-      <Alert variant="destructive" className="!mt-4 shadow-md">
+      <Alert variant="destructive" className="mt-4! shadow-md">
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>{t("disclaimer:title")}</AlertTitle>
         <AlertDescription className="text-sm leading-relaxed">

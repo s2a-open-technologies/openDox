@@ -128,7 +128,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[85dvh] p-0 overflow-hidden flex flex-col">
-        <DialogHeader className="p-4 border-b z-10 relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 space-y-2">
+        <DialogHeader className="p-4 border-b z-10 relative bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/60 space-y-2">
           <div className="flex justify-start">
             <Logo className="h-24 w-auto" />
           </div>
@@ -143,7 +143,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
                 return (
                   <button
                     key={item.id}
-                    className={`flex-shrink-0 md:w-full text-left p-3 rounded-md transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === item.id
+                    className={`shrink-0 md:w-full text-left p-3 rounded-md transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === item.id
                       ? 'bg-primary text-primary-foreground'
                       : 'hover:bg-accent'
                       }`}

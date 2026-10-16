@@ -13,6 +13,7 @@ section as the GitHub Release notes.
 ## [Unreleased]
 
 ### Changed
+- The Parakeet GPU image is built on `nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04` (Python 3.12, **NVIDIA driver >= 580 on the host**) instead of CUDA 12.4.1 / Ubuntu 22.04: `onnxruntime-gpu >= 1.29` (needed for the arm64 build) requires Python >= 3.11 and is linked against CUDA 13, so the image could neither be built nor use the GPU with the old base. The Whisper GPU image is unchanged.
 - The Docker images published by `docker-publish.yml` carry OCI labels and annotations (source repository, license, vendor, version, description), so the GHCR packages link to this repository. One failing image no longer cancels the others (`fail-fast: false`).
 
 ## [0.10.1] — 2026-10-15

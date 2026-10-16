@@ -349,7 +349,7 @@ const uploadChunk = (chunk: Blob, sessionId: string) => {
 
 ## Parakeet ASR Server (Eigenständiger Dienst)
 
-Der Parakeet-Server ist ein eigenständiger FastAPI-Dienst (`parakeet_server/main.py`, Port 5001) mit zwei Endpunkten: dem OpenAI-kompatiblen `POST /v1/audio/transcriptions` (One-Shot, für die finale/Batch-Nutzung) und `WS /v1/audio/stream` (VAD-segmentiertes Streaming, siehe `parakeet_server/streaming.py`) — letzterer ist der eigentliche Live-Pfad, den `ParakeetStreamBackend` nutzt. Silero-VAD + Parakeet-ONNX (onnx-asr) werden beim Start geladen; der Dockerfile-Default ist die NVIDIA-GPU-Base (CUDA 12.4.1 + cuDNN) mit automatischer `CUDAExecutionProvider`-Wahl und CPU-Fallback (`PARAKEET_DEVICE=cpu` für ein reines CPU-Image).
+Der Parakeet-Server ist ein eigenständiger FastAPI-Dienst (`parakeet_server/main.py`, Port 5001) mit zwei Endpunkten: dem OpenAI-kompatiblen `POST /v1/audio/transcriptions` (One-Shot, für die finale/Batch-Nutzung) und `WS /v1/audio/stream` (VAD-segmentiertes Streaming, siehe `parakeet_server/streaming.py`) — letzterer ist der eigentliche Live-Pfad, den `ParakeetStreamBackend` nutzt. Silero-VAD + Parakeet-ONNX (onnx-asr) werden beim Start geladen; der Dockerfile-Default ist die NVIDIA-GPU-Base (CUDA 13.0.2 + cuDNN auf Ubuntu 24.04, Host-Treiber ≥ 580) mit automatischer `CUDAExecutionProvider`-Wahl und CPU-Fallback (`PARAKEET_DEVICE=cpu` für ein reines CPU-Image).
 
 ### Architektur
 

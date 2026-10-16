@@ -14,8 +14,8 @@
 #  runtime is not present in that base.
 
 # ─── Base image: CUDA+cuDNN (default) or plain Python for CPU ──────────
-# The GPU base matches parakeet_server/Dockerfile (CUDA 12.4.1 + cuDNN) so
-# both containers can share the same host driver.
+# Whisper stays on CUDA 12.4.1 (CTranslate2 needs CUDA 12 + cuDNN 9); the Parakeet GPU
+# image is on CUDA 13. One host with an NVIDIA driver >= 580 runs both.
 ARG DEVICE=gpu
 FROM python:3.12-slim AS base-cpu
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-gpu

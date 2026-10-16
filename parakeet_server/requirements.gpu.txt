@@ -1,8 +1,11 @@
 onnx-asr[gpu,hub]>=0.12.0
 # onnxruntime-gpu wheels for linux/aarch64 only exist from 1.29.0 onwards
 # (older releases ship x86_64-only) — pin >=1.29.0 so the arm64 half of the
-# multi-arch build can resolve the same file. Requires glibc >= 2.34, which
-# the Ubuntu 22.04 CUDA base (2.35) provides.
+# multi-arch build can resolve the same file. These wheels need glibc >= 2.34
+# AND Python >= 3.11 (the last release with a Python 3.10 wheel is 1.23.2), so the
+# image runs on the Ubuntu 24.04 CUDA 13 base (glibc 2.39, Python 3.12). All of these
+# wheels are linked against CUDA 13, so the base must be CUDA 13 as well: on a CUDA 12
+# base onnxruntime fails to load the CUDA provider and silently falls back to the CPU.
 onnxruntime-gpu>=1.29.0
 fastapi>=0.142.2
 uvicorn[standard]>=0.54.0

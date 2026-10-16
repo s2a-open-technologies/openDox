@@ -4,7 +4,7 @@
 #  SPDX-FileCopyrightText: 2025 S2A Open Technologies gGmbH
 #  SPDX-License-Identifier: AGPL-3.0-or-later
 #
-#  Defaults to the NVIDIA GPU image (CUDA 12.4.1 + cuDNN) so the container
+#  Defaults to the NVIDIA GPU image (CUDA 13.0.2 + cuDNN) so the container
 #  uses the GPU whenever the host provides one. To build a CPU-only image
 #  (smaller, no CUDA base):
 #    docker build --build-arg DEVICE=cpu -t opendox-parakeet:cpu .
@@ -12,22 +12,29 @@
 #  CPUExecutionProvider automatically — but the image is larger.
 
 # ─── Base image: CUDA+cuDNN (default) or plain Python for CPU ──────────
-# The GPU base matches whisper_server/Dockerfile (CUDA 12.4.1 + cuDNN) so
-# both containers can share the same host driver.
+# Whisper (CUDA 12.4.1) and Parakeet (CUDA 13) can still share one host and GPU:
+# a driver >= 580 runs both.
 ARG DEVICE=gpu
 FROM python:3.12-slim AS base-cpu
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-gpu
+# Ubuntu 24.04 + CUDA 13: every onnxruntime-gpu >= 1.29 (the first with linux/aarch64
+# wheels) needs Python >= 3.11 AND is linked against CUDA 13 (libcublasLt.so.13). On a
+# CUDA 12 base the CUDA provider silently fails to load and onnxruntime runs on the CPU.
+# The host needs an NVIDIA driver >= 580 for CUDA 13.
+FROM nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04 AS base-gpu
 
 # Final stage selects the right base via the DEVICE arg.
 FROM base-${DEVICE} AS final
 
 ARG DEVICE=gpu
+# PIP_BREAK_SYSTEM_PACKAGES: Ubuntu 24.04 marks its Python as externally managed
+# (PEP 668); this container is the only consumer, so installing into it is fine.
 ENV DEVICE=${DEVICE} \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1
 
 # System deps: ffmpeg for audio decoding, curl for healthcheck.
-# The CUDA base is Ubuntu 22.04 (apt), the CPU base is Debian slim (apt) —
+# The CUDA base is Ubuntu 24.04 (apt), the CPU base is Debian slim (apt) —
 # both use the same package names.
 # The `python` symlink points at the same interpreter pip3 installs for
 # (`command -v python3`): on the Ubuntu/CUDA base that's /usr/bin/python3,
@@ -68,7 +75,7 @@ ENV HF_HOME=/app/models/hf \
     HF_HUB_DISABLE_XET=1
 
 # Install onnx-asr with the matching extra. [gpu] pulls onnxruntime-gpu
-# (CUDA 12), [cpu] pulls plain onnxruntime. onnxruntime is imported
+# (CUDA 13), [cpu] pulls plain onnxruntime. onnxruntime is imported
 # directly in streaming.py for the raw Silero VAD session, so it must be
 # installed explicitly regardless of the extra.
 COPY parakeet_server/requirements.cpu.txt ./requirements.cpu.txt
@@ -96,7 +103,10 @@ COPY parakeet_server/main.py .
 # and are read-only at runtime (pre-downloaded at build time), uvicorn binds
 # an unprivileged port, and temp files go to /tmp via tempfile — nothing
 # needs root. chown -R /app so the pre-downloaded caches are readable.
-RUN useradd --no-log-init -m -u 1000 appuser \
+# Ubuntu 24.04 images already ship a `ubuntu` user with UID 1000; drop it first
+# (the slim CPU base has none, hence `|| true`).
+RUN (userdel -r ubuntu 2>/dev/null || true) \
+    && useradd --no-log-init -m -u 1000 appuser \
     && chown -R 1000:1000 /app
 
 USER appuser

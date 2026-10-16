@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-10-16
+
 ### Changed
 
 - Dialogs no longer fly in sideways when opening; buttons and other clickable elements show the pointer cursor; the recording orb is smoother and uses the openDox cyan; the client install path in the distribution hint is `%ProgramFiles%\openDox`.
@@ -344,7 +346,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/daemolition/openDox/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/daemolition/openDox/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/daemolition/openDox/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/daemolition/openDox/compare/v0.8.3...v0.9.0

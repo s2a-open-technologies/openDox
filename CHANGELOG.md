@@ -13,6 +13,10 @@ section as the GitHub Release notes.
 ## [Unreleased]
 
 ### Changed
+
+- Dialogs no longer fly in sideways when opening; buttons and other clickable elements show the pointer cursor; the recording orb is smoother and uses the openDox cyan; the client install path in the distribution hint is `%ProgramFiles%\openDox`.
+- LDAP: new option "Resolve nested groups" (Active Directory, off by default) so members of sub-groups of the configured groups may log in too.
+- LDAP and OIDC logins are now fail closed: only members of an allowed, admin or moderator group may log in; with no group configured nobody can. OIDC gained an `allowed_groups` setting (migration included). Local users are unaffected. **Upgrade note:** set the allowed groups before updating, otherwise LDAP/OIDC users are locked out.
 - The Parakeet GPU image is built on `nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04` (Python 3.12, **NVIDIA driver >= 580 on the host**) instead of CUDA 12.4.1 / Ubuntu 22.04: `onnxruntime-gpu >= 1.29` (needed for the arm64 build) requires Python >= 3.11 and is linked against CUDA 13, so the image could neither be built nor use the GPU with the old base. The Whisper GPU image is unchanged.
 - The Docker images published by `docker-publish.yml` carry OCI labels and annotations (source repository, license, vendor, version, description), so the GHCR packages link to this repository. One failing image no longer cancels the others (`fail-fast: false`).
 

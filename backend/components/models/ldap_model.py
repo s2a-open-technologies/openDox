@@ -41,6 +41,7 @@ class LdapSettingsModel(SQLModel, table=True):
     )
     cert_filename: Optional[str] = None
     cert_data: Optional[str] = None
+    nested_groups: bool = False
     allowed_groups: Optional[str] = None
     admin_groups: Optional[str] = None
     moderator_groups: Optional[str] = None

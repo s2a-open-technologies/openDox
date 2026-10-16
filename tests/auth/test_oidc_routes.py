@@ -148,7 +148,7 @@ def test_callback_requires_id_token_in_response(client, session_factory, monkeyp
     assert response.json()["detail"] == "Kein id_token erhalten"
 
 
-def _patch_happy_path(monkeypatch, *, role="user", username="jdoe"):
+def _patch_happy_path(monkeypatch, *, role="user", username="jdoe", authorized=True):
     monkeypatch.setattr(
         OidcService,
         "exchange_code",
@@ -160,6 +160,7 @@ def _patch_happy_path(monkeypatch, *, role="user", username="jdoe"):
     monkeypatch.setattr(OidcService, "get_userinfo", lambda self, access_token: {})
     monkeypatch.setattr(OidcService, "resolve_username", lambda self, claims: username)
     monkeypatch.setattr(OidcService, "map_groups_to_role", lambda self, claims: role)
+    monkeypatch.setattr(OidcService, "is_authorized", lambda self, claims: authorized)
 
 
 def test_callback_provisions_new_user_and_redirects_with_tokens(
@@ -213,3 +214,25 @@ def test_callback_updates_existing_user_role_on_relogin(
 
         refreshed = session.get(User, existing.id)
         assert refreshed.role == "moderator"
+
+
+def test_callback_rejects_user_outside_permitted_groups(
+    client, session_factory, monkeypatch
+):
+    _create_settings(session_factory)
+    client.cookies.set("oidc_state", _serializer.dumps({"state": "expected-state"}))
+    _patch_happy_path(monkeypatch, username="outsider", authorized=False)
+
+    response = client.get(
+        "/api/v1/auth/oidc/callback",
+        params={"code": "abc", "state": "expected-state"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+    with session_factory() as session:
+        from sqlmodel import select
+
+        from backend.components.models.user_model import User
+
+        assert session.exec(select(User).where(User.name == "outsider")).first() is None

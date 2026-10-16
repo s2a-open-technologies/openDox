@@ -655,18 +655,18 @@ def authenticate(self, username: str, password: str):
 
     # Rollen-Mapping: App baut die erwartete Group-DN selbst (cn={name},{base_dn}) —
     # Admins tragen nur Klartext-Gruppennamen ein, nie eine DN
-    allowed = _parse_groups(self.settings.allowed_groups)   # Gate, leer = jeder authentifizierte User
+    allowed = _parse_groups(self.settings.allowed_groups)   # Gate; Zugang nur für Mitglieder von allowed/admin/moderator, ohne Gruppe niemand
     admin = _parse_groups(self.settings.admin_groups)       # Rollen-Mapping, Admin hat Vorrang
     moderator = _parse_groups(self.settings.moderator_groups)
 ```
 
 Nutzer werden beim ersten erfolgreichen Login auto-provisioniert (leerer Passwort-Hash); die Rolle wird bei **jedem** Login aus der aktuellen Gruppenmitgliedschaft neu synchronisiert. Das optionale LDAPS-CA-Zertifikat liegt **in der DB** (`LdapSettingsModel.cert_data`, Upload via `POST /ldap-settings/upload-cert/`), nie auf der Platte — `cert_filename` ist nur ein Anzeige-Label.
 
-`LdapSettingsModel` (`models/ldap_model.py`): `server_host`/`server_port`/`use_ssl`, `base_dn`, `user_dn` (Attributname, z. B. `uid` oder `sAMAccountName`), `search_filter` (optionaler Power-User-Zusatzfilter), `bind_user_dn`/`bind_user_password` (Service-Account, verschlüsselt), `cert_filename`/`cert_data`, `allowed_groups`/`admin_groups`/`moderator_groups`.
+`LdapSettingsModel` (`models/ldap_model.py`): `server_host`/`server_port`/`use_ssl`, `base_dn`, `user_dn` (Attributname, z. B. `uid` oder `sAMAccountName`), `search_filter` (optionaler Power-User-Zusatzfilter), `bind_user_dn`/`bind_user_password` (Service-Account, verschlüsselt), `cert_filename`/`cert_data`, `allowed_groups`/`admin_groups`/`moderator_groups`, `nested_groups` (nur Active Directory: verschachtelte Gruppen über `LDAP_MATCHING_RULE_IN_CHAIN`).
 
 ### 3. OIDC/SSO (`oidc_bp`, `/api/v1/auth/oidc/{login,callback,status}`)
 
-Authorization-Code-Flow mit Discovery (`{provider_url}/.well-known/openid-configuration`). Der `state`-Parameter wird mit `SECRET_KEY` über `itsdangerous.URLSafeSerializer` signiert und in einem kurzlebigen Cookie gespeichert. Der Callback stellt lokale JWTs aus und leitet auf `/login?access_token=...&refresh_token=...` weiter — das Frontend (`Login.tsx`) liest die Query-Parameter und speichert sie in `localStorage`. `OidcSettingsModel.admin_groups`/`moderator_groups` mappen OIDC-Gruppen auf Rollen, gleiche Admin-hat-Vorrang-Logik wie bei LDAP. Nutzer werden beim ersten Login auto-provisioniert; der OIDC-Button in `Login.tsx` erscheint nur, wenn `/oidc/status` `{"enabled": true}` liefert.
+Authorization-Code-Flow mit Discovery (`{provider_url}/.well-known/openid-configuration`). Der `state`-Parameter wird mit `SECRET_KEY` über `itsdangerous.URLSafeSerializer` signiert und in einem kurzlebigen Cookie gespeichert. Der Callback stellt lokale JWTs aus und leitet auf `/login?access_token=...&refresh_token=...` weiter — das Frontend (`Login.tsx`) liest die Query-Parameter und speichert sie in `localStorage`. `OidcSettingsModel.admin_groups`/`moderator_groups` mappen OIDC-Gruppen auf Rollen, gleiche Admin-hat-Vorrang-Logik wie bei LDAP. `allowed_groups` bildet auch hier das Gate: nur Mitglieder von allowed/admin/moderator dürfen sich anmelden (403 sonst), ohne konfigurierte Gruppe niemand. Nutzer werden beim ersten Login auto-provisioniert; der OIDC-Button in `Login.tsx` erscheint nur, wenn `/oidc/status` `{"enabled": true}` liefert.
 
 `_build_redirect_uri()` respektiert `X-Forwarded-Proto`/`X-Forwarded-Host` **nur**, wenn der unmittelbare Peer ein vertrauenswürdiger Reverse-Proxy ist (`TRUSTED_PROXY_IPS`) — sonst wären diese Header vom Client fälschbar und könnten den OIDC-Callback umleiten.
 

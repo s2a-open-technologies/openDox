@@ -25,6 +25,7 @@ def _settings(**overrides):
         bind_user_password="admin-pass",
         cert_filename=None,
         cert_data=None,
+        nested_groups=False,
         allowed_groups=None,
         admin_groups=None,
         moderator_groups=None,
@@ -38,7 +39,7 @@ def _bind_connection(entries):
     conn = MagicMock()
     conn.server = "fake-server"
 
-    def fake_search(base_dn, search_filter, attributes=None):
+    def fake_search(base_dn, search_filter, attributes=None, **kwargs):
         conn.entries = entries
         conn.last_search_filter = search_filter
         conn.last_base_dn = base_dn
@@ -68,12 +69,21 @@ def patched_connection(monkeypatch):
 
 
 def test_authenticate_succeeds_with_valid_credentials(patched_connection):
-    bind_conn = _bind_connection([_user_entry("uid=jdoe,dc=example,dc=com")])
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-user,dc=example,dc=com"],
+            )
+        ]
+    )
     user_conn = MagicMock()
     user_conn.bound = True
     patched_connection(bind_conn, user_conn)
 
-    result = LdapService(_settings()).authenticate("jdoe", "secret")
+    result = LdapService(_settings(allowed_groups="opendox-user")).authenticate(
+        "jdoe", "secret"
+    )
 
     assert result == {
         "success": True,
@@ -298,3 +308,82 @@ def test_authenticate_group_matching_is_case_insensitive(patched_connection):
     )
 
     assert result["role"] == "admin"
+
+
+def test_authenticate_denies_everyone_when_no_group_configured(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-user,dc=example,dc=com"],
+            )
+        ]
+    )
+    patched_connection(bind_conn, MagicMock(bound=True))
+
+    result = LdapService(_settings()).authenticate("jdoe", "secret")
+
+    assert result["success"] is False
+
+
+def test_authenticate_admin_group_member_may_log_in_without_allowed_group(
+    patched_connection,
+):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-admin,dc=example,dc=com"],
+            )
+        ]
+    )
+    patched_connection(bind_conn, MagicMock(bound=True))
+
+    result = LdapService(
+        _settings(allowed_groups="opendox-user", admin_groups="opendox-admin")
+    ).authenticate("jdoe", "secret")
+
+    assert result["success"] is True
+    assert result["role"] == "admin"
+
+
+def test_authenticate_nested_group_resolved_via_matching_rule(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=team-a,dc=example,dc=com"],
+            )
+        ]
+    )
+    patched_connection(bind_conn, MagicMock(bound=True))
+
+    result = LdapService(
+        _settings(allowed_groups="opendox-user", nested_groups=True)
+    ).authenticate("jdoe", "secret")
+
+    assert result["success"] is True
+    assert (
+        "memberOf:1.2.840.113556.1.4.1941:=cn=opendox-user,dc=example,dc=com"
+        in bind_conn.last_search_filter
+    )
+    assert bind_conn.last_base_dn == "uid=jdoe,dc=example,dc=com"
+
+
+def test_authenticate_nested_group_not_checked_when_disabled(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=team-a,dc=example,dc=com"],
+            )
+        ]
+    )
+    patched_connection(bind_conn, MagicMock(bound=True))
+
+    result = LdapService(_settings(allowed_groups="opendox-user")).authenticate(
+        "jdoe", "secret"
+    )
+
+    assert result["success"] is False
+    assert bind_conn.search.call_count == 1

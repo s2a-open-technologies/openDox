@@ -206,6 +206,11 @@ async def oidc_callback(request: Request, db: SessionDep):
     if not username:
         raise HTTPException(status_code=502, detail="Kein Benutzername im Claim")
 
+    if not service.is_authorized(claims):
+        raise HTTPException(
+            status_code=403, detail="Nicht berechtigt (Gruppenbeschränkung)"
+        )
+
     # --- 4. Provision / update user ---
     user = db.exec(select(User).where(User.name == username)).first()
     role = service.map_groups_to_role(claims)

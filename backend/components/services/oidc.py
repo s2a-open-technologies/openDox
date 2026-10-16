@@ -205,6 +205,25 @@ class OidcService:
         )
         return claims
 
+    def is_authorized(self, claims: dict[str, Any]) -> bool:
+        """Tell whether the user may log in at all (fail closed).
+
+        Only members of an allowed, admin or moderator group are let in; with
+        no group configured nobody is.
+
+        Args:
+            claims: Union of id_token and userinfo claims.
+
+        Returns:
+            True if the user belongs to at least one permitted group.
+        """
+        permitted = (
+            self._parse_groups(self.settings.allowed_groups)
+            | self._parse_groups(self.settings.admin_groups)
+            | self._parse_groups(self.settings.moderator_groups)
+        )
+        return bool(permitted & self._extract_groups(claims))
+
     def map_groups_to_role(self, claims: dict[str, Any]) -> str:
         """Resolve the local role from configured admin/moderator groups.
 

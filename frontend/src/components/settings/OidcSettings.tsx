@@ -36,6 +36,7 @@ interface OidcSettingsData {
     client_secret: string;
     scopes: string;
     group_claim: string;
+    allowed_groups: string;
     admin_groups: string;
     moderator_groups: string;
     username_claim: string;
@@ -53,6 +54,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
         client_secret: '',
         scopes: 'openid email profile',
         group_claim: 'groups',
+        allowed_groups: '',
         admin_groups: '',
         moderator_groups: '',
         username_claim: 'preferred_username',
@@ -71,6 +73,7 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                         client_secret: data.client_secret || '',
                         scopes: data.scopes || 'openid email profile',
                         group_claim: data.group_claim || 'groups',
+                        allowed_groups: data.allowed_groups || '',
                         admin_groups: data.admin_groups || '',
                         moderator_groups: data.moderator_groups || '',
                         username_claim: data.username_claim || 'preferred_username',
@@ -185,6 +188,18 @@ const OidcSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 onChange={e => setSettings({ ...settings, group_claim: e.target.value })}
                                 placeholder="groups"
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>{t('allowedGroups')}</Label>
+                            <Input
+                                value={settings.allowed_groups}
+                                disabled={readOnly}
+                                onChange={e => setSettings({ ...settings, allowed_groups: e.target.value })}
+                                placeholder="opendox-user"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                {t('allowedGroupsHint')}
+                            </p>
                         </div>
                         <div className="space-y-2">
                             <Label>{t('adminGroups')}</Label>

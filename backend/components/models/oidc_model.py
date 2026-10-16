@@ -39,6 +39,9 @@ class OidcSettingsModel(SQLModel, table=True):
         scopes: Space-separated OIDC scopes (default ``openid email profile``).
         group_claim: Name of the claim in the id_token / userinfo response that
             contains the user's group memberships. Defaults to ``groups``.
+        allowed_groups: Comma-separated group names whose members may log in.
+            Members of the admin/moderator groups may log in too; with none
+            configured nobody can log in via OIDC.
         admin_groups: Comma-separated group names that map to ``is_superuser=True``.
         username_claim: Claim used to derive the local ``User.name``.
             Defaults to ``preferred_username``.
@@ -53,6 +56,7 @@ class OidcSettingsModel(SQLModel, table=True):
     )
     scopes: str = Field(default="openid email profile")
     group_claim: str = Field(default="groups")
+    allowed_groups: str = Field(default="")
     admin_groups: str = Field(default="")
     moderator_groups: str = Field(default="")
     username_claim: str = Field(default="preferred_username")

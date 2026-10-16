@@ -36,6 +36,7 @@ def _settings(**overrides):
         client_secret="my-secret",
         scopes="openid email profile",
         group_claim="groups",
+        allowed_groups="",
         admin_groups="",
         moderator_groups="",
         username_claim="preferred_username",
@@ -342,3 +343,18 @@ def test_resolve_username_uses_custom_claim():
     service = OidcService(_settings(username_claim="email"))
 
     assert service.resolve_username({"email": "jdoe@example.com"}) == "jdoe@example.com"
+
+
+def test_is_authorized_requires_permitted_group():
+    service = OidcService(_settings(allowed_groups="users", admin_groups="admins"))
+
+    assert service.is_authorized({"groups": ["users"]}) is True
+    assert service.is_authorized({"groups": ["admins"]}) is True
+    assert service.is_authorized({"groups": ["other"]}) is False
+    assert service.is_authorized({}) is False
+
+
+def test_is_authorized_denies_everyone_without_configured_groups():
+    service = OidcService(_settings())
+
+    assert service.is_authorized({"groups": ["users"]}) is False

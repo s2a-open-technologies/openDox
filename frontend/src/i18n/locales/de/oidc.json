@@ -9,6 +9,8 @@
   "scopes": "Scopes",
   "usernameClaim": "Username-Claim",
   "groupClaim": "Gruppen-Claim",
+  "allowedGroups": "Erlaubte Gruppen (Komma-getrennt)",
+  "allowedGroupsHint": "Nur User in diesen sowie in den Admin-/Moderator-Gruppen dürfen sich anmelden. Ohne Gruppe kann sich niemand per SSO anmelden.",
   "adminGroups": "Admin-Gruppen (Komma-getrennt)",
   "adminGroupsHint": "User in diesen Gruppen werden als Admins angelegt",
   "moderatorGroups": "Moderator-Gruppen (Komma-getrennt)",

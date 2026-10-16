@@ -40,6 +40,7 @@ interface LdapSettingsData {
     bind_user_dn: string;
     bind_user_password: string;
     cert_filename: string;
+    nested_groups: boolean;
     allowed_groups: string;
     admin_groups: string;
     moderator_groups: string;
@@ -60,6 +61,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
         bind_user_dn: '',
         bind_user_password: '',
         cert_filename: '',
+        nested_groups: false,
         allowed_groups: '',
         admin_groups: '',
         moderator_groups: '',
@@ -84,6 +86,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                         bind_user_dn: data.bind_user_dn || '',
                         bind_user_password: data.bind_user_password || '',
                         cert_filename: data.cert_filename || '',
+                        nested_groups: data.nested_groups || false,
                         allowed_groups: data.allowed_groups || '',
                         admin_groups: data.admin_groups || '',
                         moderator_groups: data.moderator_groups || '',
@@ -263,6 +266,21 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                         />
                         <p className="text-xs text-muted-foreground">
                             {t('searchFilterHint')}
+                        </p>
+                    </div>
+
+                    <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                            <Switch
+                                id="nested-groups"
+                                checked={settings.nested_groups}
+                                disabled={readOnly}
+                                onCheckedChange={checked => setSettings({ ...settings, nested_groups: checked })}
+                            />
+                            <Label htmlFor="nested-groups">{t('nestedGroups')}</Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            {t('nestedGroupsHint')}
                         </p>
                     </div>
 

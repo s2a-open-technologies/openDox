@@ -19,7 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import ssl
 
-from ldap3 import ALL, Connection, Server, Tls
+from ldap3 import ALL, BASE, Connection, Server, Tls
 from ldap3.utils.conv import escape_filter_chars
 
 
@@ -28,6 +28,10 @@ def _parse_groups(raw: str | None) -> set[str]:
     if not raw:
         return set()
     return {name.strip() for name in raw.split(",") if name.strip()}
+
+
+# Active Directory LDAP_MATCHING_RULE_IN_CHAIN: the server resolves nested groups.
+_AD_IN_CHAIN = "1.2.840.113556.1.4.1941"
 
 
 def _group_dn(name: str, base_dn: str) -> str:
@@ -115,18 +119,11 @@ class LdapService:
                 return {"success": False, "message": "Invalid credentials"}
 
             user_conn.unbind()
-            conn.unbind()
 
             allowed_dns = {
                 _group_dn(name, self.settings.base_dn).lower()
                 for name in _parse_groups(self.settings.allowed_groups)
             }
-            if allowed_dns and not (allowed_dns & user_group_dns):
-                return {
-                    "success": False,
-                    "message": "Not authorized (group restriction)",
-                }
-
             admin_dns = {
                 _group_dn(name, self.settings.base_dn).lower()
                 for name in _parse_groups(self.settings.admin_groups)
@@ -135,6 +132,31 @@ class LdapService:
                 _group_dn(name, self.settings.base_dn).lower()
                 for name in _parse_groups(self.settings.moderator_groups)
             }
+            if getattr(self.settings, "nested_groups", False):
+                # Active Directory only: memberOf lists direct groups, so ask
+                # the server per configured group whether the user is a
+                # (transitive) member.
+                for group_dn in allowed_dns | admin_dns | moderator_dns:
+                    if group_dn in user_group_dns:
+                        continue
+                    conn.search(
+                        user_dn,
+                        f"(memberOf:{_AD_IN_CHAIN}:={escape_filter_chars(group_dn)})",
+                        search_scope=BASE,
+                        attributes=["distinguishedName"],
+                    )
+                    if conn.entries:
+                        user_group_dns.add(group_dn)
+            conn.unbind()
+
+            # Fail closed: only members of an allowed, admin or moderator group
+            # may log in. With no group configured nobody may.
+            if not ((allowed_dns | admin_dns | moderator_dns) & user_group_dns):
+                return {
+                    "success": False,
+                    "message": "Not authorized (group restriction)",
+                }
+
             if admin_dns & user_group_dns:
                 role = "admin"
             elif moderator_dns & user_group_dns:

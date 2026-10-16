@@ -125,62 +125,103 @@ export const BarVisualizer = ({ analyser, className }: VisualizerProps) => {
     );
 };
 
-const NUM_ORB_POINTS = 32;
+const NUM_ORB_POINTS = 48;
+// Cyan of "Dox" in the openDox logo (Logo.tsx, #00CED1).
+const ORB_RGB = "0, 206, 209";
 
-/** Large, centered, sharply-spiking orb shown in place of the transcript when live
- *  transcription is off. */
+/** Closed, smooth blob through `pts` (quadratic curves via the midpoints). */
+function blobPath(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) {
+    const n = pts.length;
+    ctx.beginPath();
+    ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+    for (let i = 0; i < n; i++) {
+        const p = pts[i];
+        const q = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+    }
+    ctx.closePath();
+}
+
+/** Large, centered orb in the openDox "Dox" cyan, shown in place of the transcript when
+ *  live transcription is off. Reacts to the spectrum with a soft, glowing blob. */
 export const VoiceVisualizer = ({ analyser, className }: VisualizerProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const smoothed = useRef<number[]>(new Array(NUM_ORB_POINTS).fill(0));
 
     useCanvasLoop(canvasRef, analyser, (ctx, dataArray, bufferLength, displayWidth, displayHeight) => {
         const cx = displayWidth / 2;
         const cy = displayHeight / 2;
-        const baseRadius = Math.min(displayWidth, displayHeight) * 0.25;
-        const maxSpike = baseRadius * 0.9;
+        const baseRadius = Math.min(displayWidth, displayHeight) * 0.22;
+        const maxSpike = baseRadius * 0.7;
+        const t = performance.now() / 1000;
 
         const relevantBufferLength = Math.floor(bufferLength / 2);
         const bandSize = Math.max(1, Math.floor(relevantBufferLength / NUM_ORB_POINTS));
-        const t = performance.now() / 1000;
 
-        const points: { x: number; y: number }[] = [];
+        // Mirror the spectrum left/right so the orb is symmetric, and ease each point
+        // towards its target so it breathes instead of flickering.
+        const half = NUM_ORB_POINTS / 2;
+        let level = 0;
         for (let i = 0; i < NUM_ORB_POINTS; i++) {
+            const band = i < half ? i : NUM_ORB_POINTS - 1 - i;
             let sum = 0;
-            const start = i * bandSize;
+            const start = band * bandSize;
             const end = Math.min(start + bandSize, relevantBufferLength);
-            for (let j = start; j < end; j++) {
-                sum += dataArray[j];
-            }
+            for (let j = start; j < end; j++) sum += dataArray[j];
             const avg = sum / Math.max(1, end - start) / 255;
-            // Square the response so quiet bands stay close to baseRadius and only
-            // real transients shoot outward — sharp spikes instead of a gentle wobble.
-            const spike = avg * avg * maxSpike;
-
-            // Tiny idle jitter so the outline isn't a perfectly static circle in silence.
-            const idleJitter = Math.sin(t * 1.2 + i) * 0.01 * baseRadius;
-
-            const radius = baseRadius + spike + idleJitter;
-            const angle = (i / NUM_ORB_POINTS) * Math.PI * 2;
-            points.push({
-                x: cx + Math.cos(angle) * radius,
-                y: cy + Math.sin(angle) * radius,
-            });
+            smoothed.current[i] += (avg - smoothed.current[i]) * 0.25;
+            level += smoothed.current[i];
         }
+        level /= NUM_ORB_POINTS;
 
-        // Straight lines between points (no curve smoothing) so peaks stay sharp and pointed.
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y);
-        }
-        ctx.closePath();
+        const buildPoints = (scale: number, phase: number) => {
+            const pts: { x: number; y: number }[] = [];
+            for (let i = 0; i < NUM_ORB_POINTS; i++) {
+                const angle = (i / NUM_ORB_POINTS) * Math.PI * 2 - Math.PI / 2;
+                const breathe = Math.sin(t * 1.3 + i * 0.5 + phase) * 0.018 * baseRadius;
+                const r = (baseRadius + smoothed.current[i] ** 1.5 * maxSpike + breathe) * scale;
+                pts.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+            }
+            return pts;
+        };
+
+        const pulse = 1 + level * 0.12;
+
+        // Soft halo behind the orb.
+        const halo = ctx.createRadialGradient(cx, cy, baseRadius * 0.4, cx, cy, baseRadius * (2.2 + level));
+        halo.addColorStop(0, `rgba(${ORB_RGB}, ${0.28 + level * 0.3})`);
+        halo.addColorStop(1, `rgba(${ORB_RGB}, 0)`);
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+        // Two fainter echo layers, slightly larger and phase-shifted.
+        [1.18, 1.09].forEach((scale, k) => {
+            blobPath(ctx, buildPoints(scale * pulse, (k + 1) * 1.7));
+            ctx.strokeStyle = `rgba(${ORB_RGB}, ${0.16 + k * 0.1})`;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        });
+
+        // Main body: radial gradient from a bright core to the logo cyan.
+        blobPath(ctx, buildPoints(pulse, 0));
+        const body = ctx.createRadialGradient(
+            cx - baseRadius * 0.3, cy - baseRadius * 0.35, baseRadius * 0.1,
+            cx, cy, baseRadius * 1.4,
+        );
+        body.addColorStop(0, "rgba(190, 255, 255, 0.95)");
+        body.addColorStop(0.45, `rgba(${ORB_RGB}, 0.85)`);
+        body.addColorStop(1, `rgba(0, 120, 140, 0.55)`);
 
         ctx.save();
-        ctx.shadowColor = "rgba(239, 68, 68, 0.6)";
-        ctx.shadowBlur = 30;
-        ctx.strokeStyle = "rgba(239, 68, 68, 0.9)";
-        ctx.lineWidth = Math.max(2, baseRadius * 0.06);
-        ctx.stroke();
+        ctx.shadowColor = `rgba(${ORB_RGB}, 0.7)`;
+        ctx.shadowBlur = 35 + level * 40;
+        ctx.fillStyle = body;
+        ctx.fill();
         ctx.restore();
+
+        ctx.strokeStyle = "rgba(220, 255, 255, 0.7)";
+        ctx.lineWidth = Math.max(1.5, baseRadius * 0.025);
+        ctx.stroke();
     });
 
     return (

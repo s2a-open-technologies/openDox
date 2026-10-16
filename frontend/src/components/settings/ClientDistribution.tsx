@@ -33,7 +33,7 @@ interface Distribution {
 }
 
 // Zielpfad der MSI-Installation (opendox-client: build/windows/installer/DEPLOYMENT.md).
-const INSTALL_DIR = "%ProgramFiles%\\openDox\\openDox";
+const INSTALL_DIR = "%ProgramFiles%\\openDox";
 
 const DOWNLOADS: { key: string; labelKey: string }[] = [
   { key: "windows_msi", labelKey: "distribution.windowsMsi" },
@@ -65,7 +65,7 @@ export function ClientDistribution() {
     },
     {
       label: t("distribution.sccm"),
-      text: `Start-Process msiexec.exe -ArgumentList '/i ${msi} /qn' -Wait\nCopy-Item .\\settings.json "$env:ProgramFiles\\openDox\\openDox\\settings.json" -Force`,
+      text: `Start-Process msiexec.exe -ArgumentList '/i ${msi} /qn' -Wait\nCopy-Item .\\settings.json "$env:ProgramFiles\\openDox\\settings.json" -Force`,
     },
   ];
 

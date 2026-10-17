@@ -2,53 +2,74 @@ name: Docker Publish (GHCR)
 
 on:
   workflow_dispatch:
+    inputs:
+      images:
+        description: "Which images to build (app = backend + web UI only)"
+        type: choice
+        default: app
+        options:
+          - app
+          - all
+          - whisper
+          - parakeet
+          - garage-init
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  select:
+    name: Select images
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - name: Filter the build matrix
+        id: pick
+        env:
+          IMAGES: ${{ inputs.images }}
+        run: |
+          cat > all.json <<'JSON'
+          [
+            {"group": "app", "name": "opendox", "dockerfile": "Dockerfile", "context": ".",
+             "tag_suffix": "",
+             "description": "openDox: medical transcription platform (backend and web UI)"},
+            {"group": "garage-init", "name": "opendox-garage-init",
+             "dockerfile": "garage/init/Dockerfile", "context": "./garage/init",
+             "tag_suffix": "",
+             "description": "openDox: one-shot setup of the bundled Garage S3 storage"},
+            {"group": "whisper", "name": "opendox-whisper",
+             "dockerfile": "whisper_server/Dockerfile", "context": ".",
+             "device": "gpu", "tag_suffix": "",
+             "description": "openDox: Whisper transcription server (faster-whisper, GPU)"},
+            {"group": "whisper", "name": "opendox-whisper",
+             "dockerfile": "whisper_server/Dockerfile", "context": ".",
+             "device": "cpu", "tag_suffix": "cpu-",
+             "description": "openDox: Whisper transcription server (faster-whisper, CPU)"},
+            {"group": "parakeet", "name": "opendox-parakeet",
+             "dockerfile": "parakeet_server/Dockerfile", "context": ".",
+             "device": "gpu", "tag_suffix": "",
+             "description": "openDox: Parakeet live transcription server (GPU)"},
+            {"group": "parakeet", "name": "opendox-parakeet",
+             "dockerfile": "parakeet_server/Dockerfile", "context": ".",
+             "device": "cpu", "tag_suffix": "cpu-",
+             "description": "openDox: Parakeet live transcription server (CPU)"}
+          ]
+          JSON
+          matrix=$(jq -c --arg sel "$IMAGES" \
+            '[.[] | select($sel == "all" or .group == $sel)]' all.json)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Building: $(echo "$matrix" | jq -r '[.[] | .name + ":" + (.device // "default")] | join(", ")')"
+
   build-and-push:
     name: ${{ matrix.name }} (${{ matrix.device || 'default' }})
+    needs: select
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: opendox
-            dockerfile: Dockerfile
-            context: .
-            tag_suffix: ""
-            description: "openDox: medical transcription platform (backend and web UI)"
-          - name: opendox-garage-init
-            dockerfile: garage/init/Dockerfile
-            context: ./garage/init
-            tag_suffix: ""
-            description: "openDox: one-shot setup of the bundled Garage S3 storage"
-          - name: opendox-whisper
-            dockerfile: whisper_server/Dockerfile
-            context: .
-            device: gpu
-            tag_suffix: ""
-            description: "openDox: Whisper transcription server (faster-whisper, GPU)"
-          - name: opendox-whisper
-            dockerfile: whisper_server/Dockerfile
-            context: .
-            device: cpu
-            tag_suffix: "cpu-"
-            description: "openDox: Whisper transcription server (faster-whisper, CPU)"
-          - name: opendox-parakeet
-            dockerfile: parakeet_server/Dockerfile
-            context: .
-            device: gpu
-            tag_suffix: ""
-            description: "openDox: Parakeet live transcription server (GPU)"
-          - name: opendox-parakeet
-            dockerfile: parakeet_server/Dockerfile
-            context: .
-            device: cpu
-            tag_suffix: "cpu-"
-            description: "openDox: Parakeet live transcription server (CPU)"
+        include: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       # The Parakeet images bundle their ONNX model (several GB) and are built for two
       # platforms, which exceeds the free disk space of a standard runner
@@ -112,6 +133,8 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           build-args: ${{ matrix.device && format('DEVICE={0}', matrix.device) || '' }}
+          cache-from: type=gha,scope=${{ matrix.name }}-${{ matrix.device || 'default' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ matrix.device || 'default' }}
           provenance: true
           sbom: true
           push: true

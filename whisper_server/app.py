@@ -27,8 +27,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import logging
 import os
+import subprocess
 import tempfile
 
+import numpy as np
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from faster_whisper import WhisperModel
 
@@ -85,6 +87,40 @@ async def health():
     return {"status": "ok", "model": MODEL_NAME}
 
 
+def _decode_audio(path: str) -> np.ndarray:
+    """Decode any audio file to mono float32 PCM at 16 kHz via ffmpeg.
+
+    faster-whisper's own ``decode_audio`` goes through PyAV and passes
+    ``metadata_errors`` to ``av.open()``, which newer PyAV releases reject
+    (breaking every request). Decoding here keeps the server independent of
+    the installed ``av`` version.
+    """
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-loglevel",
+            "error",
+            "-i",
+            path,
+            "-f",
+            "f32le",
+            "-acodec",
+            "pcm_f32le",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ValueError(f"ffmpeg decode failed: {result.stderr.decode()[:300]}")
+    return np.frombuffer(result.stdout, dtype=np.float32)
+
+
 def _run_transcription(
     tmp_path: str,
     lang: str | None,
@@ -107,7 +143,7 @@ def _run_transcription(
     call, not just the former, or the event loop still blocks on iteration.
     """
     segments, info = whisper_model.transcribe(
-        tmp_path,
+        _decode_audio(tmp_path),
         language=lang,
         initial_prompt=prompt or None,
         beam_size=beam_size,

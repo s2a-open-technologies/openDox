@@ -12,6 +12,10 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Whisper server: every transcription failed with `unexpected keyword argument 'metadata_errors'` on a fresh image build. `faster-whisper` 1.2.x passes that argument to `av.open()`, which PyAV 19 no longer accepts. The server now decodes audio itself via ffmpeg (`_decode_audio()`), so it no longer depends on the installed `av` version.
+
 ## [0.10.2] — 2026-10-16
 
 ### Changed

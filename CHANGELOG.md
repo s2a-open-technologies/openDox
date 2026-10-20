@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.10.5] — 2026-10-21
+
 ### Added
 
 - `docs/asr-vergleich.md`: measured comparison of Whisper large-v3 and large-v3-turbo (int8, int8_float16, float16), Parakeet TDT 0.6B v3 (FP32/int8, GPU/CPU) and the term correction on synthetic dictations, with a recommendation and the limits of the measurement.
@@ -384,7 +386,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.4...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.5...HEAD
+[0.10.5]: https://github.com/daemolition/openDox/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/daemolition/openDox/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/daemolition/openDox/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/daemolition/openDox/compare/v0.10.1...v0.10.2

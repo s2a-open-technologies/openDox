@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.10.4] — 2026-10-20
+
 ### Security
 
 - Recordings are now private to their owner, also towards admins. Previously the `admin` role could read, download, change and delete any user's recordings through the API (`GET /record/{id}`, `/record/{id}/audio`, `/list-records/{user_id}`, …) and attach to another user's recording WebSocket; the web UI never offered this. Retrying failed transcriptions stays admin-only and shows no transcript content.
@@ -378,7 +380,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.3...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.4...HEAD
+[0.10.4]: https://github.com/daemolition/openDox/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/daemolition/openDox/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/daemolition/openDox/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/daemolition/openDox/compare/v0.10.0...v0.10.1

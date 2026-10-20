@@ -24,7 +24,7 @@ RUN npm run build
 # ═══════════════════════════════════════════════════════════════════════════════
 # Stage 2: Python backend
 # ═══════════════════════════════════════════════════════════════════════════════
-FROM python:3.12-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 # Install system deps (ffmpeg for audio processing, curl for healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends \

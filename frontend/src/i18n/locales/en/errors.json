@@ -23,5 +23,12 @@
   "user_exists": "User already exists",
   "user_not_found": "User not found",
   "cannot_delete_self": "You cannot delete yourself",
-  "recording_audio_unavailable": "This recording cannot be continued here: its earlier audio is on another server instance. Please start the recording again."
+  "recording_audio_unavailable": "This recording cannot be continued here: its earlier audio is on another server instance. Please start the recording again.",
+  "dictionary_not_found": "Dictionary not found",
+  "dictionary_scope_mismatch": "A global category can only use global dictionaries, a personal category global ones and your own.",
+  "dictionary_upload_invalid": "Invalid file: only .txt or .csv in UTF-8",
+  "dictionary_upload_too_big": "The file is larger than {{max_mb}} MB",
+  "dictionary_too_large": "A dictionary may contain at most {{max}} terms",
+  "dictionary_term_too_long": "A term may be at most {{max}} characters long",
+  "dictionary_name_required": "Please enter a name"
 }

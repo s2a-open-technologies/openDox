@@ -16,10 +16,13 @@
     "systemPromptPlaceholder": "Anweisungen für die Zusammenfassung, z.B. Format, Struktur, Fokus...",
     "whisperPrompt": "Transkriptions-Hint (Whisper)",
     "whisperPromptPlaceholder": "Kardiologie, Echokardiographie, Sinusbradykardie, Dr. Müller, EKG, Herzinsuffizienz ...",
-    "whisperPromptHint": "Kurzer Stil-/Aussprache-Hinweis für Whisper. Whisper berücksichtigt davon nur die letzten ~224 Tokens — für lange Fachbegriffslisten das Korrektur-Glossar unten verwenden. Optional.",
-    "glossary": "Korrektur-Glossar",
-    "glossaryPlaceholder": "Sertralin, Metformin, Ibuprofen ...",
-    "glossaryHint": "Begriffe, die nach der finalen Transkription automatisch phonetisch korrigiert werden (unabhängig vom Transkriptions-Hint oben, ohne Längenbegrenzung). Gleiches Format: Komma-, Semikolon- oder zeilengetrennt."
+    "whisperPromptHint": "Kurzer Stil-/Aussprache-Hinweis für Whisper. Whisper berücksichtigt davon nur die letzten ~224 Tokens — lange Fachbegriffslisten gehören in ein Wörterbuch (unten). Optional.",
+    "dictionaries": "Wörterbücher",
+    "dictionaryTerms_one": "{{count}} Begriff",
+    "dictionaryTerms_other": "{{count}} Begriffe",
+    "noDictionaries": "Noch keine Wörterbücher vorhanden. Legen Sie eines unter Wörterbücher an.",
+    "dictionariesHintGlobal": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Eine globale Kategorie kann nur globale Wörterbücher verwenden.",
+    "dictionariesHintOwn": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Ihre eigene Kategorie kann globale und Ihre eigenen Wörterbücher verwenden."
   },
   "llm": {
     "useOwn": "Eigenes LLM verwenden",

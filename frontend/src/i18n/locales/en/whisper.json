@@ -46,7 +46,7 @@
     "description": "High-quality transcription after recording",
     "termCorrection": "Technical term correction (phonetic/fuzzy)",
     "threshold": "Threshold (0-100)",
-    "thresholdHint": "Compares the final text against the vocabulary from the category field \"Correction glossary\" (Cologne phonetics + fuzzy matching) and replaces matches from this score."
+    "thresholdHint": "Replaces words in the final text with terms from the category's dictionaries when they sound alike and are spelled alike. The score is the mean of both (0–100). 85 is a good default; 90 corrects a little less but is even more cautious with very large dictionaries."
   },
   "quality": {
     "title": "Quality & anti-hallucination",

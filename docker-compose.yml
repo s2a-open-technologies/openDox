@@ -68,8 +68,7 @@ services:
   # starts) — init.sh now times out instead of waiting forever, and Compose
   # retries automatically instead of requiring a manual `down` + `up`.
   garage-init:
-    build:
-      context: ./garage/init
+    image: ghcr.io/s2a-open-technologies/opendox-garage-init:latest
     container_name: opendox-garage-init
     restart: on-failure:5
     environment:
@@ -87,7 +86,7 @@ services:
   # Whisper Server (OpenAI-compatible API for transcription)
   # ═══════════════════════════════════════════════════════════════════════════════
   whisper:
-    image: registry.nutsolution.de/opendox-whisper:0.1.0
+    image: ghcr.io/s2a-open-technologies/opendox-whisper:latest
     build:
       context: .
       dockerfile: whisper_server/Dockerfile
@@ -113,7 +112,7 @@ services:
   # Parakeet Server (CPU, onnx-asr, OpenAI-compatible API for live ASR)
   # ═══════════════════════════════════════════════════════════════════════════════
   parakeet:
-    image: registry.nutsolution.de/opendox-parakeet:0.1.0
+    image: ghcr.io/s2a-open-technologies/opendox-parakeet:latest
     build:
       context: .
       dockerfile: parakeet_server/Dockerfile
@@ -151,7 +150,7 @@ services:
   # openDox Application (FastAPI + React)
   # ═══════════════════════════════════════════════════════════════════════════════
   app:
-    image: registry.nutsolution.de/opendox:0.1.0
+    image: ghcr.io/s2a-open-technologies/opendox:latest
     build:
       context: .
       dockerfile: Dockerfile

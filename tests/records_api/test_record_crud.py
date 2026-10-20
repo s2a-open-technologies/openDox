@@ -59,17 +59,26 @@ def test_get_record_as_non_owner_is_forbidden(
     assert response.status_code == 403
 
 
-def test_get_record_as_admin_bypasses_ownership(
+def test_admin_cannot_access_another_users_record(
     client, create_user, auth_headers, session_factory
 ):
+    # Recordings are private to their owner; the admin role gets no bypass.
     owner = create_user("dr.mueller")
     admin = create_user("admin1", role="admin")
     record = _create_record(session_factory, user_id=owner.id)
-    url = f"/api/v1/records/record/{record.id}"
+    headers = auth_headers(admin)
+    base = f"/api/v1/records/record/{record.id}"
 
-    response = client.get(url, headers=auth_headers(admin))
-
-    assert response.status_code == 200
+    assert client.get(base, headers=headers).status_code == 403
+    assert client.get(f"{base}/audio", headers=headers).status_code == 403
+    assert client.put(base, json={"title": "x"}, headers=headers).status_code == 403
+    assert client.delete(base, headers=headers).status_code == 403
+    assert (
+        client.get(
+            f"/api/v1/records/list-records/{owner.id}", headers=headers
+        ).status_code
+        == 403
+    )
 
 
 def test_get_nonexistent_record_returns_404(client, create_user, auth_headers):

@@ -1,13 +1,24 @@
 """Tests for POST /api/v1/settings/backup/restore/.
 
-Covers the glossary backfill for backups made before the
-glossary/whisper_prompt split — restoring an older backup must not
-silently turn off term correction (see AGENTS.md "Phonetic Term
-Correction").
+Covers backups from before dictionaries existed: their free-text glossary
+(or, older still, whisper_prompt) becomes a dictionary attached to the
+category, so restoring one does not silently turn off term correction (see
+AGENTS.md "Phonetic Term Correction"). Also the export/restore round trip of
+global dictionaries.
 """
 
 import io
 import json
+
+
+def _attached_terms(client, headers, category):
+    terms = []
+    for dictionary_id in category["dictionary_ids"]:
+        response = client.get(
+            f"/api/v1/settings/dictionaries/{dictionary_id}", headers=headers
+        )
+        terms += response.json()["terms"]
+    return terms
 
 
 def test_restore_backfills_glossary_from_whisper_prompt_when_missing(
@@ -53,7 +64,10 @@ def test_restore_backfills_glossary_from_whisper_prompt_when_missing(
     categories = categories_response.json()
     assert len(categories) == 1
     assert categories[0]["whisper_prompt"] == "Sertralin, Ibuprofen"
-    assert categories[0]["glossary"] == "Sertralin, Ibuprofen"
+    assert _attached_terms(client, headers, categories[0]) == [
+        "Sertralin",
+        "Ibuprofen",
+    ]
 
 
 def test_restore_keeps_explicit_glossary_when_present(
@@ -98,7 +112,7 @@ def test_restore_keeps_explicit_glossary_when_present(
     categories_response = client.get("/api/v1/settings/categories/", headers=headers)
     categories = categories_response.json()
     assert categories[0]["whisper_prompt"] == "Stil-Hinweis"
-    assert categories[0]["glossary"] == "Metformin"
+    assert _attached_terms(client, headers, categories[0]) == ["Metformin"]
 
 
 def _restore(client, headers, backup):
@@ -158,3 +172,35 @@ def test_restore_turns_legacy_live_api_backend_into_disabled(
 
     stored = client.get("/api/v1/settings/whisper-settings/", headers=headers).json()
     assert stored["live_backend"] == "disabled"
+
+
+def test_export_and_restore_round_trip_global_dictionaries(
+    client, create_user, auth_headers
+):
+    admin = create_user("admin_user", role="admin")
+    headers = auth_headers(admin)
+    icd = client.post(
+        "/api/v1/settings/dictionaries/",
+        json={"name": "ICD", "scope": "global", "terms": ["Hypertonie, essentiell"]},
+        headers=headers,
+    ).json()["id"]
+    client.post(
+        "/api/v1/settings/categories/",
+        json={
+            "name": "Allgemein",
+            "description": "d",
+            "system_prompt": "s",
+            "dictionary_ids": [icd],
+        },
+        headers=headers,
+    )
+
+    backup = client.get("/api/v1/settings/backup/", headers=headers).json()
+    assert backup["settings"]["dictionaries"] == [
+        {"name": "ICD", "terms": ["Hypertonie, essentiell"]}
+    ]
+
+    assert _restore(client, headers, backup).status_code == 200
+
+    categories = client.get("/api/v1/settings/categories/", headers=headers).json()
+    assert _attached_terms(client, headers, categories[0]) == ["Hypertonie, essentiell"]

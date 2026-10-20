@@ -49,6 +49,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { defaultCategoryId } from "@/lib/categories";
 
 export interface Recording {
   id: string;
@@ -150,16 +151,7 @@ const Dashboard = () => {
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
-        // Pre-select "Allgemein" so the user never lands on an empty dropdown
-        // when starting a new recording. Falls back to the first category if
-        // "Allgemein" doesn't exist (e.g. renamed/deleted) rather than leaving
-        // no category selected - a recording always needs one.
-        setCategoryId(prev => {
-          if (prev) return prev;
-          const allgemein = data.find((c: Category) => c.name === "Allgemein");
-          if (allgemein) return allgemein.id.toString();
-          return data.length > 0 ? data[0].id.toString() : null;
-        });
+        setCategoryId(prev => prev ?? defaultCategoryId(data));
       }
     } catch (err) {
       console.error('Failed to fetch categories:', err);
@@ -466,7 +458,10 @@ const Dashboard = () => {
           setSelectedArchiveDate(dateKey);
           if (selectedRecording) setSelectedRecording(null);
         }}
-        onUploadClick={() => setUploadDialogOpen(true)}
+        onUploadClick={() => {
+          setUploadCategoryId(prev => prev ?? defaultCategoryId(categories));
+          setUploadDialogOpen(true);
+        }}
         showUploadButton={!activeSessionId && !selectedRecording}
         mobileOpen={mobileSidebarOpen}
         onMobileOpenChange={setMobileSidebarOpen}
@@ -678,7 +673,7 @@ const Dashboard = () => {
             categories={categories}
             onNewRecording={async () => {
               setSelectedRecording(null);
-              setCategoryId(null);
+              setCategoryId(defaultCategoryId(categories));
               setNewTitle("");
               setNewCategoryName("");
               await fetchRecords();

@@ -32,10 +32,21 @@ jobs:
             exit 1
           fi
 
+      # The manuals ship with every release. A failing build fails the
+      # release on purpose, so no version goes out without its manual.
+      # Pandoc and Typst run as Docker images; ImageMagick draws placeholders
+      # for screenshots that don't exist yet.
+      - name: Build user manuals (PDF)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick
+          OPENDOX_VERSION="${GITHUB_REF_NAME#v}" FORMATS=pdf scripts/build_handbuch.sh
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
-            --notes-file release_notes.md
+            --notes-file release_notes.md \
+            build/handbuch/*.pdf

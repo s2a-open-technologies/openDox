@@ -1,0 +1,150 @@
+// Pandoc-Template für die PDF-Ausgabe der openDox-Handbücher (Typst).
+// Pandoc ersetzt die Dollar-Platzhalter; ein literales Dollarzeichen wäre doppelt zu schreiben.
+// Gebaut von scripts/build_handbuch.sh, Logos und Fonts kommen aus vorlage/.
+
+#let navy = rgb("#1A2B6D")
+#let cyan = rgb("#00CED1")
+#let ink = rgb("#1f2937")
+#let muted = rgb("#6b7280")
+#let line-gray = rgb("#d1d5db")
+#let soft = rgb("#f3f6f9")
+
+#let doc-title = [$title$]
+#let doc-subtitle = [$subtitle$]
+#let doc-version = [$version$]
+#let doc-stand = [$stand$]
+
+#let horizontalrule = line(length: 100%, stroke: 0.5pt + line-gray)
+
+#set document(title: [openDox – $subtitle$], author: "$author$")
+#set text(font: "Lato", size: 10.5pt, fill: ink, lang: "de", region: "DE", hyphenate: true)
+#set par(leading: 0.68em, spacing: 1.05em, justify: false)
+
+// --- Überschriften ---------------------------------------------------------
+#set heading(numbering: (..n) => if n.pos().len() <= 2 { numbering("1.1", ..n) })
+#show heading: set text(font: "Poppins", fill: navy, weight: "semibold")
+#show heading.where(level: 1): it => {
+  pagebreak(weak: true)
+  v(1.2cm)
+  block(below: 1em)[
+    #if it.numbering != none {
+      text(size: 30pt, fill: cyan, weight: "bold")[#counter(heading).display()]
+      h(0.4em)
+    }
+    #text(size: 20pt)[#it.body]
+  ]
+  line(length: 100%, stroke: 1.2pt + cyan)
+  v(0.6em)
+}
+#show heading.where(level: 2): it => block(above: 1.6em, below: 0.8em)[
+  #text(size: 13.5pt)[
+    #if it.numbering != none [#counter(heading).display()#h(0.6em)]
+    #it.body
+  ]
+]
+#show heading.where(level: 3): it => block(above: 1.3em, below: 0.6em)[
+  #text(size: 11.5pt, weight: "medium")[#it.body]
+]
+
+// --- Elemente ----------------------------------------------------------------
+#show link: set text(fill: navy)
+#show raw: set text(font: "DejaVu Sans Mono", size: 9pt)
+#show raw.where(block: true): it => block(
+  width: 100%, fill: soft, inset: 10pt, radius: 3pt, stroke: 0.5pt + line-gray, it,
+)
+#show raw.where(block: false): it => box(
+  fill: soft, inset: (x: 3pt), outset: (y: 2pt), radius: 2pt, it,
+)
+
+#show quote.where(block: true): it => block(
+  width: 100%, fill: soft, inset: (left: 14pt, rest: 10pt),
+  stroke: (left: 3pt + cyan), it.body,
+)
+
+#set table(
+  stroke: (x, y) => (bottom: 0.5pt + line-gray),
+  fill: (x, y) => if y == 0 { navy } else if calc.even(y) { soft },
+  inset: (x: 7pt, y: 6pt),
+)
+#show table.cell.where(y: 0): set text(fill: white, weight: "bold")
+#show figure.where(kind: table): set figure(supplement: [Tabelle])
+#show figure.where(kind: table): set block(breakable: true)
+#show figure.where(kind: table): set align(left)
+#show table: set align(left)
+
+#show figure.where(kind: image): set figure(supplement: [Abbildung])
+#show figure.where(kind: image): it => block(above: 1.4em, below: 1.4em, width: 100%)[
+  #align(center, box(stroke: 0.5pt + line-gray, inset: 0pt, it.body))
+  #v(0.3em)
+  #align(center, text(size: 9pt, fill: muted)[#it.supplement #context it.counter.display(it.numbering): #it.caption.body])
+]
+#show image: set image(width: 92%)
+
+#show terms: it => {
+  it.children.map(child => [
+    #strong[#child.term]
+    #block(inset: (left: 1.5em, top: -0.4em))[#child.description]
+  ]).join()
+}
+
+// --- Deckblatt ---------------------------------------------------------------
+#page(margin: 0pt, header: none, footer: none)[
+  #block(width: 100%, height: 46%, fill: navy, inset: (x: 2.5cm, top: 2.2cm, bottom: 2cm))[
+    #image("assets/s2a-logo-white.svg", width: 7.5cm)
+    #v(1fr)
+    #text(font: "Poppins", weight: "bold", size: 54pt, tracking: -1.5pt)[
+      #text(fill: white)[open]#text(fill: cyan)[Dox]
+    ]
+    #v(-0.6em)
+    #line(length: 6cm, stroke: 2pt + cyan)
+    #v(0.4em)
+    #text(font: "Poppins", size: 24pt, fill: white, weight: "medium")[#doc-subtitle]
+  ]
+  #block(inset: (x: 2.5cm, top: 1.6cm))[
+    #text(size: 12pt, fill: muted)[Medizinische Transkriptionsplattform]
+    #v(0.8em)
+    #grid(columns: (auto, auto), column-gutter: 1.2em, row-gutter: 0.6em,
+      text(fill: muted)[Version], text(weight: "bold")[#doc-version],
+      text(fill: muted)[Stand], doc-stand,
+      text(fill: muted)[Herausgeber], [$author$],
+      text(fill: muted)[Lizenz], [AGPL-3.0-or-later],
+    )
+  ]
+  #place(bottom + left, dx: 2.5cm, dy: -2.2cm, block(width: 16cm,
+    fill: rgb("#fff7ed"), stroke: (left: 3pt + rgb("#f59e0b")), inset: 12pt)[
+    #text(weight: "bold")[Kein Medizinprodukt.]
+    openDox ist kein zugelassenes Medizinprodukt. Alle maschinell erstellten
+    Texte müssen von qualifiziertem Fachpersonal geprüft werden.
+  ])
+]
+
+// --- Seitenlayout ab Inhaltsverzeichnis --------------------------------------
+#set page(
+  paper: "a4",
+  margin: (top: 2.8cm, bottom: 2.4cm, x: 2.3cm),
+  header: context {
+    set text(size: 8.5pt, fill: muted)
+    grid(columns: (1fr, 4.2cm), align: (left + horizon, right + horizon),
+      [#text(font: "Poppins", weight: "bold", fill: navy)[open]#text(font: "Poppins", weight: "bold", fill: cyan)[Dox] #h(0.4em) #doc-subtitle],
+      image("assets/s2a-logo-dark.svg", width: 4.2cm),
+    )
+    v(-0.3em)
+    line(length: 100%, stroke: 0.5pt + line-gray)
+  },
+  footer: context {
+    set text(size: 8.5pt, fill: muted)
+    line(length: 100%, stroke: 0.5pt + line-gray)
+    v(-0.3em)
+    grid(columns: (1fr, auto),
+      [Version #doc-version · Stand #doc-stand],
+      [Seite #counter(page).display() von #counter(page).final().first()],
+    )
+  },
+)
+#counter(page).update(1)
+
+#show outline.entry.where(level: 1): set block(above: 1.1em)
+#show outline.entry.where(level: 1): set text(weight: "bold", fill: navy)
+#outline(title: [Inhaltsverzeichnis], depth: 2, indent: auto)
+
+$body$

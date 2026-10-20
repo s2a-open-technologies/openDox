@@ -16,11 +16,16 @@
 # a driver >= 580 runs both.
 ARG DEVICE=gpu
 FROM python:3.12-slim AS base-cpu
+# Dynamically quantized int8 weights (~0.7 GB instead of ~2.5 GB): built for
+# CPU inference. Not used on the GPU image, where the CUDA provider runs part of
+# the int8 ops on the CPU and the copies cost more than int8 saves.
+ENV PARAKEET_QUANTIZATION=int8
 # Ubuntu 24.04 + CUDA 13: every onnxruntime-gpu >= 1.29 (the first with linux/aarch64
 # wheels) needs Python >= 3.11 AND is linked against CUDA 13 (libcublasLt.so.13). On a
 # CUDA 12 base the CUDA provider silently fails to load and onnxruntime runs on the CPU.
 # The host needs an NVIDIA driver >= 580 for CUDA 13.
 FROM nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04 AS base-gpu
+ENV PARAKEET_QUANTIZATION=
 
 # Final stage selects the right base via the DEVICE arg.
 FROM base-${DEVICE} AS final
@@ -93,7 +98,10 @@ RUN pip3 install --no-cache-dir -r requirements.${DEVICE}.txt
 # fail with "GPU=-1 cudaSetDevice()", and silently retry on CPU anyway. The
 # actual runtime provider selection is independent (main.py/streaming.py
 # re-resolve providers fresh at server start).
-RUN python -c "import onnx_asr; onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3', providers=['CPUExecutionProvider'])" \
+# Only the weights matching PARAKEET_QUANTIZATION (set per base stage above)
+# are baked in. Overriding it at runtime still works: onnx-asr then downloads
+# the other variant from HF on the first start.
+RUN python -c "import os, onnx_asr; onnx_asr.load_model('nemo-parakeet-tdt-0.6b-v3', quantization=os.environ.get('PARAKEET_QUANTIZATION') or None, providers=['CPUExecutionProvider'])" \
     && python -c "import onnx_asr; onnx_asr.load_vad('silero', path='/app/models/silero-vad', providers=['CPUExecutionProvider'])"
 
 COPY parakeet_server/streaming.py .

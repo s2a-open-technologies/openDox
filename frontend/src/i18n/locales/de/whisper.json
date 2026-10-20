@@ -46,7 +46,7 @@
     "description": "Qualitativ hochwertige Transkription nach der Aufnahme",
     "termCorrection": "Fachbegriff-Korrektur (Phonetik/Fuzzy)",
     "threshold": "Schwellenwert (0-100)",
-    "thresholdHint": "Vergleicht den finalen Text gegen das Vokabular aus dem Kategorie-Feld \"Korrektur-Glossar\" (Kölner Phonetik + Fuzzy-Matching) und ersetzt Treffer ab diesem Score."
+    "thresholdHint": "Ersetzt Wörter im finalen Text durch Begriffe aus den Wörterbüchern der Kategorie, wenn sie ähnlich klingen und ähnlich geschrieben sind. Der Score ist der Mittelwert aus beidem (0–100). 85 ist ein guter Standard; 90 korrigiert etwas weniger, ist bei sehr großen Wörterbüchern aber noch vorsichtiger."
   },
   "quality": {
     "title": "Qualität & Anti-Halluzination",

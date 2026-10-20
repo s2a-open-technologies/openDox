@@ -6,6 +6,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import text
 from sqlmodel import SQLModel, select
 
+from backend.components.models.dictionary import Dictionary
 from backend.components.models.encryption_key_state import EncryptionKeyState
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
@@ -219,7 +220,7 @@ def _read_raw(session_factory, table, column, row_id):
         ).scalar_one()
 
 
-def test_rotation_covers_title_and_settings_and_user_columns(session_factory):
+def test_rotation_covers_title_and_settings_and_dictionary_columns(session_factory):
     old_fernet = Fernet(KEY_A)
     run_key_rotation_if_needed(session_factory, logging.getLogger("test"), KEY_A, None)
     insert_raw_record(
@@ -229,7 +230,7 @@ def test_rotation_covers_title_and_settings_and_user_columns(session_factory):
         summarize=old_fernet.encrypt(b"s").decode(),
     )
     with session_factory() as session:
-        session.add(User(name="alice", hashed_password="x"))
+        session.add(Dictionary(name="Mein Wörterbuch", user_id=1))
         session.add(
             LdapSettingsModel(
                 server_host="h",
@@ -243,7 +244,7 @@ def test_rotation_covers_title_and_settings_and_user_columns(session_factory):
         session.commit()
     expected = {
         ("record", "title", 1): b"Titel",
-        ("user", "personal_glossary", 1): "Wörterbuch".encode(),
+        ("dictionary", "terms", 1): "Wörterbuch".encode(),
         ("ldapsettingsmodel", "bind_user_password", 1): b"ldap-secret",
         ("oidcsettingsmodel", "client_secret", 1): b"oidc-secret",
     }
@@ -266,7 +267,7 @@ def test_rotation_covers_title_and_settings_and_user_columns(session_factory):
 def test_empty_tables_do_not_trigger_wrong_key_warning(session_factory, caplog):
     run_key_rotation_if_needed(session_factory, logging.getLogger("test"), KEY_A, None)
     with session_factory() as session:
-        session.add(User(name="bob", hashed_password="x"))  # no personal_glossary
+        session.add(User(name="bob", hashed_password="x"))  # no encrypted columns
         session.commit()
 
     with caplog.at_level(logging.WARNING):

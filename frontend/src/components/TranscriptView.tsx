@@ -61,6 +61,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   const { t } = useTranslation(["transcript", "disclaimer"]);
   const { authFetch } = useAuth();
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
+  const [taskError, setTaskError] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState(transcript?.content || "");
   const [editedSummary, setEditedSummary] = useState(transcript?.summarize || "");
   const [confirmed, setConfirmed] = useState(false);
@@ -104,6 +105,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   useEffect(() => {
     if (!transcript?.taskId) {
       setTaskStatus(null);
+      setTaskError(null);
       return;
     }
 
@@ -114,6 +116,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
         if (res.ok) {
           const data = await res.json();
           setTaskStatus(data.status);
+          setTaskError(data.status === 'error' ? data.error ?? null : null);
 
           if (data.status === 'finished' || data.status === 'error') {
             clearInterval(interval);
@@ -237,6 +240,12 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       const data = await res.json();
       if (currentDbIdRef.current === targetId) {
         setEditedSummary(data.summarize || "");
+        // A failed pipeline is resolved by a successful regeneration.
+        if (data.task_status) {
+          setTaskStatus(data.task_status);
+          if (data.task_status !== 'error') setTaskError(null);
+        }
+        if (typeof data.has_audio === "boolean") setHasAudio(data.has_audio);
         toast.success(t("summary.regenerated"));
       } else {
         toast.success(t("summary.updatedFor", { title: targetTitle }));
@@ -318,6 +327,19 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
           </Button>
         </div>
       </div>
+
+      {taskStatus === 'error' && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{t("status.errorTitle")}</AlertTitle>
+          <AlertDescription className="space-y-1">
+            <p>{editedContent.trim() ? t("status.errorHintSummary") : t("status.errorHintTranscript")}</p>
+            {taskError && (
+              <p className="text-xs opacity-80">{t("status.errorDetail", { error: taskError })}</p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {hasUnsavedChanges && (
         <div className="text-amber-600 text-sm font-medium flex items-center gap-2">

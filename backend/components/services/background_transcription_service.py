@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import tempfile
+from datetime import datetime, timezone
 
 # Third party
 from sqlmodel import select
@@ -32,11 +33,11 @@ from backend.components.models.categories import Categories  # noqa: E402
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import Record
 from backend.components.models.task_model import Task
-from backend.components.models.user_model import User
 from backend.components.modules.logger import get_logger
-from backend.components.security.field_encryption import encrypt_bytes
+from backend.components.security.field_encryption import decrypt_bytes, encrypt_bytes
 from backend.components.services import audio_storage
 from backend.components.services.asr_factory import get_final_backend
+from backend.components.services.dictionary_service import glossary_for_category
 from backend.components.services.sanitizing_service import (
     _PRESERVE_TOKENS_INSTRUCTION,
     reinject,
@@ -48,10 +49,7 @@ from backend.components.services.settings_service import (
     get_whisper_params,
 )
 from backend.components.services.task_service import update_task_status
-from backend.components.services.term_correction_service import (
-    correct_terms,
-    parse_glossary,
-)
+from backend.components.services.term_correction_service import correct_terms
 from backend.components.sql.sql_engine import get_session_factory
 
 logger = get_logger(__name__)
@@ -145,41 +143,6 @@ def _should_overwrite_content(new_text: str, existing_content: str | None) -> bo
     return bool(new_text.strip()) or not bool((existing_content or "").strip())
 
 
-def _build_correction_glossary(
-    category_glossary: str | None, personal_glossary: str | None
-) -> str | None:
-    """Merge a category's glossary with the record owner's personal one.
-
-    Both are free-text (comma/semicolon/newline-separated, see
-    ``parse_glossary``); joined with a newline so either side can end
-    without a trailing separator. Unlike ``whisper_prompt``, this text
-    never goes through Whisper's ``initial_prompt`` (224-token, last-N
-    truncation) — it's only consumed by ``correct_terms()``, which has no
-    length limit.
-    """
-    parts = [p for p in (category_glossary, personal_glossary) if p]
-    return "\n".join(parts) if parts else None
-
-
-def _resolve_correction_glossary(
-    db, record: Record | None, category: Categories | None
-) -> str | None:
-    """Resolve the merged term-correction glossary for a task.
-
-    Combines the selected category's ``glossary`` (never ``whisper_prompt``
-    — see ``_build_correction_glossary``) with the record owner's
-    ``User.personal_glossary``, which always applies regardless of which
-    category (global or personal) was picked for the recording.
-    """
-    category_glossary = category.glossary or None if category else None
-    personal_glossary = None
-    if record:
-        owner = db.get(User, record.user_id)
-        if owner:
-            personal_glossary = owner.personal_glossary or None
-    return _build_correction_glossary(category_glossary, personal_glossary)
-
-
 def _archive_failed_audio_to_s3(db, task_id: int, file_path: str) -> bool:
     """Upload a failed task's audio to S3 right away, if S3 is configured.
 
@@ -256,6 +219,65 @@ def _retain_audio_for_retry(db, task_id: int, file_path: str) -> None:
         logger.error(f"[TASK {task_id}] Failed to retain audio for retry: {e}")
 
 
+def resolve_failed_task(db, record: Record) -> str | None:
+    """Mark a record's failed task as finished once the record is complete.
+
+    Called after the user regenerated the summary of a recording whose
+    pipeline had failed (typically the LLM step): the recording now has
+    transcript and summary, so the "error" state would otherwise stick
+    forever. The audio retained for the admin retry is no longer needed:
+    with audio download enabled it becomes the record's download audio
+    (``_persist_audio``, which the failed run never reached), otherwise it is
+    deleted. It is only deleted after the task change is committed, so a
+    failing commit never loses the recording.
+
+    Returns:
+        The task's status afterwards, or None if the record has no task.
+    """
+    if not record.task_id:
+        return None
+    task = db.get(Task, record.task_id)
+    if task is None or task.status != "error":
+        return task.status if task else None
+
+    retained_key = task.retry_audio_path if task.retry_audio_in_s3 else None
+    retained_local = task.retry_audio_path if not task.retry_audio_in_s3 else None
+    tmp_path = None
+    try:
+        source = retained_local
+        if retained_key:
+            encrypted = audio_storage.download_bytes(retained_key)
+            if encrypted is not None:
+                ext = os.path.basename(retained_key).split(".")[-2]
+                with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp:
+                    tmp.write(decrypt_bytes(encrypted))
+                    tmp_path = tmp.name
+                source = tmp_path
+        if source and os.path.exists(source) and not record.file:
+            s3_key = _persist_audio(source, record)
+            if s3_key:
+                record.file = s3_key
+                db.add(record)
+
+        task.status = "finished"
+        task.error = None
+        task.retry_audio_path = None
+        task.retry_audio_in_s3 = False
+        task.updated_at = datetime.now(timezone.utc)
+        db.add(task)
+        db.commit()
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    if retained_key:
+        audio_storage.delete(retained_key)
+    elif retained_local and os.path.exists(retained_local):
+        os.remove(retained_local)
+    logger.info(f"[TASK {task.id}] Resolved after summary regeneration")
+    return task.status
+
+
 def background_transcription_task(
     task_id: int,
     session_id: str,
@@ -313,10 +335,11 @@ def background_transcription_task(
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
 
         whisper_settings = get_settings()
-        correction_glossary_text = _resolve_correction_glossary(db, record, cat)
-        if whisper_settings.term_correction_enabled and correction_glossary_text:
+        if whisper_settings.term_correction_enabled:
             try:
-                glossary = parse_glossary(correction_glossary_text)
+                # Only the dictionaries attached to the recording's category
+                # apply — whisper_prompt never feeds the correction.
+                glossary = glossary_for_category(db, cat)
                 if glossary:
                     text, replacements = correct_terms(
                         text, glossary, whisper_settings.term_correction_threshold

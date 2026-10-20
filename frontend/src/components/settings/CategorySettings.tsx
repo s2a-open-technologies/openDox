@@ -26,10 +26,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { DictionarySummary } from './DictionarySettings';
 
 interface CategorySettingsData {
     id?: number;
@@ -37,7 +39,7 @@ interface CategorySettingsData {
     description: string;
     system_prompt: string;
     whisper_prompt: string | null;
-    glossary: string | null;
+    dictionary_ids: number[];
     llm_override_enabled: boolean;
     llm_model: string | null;
     llm_api_endpoint: string | null;
@@ -55,7 +57,7 @@ const emptyForm = (): CategorySettingsData => ({
     description: '',
     system_prompt: '',
     whisper_prompt: null,
-    glossary: null,
+    dictionary_ids: [],
     llm_override_enabled: false,
     llm_model: null,
     llm_api_endpoint: null,
@@ -75,6 +77,7 @@ const CategorySettings = () => {
     const [settings, setSettings] = useState<CategorySettingsData>(emptyForm());
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [dictionaries, setDictionaries] = useState<DictionarySummary[]>([]);
 
     const canManage = (category: CategorySettingsData) =>
         category.user_id != null ? category.user_id === user?.id || user?.role === 'admin' : isPrivileged;
@@ -91,9 +94,37 @@ const CategorySettings = () => {
         }
     };
 
+    const fetchDictionaries = async () => {
+        try {
+            const res = await authFetch('/api/v1/settings/dictionaries/');
+            if (res.ok) {
+                setDictionaries(await res.json());
+            }
+        } catch (error) {
+            console.error('Failed to fetch dictionaries:', error);
+        }
+    };
+
     useEffect(() => {
         fetchCategories();
+        fetchDictionaries();
     }, []);
+
+    // A global category takes global dictionaries only; a personal one also
+    // its owner's (the server enforces the same rule). New categories are
+    // global for privileged roles and personal for everyone else.
+    const formIsGlobal = isEditing ? settings.user_id == null : isPrivileged;
+    const selectableDictionaries = dictionaries.filter(d =>
+        d.user_id == null || (!formIsGlobal && d.user_id === user?.id)
+    );
+    const toggleDictionary = (id: number, checked: boolean) => {
+        setSettings({
+            ...settings,
+            dictionary_ids: checked
+                ? [...settings.dictionary_ids, id]
+                : settings.dictionary_ids.filter(existing => existing !== id),
+        });
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -129,6 +160,7 @@ const CategorySettings = () => {
             if (res.ok) {
                 toast.success(isEditing ? t('updated') : t('created'));
                 await fetchCategories();
+                await fetchDictionaries();
                 resetForm();
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -284,15 +316,36 @@ const CategorySettings = () => {
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label>{t('form.glossary')}</Label>
-                            <Textarea
-                                value={settings.glossary ?? ''}
-                                onChange={e => setSettings({ ...settings, glossary: e.target.value || null })}
-                                placeholder={t('form.glossaryPlaceholder')}
-                                className="min-h-[80px]"
-                            />
+                            <Label>{t('form.dictionaries')}</Label>
+                            {selectableDictionaries.length > 0 ? (
+                                <div className="border rounded-lg divide-y max-h-56 overflow-y-auto">
+                                    {selectableDictionaries.map(dictionary => {
+                                        const checkboxId = `cat-dict-${dictionary.id}`;
+                                        return (
+                                            <div key={dictionary.id} className="flex items-center gap-3 px-3 py-2">
+                                                <Checkbox
+                                                    id={checkboxId}
+                                                    checked={settings.dictionary_ids.includes(dictionary.id)}
+                                                    onCheckedChange={checked => toggleDictionary(dictionary.id, checked === true)}
+                                                />
+                                                <Label htmlFor={checkboxId} className="font-normal flex-1 cursor-pointer">
+                                                    {dictionary.name}
+                                                    <span className="text-xs text-muted-foreground ml-2">
+                                                        {t('form.dictionaryTerms', { count: dictionary.term_count })}
+                                                    </span>
+                                                </Label>
+                                                <span className="text-[10px] uppercase tracking-wide rounded-full border px-2 py-0.5 text-muted-foreground">
+                                                    {dictionary.user_id == null ? t('badgeGlobal') : t('badgeOwn')}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">{t('form.noDictionaries')}</p>
+                            )}
                             <p className="text-xs text-muted-foreground">
-                                {t('form.glossaryHint')}
+                                {formIsGlobal ? t('form.dictionariesHintGlobal') : t('form.dictionariesHintOwn')}
                             </p>
                         </div>
 

@@ -20,11 +20,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
 import requests as _requests
-from fastapi import Depends, File, HTTPException, Request, UploadFile
+from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlmodel import select
 
@@ -40,6 +41,14 @@ from backend.components.models.client_settings_model import (
     ClientConfig,
     ClientSettingsModel,
 )
+from backend.components.models.dictionary import (
+    CategoryDictionaryLink,
+    Dictionary,
+    DictionaryCreate,
+    DictionaryListRead,
+    DictionaryRead,
+    DictionaryUpdate,
+)
 from backend.components.models.languages import (
     Languages,
     LanguagesCreate,
@@ -51,8 +60,6 @@ from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.user_model import (
     UI_LANGUAGES,
-    PersonalGlossaryRead,
-    PersonalGlossaryUpdate,
     UiLanguageRead,
     UiLanguageUpdate,
     User,
@@ -60,7 +67,7 @@ from backend.components.models.user_model import (
 from backend.components.modules.api_errors import api_error
 from backend.components.modules.env import env_or_file
 from backend.components.modules.public_url import request_base_url
-from backend.components.services import audio_storage
+from backend.components.services import audio_storage, dictionary_service
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
     get_final_backend,
@@ -571,6 +578,40 @@ _LLM_OVERRIDE_DEFAULTS = {
 }
 
 
+_PRIVILEGED_CATEGORY_ROLES = ("admin", "moderator", "demo_viewer")
+
+
+def _validate_dictionary_ids(
+    db: SessionDep, dictionary_ids: list[int], category_user_id: int | None
+) -> None:
+    """Check that dictionaries may be attached to a category of this scope.
+
+    A global category takes global dictionaries only; a personal category
+    takes global ones plus those owned by the category's owner.
+
+    Raises:
+        HTTPException: 404 for an unknown id, 400 for a scope mismatch.
+    """
+    for dictionary_id in dictionary_ids:
+        dictionary = db.get(Dictionary, dictionary_id)
+        if dictionary is None:
+            raise api_error(404, "dictionary_not_found", "Dictionary not found")
+        if dictionary.user_id is not None and (
+            category_user_id is None or dictionary.user_id != category_user_id
+        ):
+            raise api_error(
+                400,
+                "dictionary_scope_mismatch",
+                "A global category can only use global dictionaries",
+            )
+
+
+def _category_out(db: SessionDep, category: Categories, schema: type) -> Any:
+    """Build a category response including its attached dictionary ids."""
+    ids = dictionary_service.dictionary_ids_by_category(db, [category.id])
+    return schema(**category.model_dump(), dictionary_ids=ids[category.id])
+
+
 @settings_bp.post("/categories/", response_model=CategoriesRead)
 async def create_category(
     category: CategoriesCreate,
@@ -579,16 +620,20 @@ async def create_category(
 ):
     """Create a global or personal category for the current user."""
     data = category.model_dump()
-    if current_user.role in ("admin", "moderator", "demo_viewer"):
+    dictionary_ids = data.pop("dictionary_ids") or []
+    if current_user.role in _PRIVILEGED_CATEGORY_ROLES:
         data["user_id"] = None
     else:
         data["user_id"] = current_user.id
         data.update(_LLM_OVERRIDE_DEFAULTS)
+    _validate_dictionary_ids(db, dictionary_ids, data["user_id"])
     db_category = Categories(**data)
     db.add(db_category)
+    db.flush()
+    dictionary_service.set_category_dictionaries(db, db_category.id, dictionary_ids)
     db.commit()
     db.refresh(db_category)
-    return db_category
+    return _category_out(db, db_category, CategoriesRead)
 
 
 @settings_bp.get("/categories/", response_model=list[CategoriesListRead])
@@ -605,7 +650,11 @@ async def read_categories(
             (Categories.user_id.is_(None)) | (Categories.user_id == current_user.id)
         )
     categories = db.exec(query.offset(offset).limit(limit)).all()
-    return categories
+    ids = dictionary_service.dictionary_ids_by_category(db, [c.id for c in categories])
+    return [
+        CategoriesListRead(**c.model_dump(), dictionary_ids=ids[c.id])
+        for c in categories
+    ]
 
 
 @settings_bp.get("/categories/{category_id}", response_model=CategoriesListRead)
@@ -624,7 +673,7 @@ async def read_category(
         and category.user_id != current_user.id
     ):
         raise api_error(404, "category_not_found", "Category not found")
-    return category
+    return _category_out(db, category, CategoriesListRead)
 
 
 @settings_bp.put("/categories/{category_id}", response_model=CategoriesRead)
@@ -643,7 +692,7 @@ async def update_category(
         db_category.user_id is not None and db_category.user_id == current_user.id
     )
     if db_category.user_id is None:
-        if current_user.role not in ("admin", "moderator", "demo_viewer"):
+        if current_user.role not in _PRIVILEGED_CATEGORY_ROLES:
             raise api_error(
                 403, "moderator_required", "Moderator or admin role required"
             )
@@ -653,7 +702,9 @@ async def update_category(
         )
 
     category_data = category.model_dump(exclude_unset=True)
-    is_privileged_editor = current_user.role in ("admin", "moderator", "demo_viewer")
+    # Omitted = leave the attached dictionaries as they are.
+    dictionary_ids = category_data.pop("dictionary_ids", None)
+    is_privileged_editor = current_user.role in _PRIVILEGED_CATEGORY_ROLES
     if not is_privileged_editor or db_category.user_id is not None:
         category_data.update(_LLM_OVERRIDE_DEFAULTS)
     if not category_data.get("llm_api_key"):
@@ -661,11 +712,23 @@ async def update_category(
         # didn't touch it would otherwise wipe the stored key on every save.
         category_data.pop("llm_api_key", None)
 
+    if dictionary_ids is not None:
+        _validate_dictionary_ids(db, dictionary_ids, db_category.user_id)
+        dictionary_service.set_category_dictionaries(db, db_category.id, dictionary_ids)
     db_category.sqlmodel_update(category_data)
     db.add(db_category)
     db.commit()
     db.refresh(db_category)
-    return db_category
+    return _category_out(db, db_category, CategoriesRead)
+
+
+def _delete_links(db: SessionDep, column, value: int) -> None:
+    """Delete category/dictionary links explicitly.
+
+    The FKs cascade on PostgreSQL, but SQLite (tests) does not enforce them.
+    """
+    for link in db.exec(select(CategoryDictionaryLink).where(column == value)).all():
+        db.delete(link)
 
 
 @settings_bp.delete("/categories/{category_id}")
@@ -681,7 +744,7 @@ async def delete_category(
 
     is_owner = category.user_id is not None and category.user_id == current_user.id
     if category.user_id is None:
-        if current_user.role not in ("admin", "moderator", "demo_viewer"):
+        if current_user.role not in _PRIVILEGED_CATEGORY_ROLES:
             raise api_error(
                 403, "moderator_required", "Moderator or admin role required"
             )
@@ -690,39 +753,203 @@ async def delete_category(
             403, "category_delete_forbidden", "Not authorized to delete this category"
         )
 
+    _delete_links(db, CategoryDictionaryLink.category_id, category_id)
     db.delete(category)
     db.commit()
     return {"ok": True}
 
 
-# Personal Dictionary Endpoint
+# Dictionary Endpoints
 #
-# Each user's own free-text correction glossary, private to them — never
-# exposed via any admin-facing endpoint or schema, unlike personal
-# categories (which admins can see for support purposes, see above).
-# Merged with the selected recording's category glossary at term-correction
-# time (background_transcription_service.py), regardless of which category
-# was picked.
+# Term lists for the phonetic term correction. user_id=None = global, managed
+# by admins/moderators (same roles as global categories); otherwise personal
+# and visible to its owner ONLY — unlike personal categories, admins never see
+# another user's dictionaries (users realistically enter names there). A
+# dictionary only takes effect through the categories it is attached to.
 
 
-@settings_bp.get("/my-dictionary/", response_model=PersonalGlossaryRead)
-async def get_my_dictionary(current_user: User = Depends(get_current_user)):
-    """Return the current user's personal glossary."""
-    return PersonalGlossaryRead(personal_glossary=current_user.personal_glossary)
+def _get_visible_dictionary(
+    db: SessionDep, dictionary_id: int, current_user: User
+) -> Dictionary:
+    """Return a dictionary the caller may see, else 404."""
+    dictionary = db.get(Dictionary, dictionary_id)
+    if dictionary is None or (
+        dictionary.user_id is not None and dictionary.user_id != current_user.id
+    ):
+        raise api_error(404, "dictionary_not_found", "Dictionary not found")
+    return dictionary
 
 
-@settings_bp.put("/my-dictionary/", response_model=PersonalGlossaryRead)
-async def update_my_dictionary(
-    payload: PersonalGlossaryUpdate,
+def _get_editable_dictionary(
+    db: SessionDep, dictionary_id: int, current_user: User
+) -> Dictionary:
+    """Return a dictionary the caller may change, else 404/403."""
+    dictionary = _get_visible_dictionary(db, dictionary_id, current_user)
+    if (
+        dictionary.user_id is None
+        and current_user.role not in _PRIVILEGED_CATEGORY_ROLES
+    ):
+        raise api_error(403, "moderator_required", "Moderator or admin role required")
+    return dictionary
+
+
+def _dictionary_out(db: SessionDep, dictionary: Dictionary, with_terms: bool) -> Any:
+    """Build a dictionary response with the ids of the categories using it."""
+    category_ids = dictionary_service.category_ids_by_dictionary(db, [dictionary.id])
+    fields = dict(
+        id=dictionary.id,
+        name=dictionary.name,
+        user_id=dictionary.user_id,
+        term_count=dictionary.term_count,
+        updated_at=dictionary.updated_at,
+        category_ids=category_ids[dictionary.id],
+    )
+    if with_terms:
+        return DictionaryRead(
+            **fields, terms=dictionary_service.parse_terms(dictionary.terms)
+        )
+    return DictionaryListRead(**fields)
+
+
+def _normalized_terms(terms: list[str]) -> list[str]:
+    """Normalize typed terms, mapping input errors to API errors."""
+    try:
+        return dictionary_service.normalize_terms(terms)
+    except dictionary_service.DictionaryInputError as e:
+        raise api_error(400, e.code, e.message, **e.params) from e
+
+
+@settings_bp.get("/dictionaries/", response_model=list[DictionaryListRead])
+async def list_dictionaries(
+    db: SessionDep, current_user: User = Depends(get_current_user)
+):
+    """List the global dictionaries plus the caller's own, without terms."""
+    dictionaries = db.exec(
+        select(Dictionary)
+        .where((Dictionary.user_id.is_(None)) | (Dictionary.user_id == current_user.id))
+        .order_by(Dictionary.name)
+    ).all()
+    category_ids = dictionary_service.category_ids_by_dictionary(
+        db, [d.id for d in dictionaries]
+    )
+    return [
+        DictionaryListRead(
+            id=d.id,
+            name=d.name,
+            user_id=d.user_id,
+            term_count=d.term_count,
+            updated_at=d.updated_at,
+            category_ids=category_ids[d.id],
+        )
+        for d in dictionaries
+    ]
+
+
+@settings_bp.get("/dictionaries/{dictionary_id}", response_model=DictionaryRead)
+async def read_dictionary(
+    dictionary_id: int,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
-    """Update the current user's personal glossary."""
-    current_user.personal_glossary = payload.personal_glossary
-    db.add(current_user)
+    """Return one dictionary including its terms."""
+    dictionary = _get_visible_dictionary(db, dictionary_id, current_user)
+    return _dictionary_out(db, dictionary, with_terms=True)
+
+
+@settings_bp.post("/dictionaries/", response_model=DictionaryRead)
+async def create_dictionary(
+    payload: DictionaryCreate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Create a global (moderator/admin) or personal dictionary."""
+    if (
+        payload.scope == "global"
+        and current_user.role not in _PRIVILEGED_CATEGORY_ROLES
+    ):
+        raise api_error(403, "moderator_required", "Moderator or admin role required")
+    name = payload.name.strip()
+    if not name:
+        raise api_error(400, "dictionary_name_required", "Name is required")
+    dictionary = Dictionary(
+        name=name, user_id=None if payload.scope == "global" else current_user.id
+    )
+    dictionary_service.set_terms(dictionary, _normalized_terms(payload.terms or []))
+    db.add(dictionary)
     db.commit()
-    db.refresh(current_user)
-    return PersonalGlossaryRead(personal_glossary=current_user.personal_glossary)
+    db.refresh(dictionary)
+    return _dictionary_out(db, dictionary, with_terms=True)
+
+
+@settings_bp.put("/dictionaries/{dictionary_id}", response_model=DictionaryRead)
+async def update_dictionary(
+    dictionary_id: int,
+    payload: DictionaryUpdate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Rename a dictionary and/or replace its terms."""
+    dictionary = _get_editable_dictionary(db, dictionary_id, current_user)
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise api_error(400, "dictionary_name_required", "Name is required")
+        dictionary.name = name
+    if payload.terms is not None:
+        dictionary_service.set_terms(dictionary, _normalized_terms(payload.terms))
+    dictionary.updated_at = datetime.now(timezone.utc)
+    db.add(dictionary)
+    db.commit()
+    db.refresh(dictionary)
+    return _dictionary_out(db, dictionary, with_terms=True)
+
+
+@settings_bp.post(
+    "/dictionaries/{dictionary_id}/upload", response_model=DictionaryListRead
+)
+async def upload_dictionary_terms(
+    dictionary_id: int,
+    db: SessionDep,
+    file: UploadFile = File(...),
+    mode: str = Form("replace"),
+    current_user: User = Depends(get_current_user),
+):
+    """Replace or extend a dictionary's terms from a .txt/.csv file.
+
+    See ``dictionary_service`` for the accepted file format.
+    """
+    dictionary = _get_editable_dictionary(db, dictionary_id, current_user)
+    if mode not in ("replace", "append"):
+        raise api_error(400, "dictionary_upload_invalid", "Invalid upload mode")
+    data = await file.read(dictionary_service.MAX_UPLOAD_BYTES + 1)
+    try:
+        uploaded = dictionary_service.parse_upload(file.filename or "", data)
+        if mode == "append":
+            uploaded = dictionary_service.normalize_terms(
+                dictionary_service.parse_terms(dictionary.terms) + uploaded
+            )
+    except dictionary_service.DictionaryInputError as e:
+        raise api_error(400, e.code, e.message, **e.params) from e
+    dictionary_service.set_terms(dictionary, uploaded)
+    dictionary.updated_at = datetime.now(timezone.utc)
+    db.add(dictionary)
+    db.commit()
+    db.refresh(dictionary)
+    return _dictionary_out(db, dictionary, with_terms=False)
+
+
+@settings_bp.delete("/dictionaries/{dictionary_id}")
+async def delete_dictionary(
+    dictionary_id: int,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a dictionary; it is detached from all categories."""
+    dictionary = _get_editable_dictionary(db, dictionary_id, current_user)
+    _delete_links(db, CategoryDictionaryLink.dictionary_id, dictionary_id)
+    db.delete(dictionary)
+    db.commit()
+    return {"ok": True}
 
 
 # UI language Endpoint — the caller's own preferred interface language only.
@@ -842,6 +1069,24 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
     audio = db.exec(select(AudioSettingsModel)).first()
     categories = db.exec(select(Categories)).all()
     languages = db.exec(select(Languages)).all()
+    # Personal dictionaries stay out, like the User table; categories carry
+    # their global dictionaries by name (ids change on restore) and their
+    # personal ones by id (those rows survive a restore untouched).
+    global_dictionaries = db.exec(
+        select(Dictionary).where(Dictionary.user_id.is_(None))
+    ).all()
+    global_names = {d.id: d.name for d in global_dictionaries}
+    links = dictionary_service.dictionary_ids_by_category(
+        db, [c.id for c in categories]
+    )
+
+    def _category_entry(category: Categories) -> dict[str, Any]:
+        ids = links[category.id]
+        return {
+            **_serialize_model(category),
+            "global_dictionaries": [global_names[i] for i in ids if i in global_names],
+            "personal_dictionary_ids": [i for i in ids if i not in global_names],
+        }
 
     return {
         "version": "1.0",
@@ -851,8 +1096,15 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
             "llm": _serialize_model(llm) if llm else None,
             "ldap": _serialize_model(ldap) if ldap else None,
             "audio": _serialize_model(audio) if audio else None,
-            "categories": [_serialize_model(c) for c in categories],
+            "categories": [_category_entry(c) for c in categories],
             "languages": [_serialize_model(lang) for lang in languages],
+            "dictionaries": [
+                {
+                    "name": d.name,
+                    "terms": dictionary_service.parse_terms(d.terms),
+                }
+                for d in global_dictionaries
+            ],
         },
     }
 
@@ -862,11 +1114,19 @@ def _known_fields(model_cls: type, row_data: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in row_data.items() if k in model_cls.model_fields}
 
 
+def _split_legacy_glossary(text: str | None) -> list[str]:
+    """Split a pre-dictionary free-text glossary (comma/semicolon/newline)."""
+    if not text:
+        return []
+    return [t for t in re.split(r"[,;\n]+", text) if len(t.strip()) >= 3]
+
+
 def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     """Restore settings from a backup dict into the database.
 
     Overwrites singleton rows in place (matching by first row) and replaces
-    all list-table rows (categories, languages) wholesale.
+    all list-table rows (global dictionaries, categories, languages) wholesale;
+    personal dictionaries are kept and re-attached to their categories.
 
     Args:
         db: Active database session.
@@ -901,26 +1161,84 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
         else:
             db.add(model_cls(**row_data))
 
-    # --- List tables (replace wholesale) ---
-    for model_cls, key in [
-        (Categories, "categories"),
-        (Languages, "languages"),
-    ]:
-        rows_data = settings.get(key)
-        if not isinstance(rows_data, list):
-            continue
-        for row in db.exec(select(model_cls)).all():
+    # --- Global dictionaries (replace wholesale; personal ones are kept) ---
+    dictionaries_data = settings.get("dictionaries")
+    global_by_name: dict[str, int] = {}
+    if isinstance(dictionaries_data, list):
+        for old in db.exec(
+            select(Dictionary).where(Dictionary.user_id.is_(None))
+        ).all():
+            _delete_links(db, CategoryDictionaryLink.dictionary_id, old.id)
+            db.delete(old)
+        db.flush()
+        for entry in dictionaries_data:
+            if not isinstance(entry, dict) or not entry.get("name"):
+                continue
+            dictionary = Dictionary(name=entry["name"])
+            dictionary_service.set_terms(
+                dictionary,
+                _normalized_terms([str(t) for t in entry.get("terms") or []]),
+            )
+            db.add(dictionary)
+            db.flush()
+            global_by_name[dictionary.name] = dictionary.id
+    else:
+        global_by_name = {
+            d.name: d.id
+            for d in db.exec(
+                select(Dictionary).where(Dictionary.user_id.is_(None))
+            ).all()
+        }
+
+    # --- Categories (replace wholesale, re-attach dictionaries) ---
+    categories_data = settings.get("categories")
+    if isinstance(categories_data, list):
+        for row in db.exec(select(Categories)).all():
+            _delete_links(db, CategoryDictionaryLink.category_id, row.id)
             db.delete(row)
-        for row_data in rows_data:
+        db.flush()
+        for row_data in categories_data:
             if not isinstance(row_data, dict):
                 continue
-            if model_cls is Categories and "glossary" not in row_data:
-                # Backups made before the glossary/whisper_prompt split only
-                # have whisper_prompt — backfill so term correction doesn't
-                # silently stop working after restoring an older backup
-                # (mirrors the migration's own backfill).
-                row_data = {**row_data, "glossary": row_data.get("whisper_prompt")}
-            db.add(model_cls(**_known_fields(model_cls, row_data)))
+            category = Categories(**_known_fields(Categories, row_data))
+            db.add(category)
+            db.flush()
+            dictionary_ids = [
+                global_by_name[name]
+                for name in row_data.get("global_dictionaries") or []
+                if name in global_by_name
+            ]
+            for dictionary_id in row_data.get("personal_dictionary_ids") or []:
+                personal = db.get(Dictionary, dictionary_id)
+                if personal is not None and personal.user_id == category.user_id:
+                    dictionary_ids.append(dictionary_id)
+            # Backups from before dictionaries carry the old free-text
+            # glossary (or, older still, only whisper_prompt, which doubled
+            # as the glossary): turn it into a dictionary of the category's
+            # scope so term correction keeps working after the restore.
+            if "global_dictionaries" not in row_data:
+                legacy = row_data.get("glossary", row_data.get("whisper_prompt"))
+                terms = _normalized_terms(_split_legacy_glossary(legacy))
+                if terms:
+                    dictionary = Dictionary(
+                        name=category.name, user_id=category.user_id
+                    )
+                    dictionary_service.set_terms(dictionary, terms)
+                    db.add(dictionary)
+                    db.flush()
+                    dictionary_ids.append(dictionary.id)
+            dictionary_service.set_category_dictionaries(
+                db, category.id, dictionary_ids
+            )
+
+    # --- Languages (replace wholesale) ---
+    languages_data = settings.get("languages")
+    if isinstance(languages_data, list):
+        for row in db.exec(select(Languages)).all():
+            db.delete(row)
+        for row_data in languages_data:
+            if isinstance(row_data, dict):
+                db.add(Languages(**_known_fields(Languages, row_data)))
 
     db.commit()
     get_settings_service().invalidate_cache()

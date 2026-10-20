@@ -16,10 +16,13 @@
     "systemPromptPlaceholder": "Instructions for the summary, e.g. format, structure, focus...",
     "whisperPrompt": "Transcription hint (Whisper)",
     "whisperPromptPlaceholder": "Cardiology, echocardiography, sinus bradycardia, Dr. Miller, ECG, heart failure ...",
-    "whisperPromptHint": "Short style/pronunciation hint for Whisper. Whisper only considers the last ~224 tokens of it — use the correction glossary below for long lists of technical terms. Optional.",
-    "glossary": "Correction glossary",
-    "glossaryPlaceholder": "Sertraline, metformin, ibuprofen ...",
-    "glossaryHint": "Terms that are automatically corrected phonetically after the final transcription (independent of the transcription hint above, no length limit). Same format: comma-, semicolon- or line-separated."
+    "whisperPromptHint": "Short style/pronunciation hint for Whisper. Whisper only considers the last ~224 tokens of it — long lists of technical terms belong in a dictionary (below). Optional.",
+    "dictionaries": "Dictionaries",
+    "dictionaryTerms_one": "{{count}} term",
+    "dictionaryTerms_other": "{{count}} terms",
+    "noDictionaries": "No dictionaries yet. Create one under Dictionaries.",
+    "dictionariesHintGlobal": "Terms from these dictionaries are corrected phonetically after the final transcription. A global category can only use global dictionaries.",
+    "dictionariesHintOwn": "Terms from these dictionaries are corrected phonetically after the final transcription. Your own category can use global dictionaries and your own."
   },
   "llm": {
     "useOwn": "Use own LLM",

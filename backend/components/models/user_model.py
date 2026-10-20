@@ -21,10 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
-
-from backend.components.security.field_encryption import EncryptedString
 
 # Valid role values. ``admin`` supersedes the legacy ``is_superuser=True``.
 # ``demo_viewer``: sieht alle Admin-Bereiche, aber nur lesend (Demo-Zwecke);
@@ -49,16 +46,6 @@ class User(SQLModel, table=True):
     # Preferred UI language (one of UI_LANGUAGES); None = not chosen yet, the
     # frontend then falls back to the browser language.
     ui_language: Optional[str] = Field(default=None)
-    # Free-text glossary (same comma/semicolon/newline format as
-    # Categories.glossary), private to the owner — merged with the
-    # selected recording's category glossary at term-correction time. Never
-    # exposed via UserRead/any admin-facing user schema, only via the
-    # dedicated PersonalGlossaryRead/-Update pair below. Encrypted at rest
-    # like the other patient-adjacent fields (Record.content etc.) — users
-    # realistically enter patient/doctor names here.
-    personal_glossary: Optional[str] = Field(
-        default=None, sa_column=Column(EncryptedString, nullable=True)
-    )
 
     @property
     def is_superuser(self) -> bool:
@@ -103,23 +90,6 @@ class UserUpdate(SQLModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
-
-
-class PersonalGlossaryRead(SQLModel):
-    """Schema for reading the current user's personal glossary.
-
-    Deliberately narrow — never composed with UserRead or any
-    admin-facing user schema, since the personal glossary is private to
-    its owner (see GET/PUT /api/v1/settings/my-dictionary/).
-    """
-
-    personal_glossary: Optional[str] = None
-
-
-class PersonalGlossaryUpdate(SQLModel):
-    """Schema for updating the current user's personal glossary."""
-
-    personal_glossary: Optional[str] = None
 
 
 class UiLanguageRead(SQLModel):

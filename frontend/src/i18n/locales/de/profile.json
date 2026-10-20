@@ -4,7 +4,7 @@
   "title": "Profil",
   "tabs": {
     "language": "Sprache",
-    "dictionary": "Mein Wörterbuch",
+    "dictionary": "Meine Wörterbücher",
     "categories": "Meine Kategorien",
     "appearance": "Design"
   },
@@ -16,8 +16,8 @@
     "saveFailed": "Sprache konnte nicht gespeichert werden"
   },
   "dictionary": {
-    "heading": "Mein Wörterbuch",
-    "description": "Ihr persönliches Korrektur-Wörterbuch, das bei jeder Ihrer Aufnahmen angewendet wird, unabhängig von der gewählten Kategorie."
+    "heading": "Meine Wörterbücher",
+    "description": "Eigene Begriffslisten für die automatische Fachbegriff-Korrektur, zum Beispiel zum Testen. Sie wirken nur in Ihren eigenen Kategorien, an die Sie sie anhängen."
   },
   "categories": {
     "heading": "Meine Kategorien",

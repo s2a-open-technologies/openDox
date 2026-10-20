@@ -39,18 +39,28 @@ function jsonResponse(body: unknown, ok = true) {
   return { ok, json: async () => body } as Response;
 }
 
+const DICTIONARIES_URL = "/api/v1/settings/dictionaries/";
+
+// The dictionary list is answered separately so the per-test authFetch mocks
+// keep describing only the category calls, in order.
 function renderWithAuth(
   authFetch: ReturnType<typeof vi.fn>,
   role: "admin" | "moderator" | "demo_viewer" | "user" = "admin",
-  id = 1
+  id = 1,
+  dictionaries: unknown[] = []
 ) {
+  const routedFetch = vi.fn((url: string, options?: RequestInit) =>
+    url === DICTIONARIES_URL
+      ? Promise.resolve(jsonResponse(dictionaries))
+      : authFetch(url, options)
+  );
   mockedUseAuth.mockReturnValue({
     user: { id, name: "tester", is_active: true, authenticated: true, role },
     isLoading: false,
     isAuthenticated: true,
     login: vi.fn(),
     logout: vi.fn(),
-    authFetch,
+    authFetch: routedFetch,
     acceptDisclaimer: vi.fn(),
   });
   return render(<CategorySettings />);
@@ -187,14 +197,16 @@ describe("CategorySettings", () => {
     );
   });
 
-  it("sends the glossary field independently of the whisper prompt", async () => {
+  it("sends the selected dictionaries independently of the whisper prompt", async () => {
     const authFetch = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse([]))
       .mockResolvedValueOnce(jsonResponse({ id: 6, name: "Onkologie" }))
       .mockResolvedValueOnce(jsonResponse([]));
     const user = userEvent.setup();
-    renderWithAuth(authFetch);
+    renderWithAuth(authFetch, "admin", 1, [
+      { id: 3, name: "ICD", user_id: null, term_count: 2, category_ids: [] },
+    ]);
 
     await screen.findByText("Keine Kategorien vorhanden");
     await fillRequiredFields(user, {
@@ -206,17 +218,36 @@ describe("CategorySettings", () => {
       screen.getByPlaceholderText("Kardiologie, Echokardiographie, Sinusbradykardie, Dr. Müller, EKG, Herzinsuffizienz ..."),
       "Stil-Hinweis"
     );
-    await user.type(
-      screen.getByPlaceholderText("Sertralin, Metformin, Ibuprofen ..."),
-      "Sertralin, Ibuprofen"
-    );
+    await user.click(await screen.findByRole("checkbox", { name: /ICD/ }));
     await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
     await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(3));
     const [, options] = authFetch.mock.calls[1];
     const body = JSON.parse(options.body);
     expect(body.whisper_prompt).toBe("Stil-Hinweis");
-    expect(body.glossary).toBe("Sertralin, Ibuprofen");
+    expect(body.dictionary_ids).toEqual([3]);
+  });
+
+  it("offers only global dictionaries for a global category", async () => {
+    const authFetch = vi.fn().mockResolvedValue(jsonResponse([]));
+    renderWithAuth(authFetch, "admin", 1, [
+      { id: 3, name: "ICD", user_id: null, term_count: 2, category_ids: [] },
+      { id: 4, name: "Mein Test", user_id: 1, term_count: 1, category_ids: [] },
+    ]);
+
+    expect(await screen.findByRole("checkbox", { name: /ICD/ })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Mein Test/ })).not.toBeInTheDocument();
+  });
+
+  it("offers global and own dictionaries for a user's own category", async () => {
+    const authFetch = vi.fn().mockResolvedValue(jsonResponse([]));
+    renderWithAuth(authFetch, "user", 7, [
+      { id: 3, name: "ICD", user_id: null, term_count: 2, category_ids: [] },
+      { id: 4, name: "Mein Test", user_id: 7, term_count: 1, category_ids: [] },
+    ]);
+
+    expect(await screen.findByRole("checkbox", { name: /ICD/ })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Mein Test/ })).toBeInTheDocument();
   });
 
   it("shows the server error detail and keeps the form on create failure", async () => {

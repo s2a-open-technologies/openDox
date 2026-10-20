@@ -12,6 +12,32 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Security
+
+- Recordings are now private to their owner, also towards admins. Previously the `admin` role could read, download, change and delete any user's recordings through the API (`GET /record/{id}`, `/record/{id}/audio`, `/list-records/{user_id}`, …) and attach to another user's recording WebSocket; the web UI never offered this. Retrying failed transcriptions stays admin-only and shows no transcript content.
+
+### Added
+
+- User manual (`docs/handbuch/benutzer/`) with a build script (`scripts/build_handbuch.sh`, Pandoc → DOCX/PDF/XWiki). The PDF is attached to every GitHub Release.
+- Dictionaries for the medical term correction: named term lists, typed in or uploaded as `.txt`/`.csv` (one term per line, commas inside a term kept — e.g. the ICD catalog), and attached to categories. Admins/moderators manage global ones (Administration → Wörterbücher), every user their own (Profil → Meine Wörterbücher, private, also towards admins). Term correction is now fast with catalog-sized lists (`rapidfuzz.process.extractOne` instead of a per-term loop).
+- Parakeet CPU image (`PARAKEET_DEVICE=cpu`, `cpu-*` tags) uses the int8-quantized model (~0.7 GB instead of ~2.5 GB, faster on CPU). Controlled by `PARAKEET_QUANTIZATION`; the GPU image stays on FP32.
+
+### Changed
+
+- The free-text fields "Korrektur-Glossar" (per category) and "Mein Wörterbuch" (per user) are replaced by dictionaries; the migration converts them. A dictionary only takes effect in the categories it is attached to: a personal dictionary no longer applies to every recording automatically, only in the user's own categories (it is attached to all existing ones during the migration).
+
+### Removed
+
+- The seed categories Kardiologie, Orthopädie and Gynäkologie, also from existing installations; recordings using them move to "Allgemein".
+- `GET`/`PUT /api/v1/settings/my-dictionary/` (replaced by `/api/v1/settings/dictionaries/`).
+
+### Fixed
+
+- "Neue Aufnahme" from the transcript view and the upload dialog now preselect "Allgemein" instead of no category.
+- Term correction no longer rewrites correct words. It compared only the Kölner Phonetik codes, which drop vowels, so error-free text was "corrected" with unrelated terms (measured: "Notaufnahme" → "Metformin", "Indikation" → "Appendektomie"; 16 wrong replacements in a clean dictation with just 27 terms). A replacement now also needs a similar spelling, a similar length and a matching word count, and correctly spelled terms stay untouched including inflected forms. On the benchmark dictations the correction now lowers the word error rate by 2–3 points for every ASR model with zero wrong replacements, instead of leaving it unchanged.
+- A failed processing (e.g. the LLM step timing out) kept showing "Fehler" in the transcript view forever, even after the summary was regenerated successfully. Regenerating now resolves the failed task; the view shows what failed and what helps. The audio kept for the admin retry becomes the download audio when audio download is enabled, otherwise it is deleted.
+- Parakeet loaded its ASR model twice (once for the live WebSocket, once for `/v1/audio/transcriptions`), roughly doubling its (V)RAM use. Both now share one instance. `PARAKEET_MODEL` now also applies to live transcription, which previously ignored it.
+
 ## [0.10.3] — 2026-10-17
 
 ### Fixed

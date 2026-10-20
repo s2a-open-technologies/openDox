@@ -29,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { SUPPORTED_LANGUAGES, isSupportedLanguage } from '@/i18n';
 import CategorySettings from './settings/CategorySettings';
-import PersonalDictionary from './settings/PersonalDictionary';
+import DictionarySettings from './settings/DictionarySettings';
 import { ThemeToggle } from './settings/ThemeToggle';
 
 interface ProfileModalProps {
@@ -97,7 +97,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               <h3 className="text-lg font-medium">{t('dictionary.heading')}</h3>
               <p className="text-sm text-muted-foreground">{t('dictionary.description')}</p>
             </div>
-            <PersonalDictionary />
+            <DictionarySettings scope="personal" />
           </div>
         );
       case 'categories':

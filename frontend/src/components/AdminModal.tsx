@@ -24,7 +24,7 @@ import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  GlobeLock, BookOpenCheck, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor
+  GlobeLock, BookOpenCheck, BookMarked, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +36,7 @@ import LdapSettings from './settings/LdapSettings';
 import UserSettings from './settings/UserSettings';
 import SystemSettings from './settings/SystemSettings';
 import CategorySettings from './settings/CategorySettings';
+import DictionarySettings from './settings/DictionarySettings';
 import BackupSettings from './settings/BackupSettings';
 import { AudioConfig } from './settings/AudioConfig';
 import { AutoArchiveConfig } from './settings/AutoArchiveConfig';
@@ -70,6 +71,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
       { id: 'clients', label: t('nav.clients'), icon: Monitor },
     ] : []),
     { id: 'categories', label: t('nav.categories'), icon: BookOpenCheck },
+    { id: 'dictionaries', label: t('nav.dictionaries'), icon: BookMarked },
     { id: 'system', label: t('nav.system'), icon: Settings },
   ];
 
@@ -178,6 +180,12 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
         return (
           <div className="space-y-4">
             <CategorySettings />
+          </div>
+        );
+      case 'dictionaries':
+        return (
+          <div className="space-y-4">
+            <DictionarySettings scope="global" />
           </div>
         );
       default:

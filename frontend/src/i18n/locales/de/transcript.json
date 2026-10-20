@@ -6,7 +6,11 @@
   },
   "status": {
     "finished": "Fertig",
-    "error": "Fehler"
+    "error": "Fehler",
+    "errorTitle": "Verarbeitung fehlgeschlagen",
+    "errorHintSummary": "Das Transkript ist vorhanden, die Zusammenfassung konnte nicht erstellt werden. Erstellen Sie sie mit „Zusammenfassung neu generieren“ (Pfeil-Symbol neben der Zusammenfassung) erneut; danach verschwindet dieser Hinweis.",
+    "errorHintTranscript": "Die Transkription ist fehlgeschlagen. Ihre Administration kann die Aufnahme erneut verarbeiten lassen.",
+    "errorDetail": "Details: {{error}}"
   },
   "processing": {
     "llm": "KI erstellt Zusammenfassung...",

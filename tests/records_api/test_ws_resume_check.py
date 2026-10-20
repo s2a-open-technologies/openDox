@@ -119,3 +119,14 @@ def test_first_connection_without_recorded_audio_is_not_blocked(client, ws_env):
         message = ws.receive_json()
 
     assert message["status"] == "finished"
+
+
+def test_admin_cannot_attach_to_another_users_recording(client, ws_env, create_user):
+    user, session_id, _token, _pcm_path = ws_env
+    admin = create_user("ws-admin", role="admin")
+    admin_token = create_access_token(sub=str(admin.id))
+
+    with client.websocket_connect(_url(user, session_id, admin_token)) as ws:
+        message = ws.receive_json()
+
+    assert message == {"error": "Not authorized for this session"}

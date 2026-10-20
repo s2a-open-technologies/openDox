@@ -50,7 +50,15 @@ import onnxruntime as ort
 logger = logging.getLogger(__name__)
 
 # onnx-asr model name -> resolves to istupakov/parakeet-tdt-0.6b-v3-onnx on HF.
-MODEL_NAME = "nemo-parakeet-tdt-0.6b-v3"
+# One instance of this model serves both the live WebSocket and the one-shot
+# HTTP route (main.get_model), so it is only held in (V)RAM once.
+MODEL_NAME = os.getenv("PARAKEET_MODEL", "nemo-parakeet-tdt-0.6b-v3")
+
+# "int8" loads the dynamically quantized weights from the same HF repo (~0.7 GB
+# instead of ~2.5 GB). Default in the CPU image only: dynamic int8 is built for
+# CPU inference, and on the CUDA provider part of its ops fall back to the CPU,
+# which costs more in host<->device copies than it saves. Empty = FP32.
+QUANTIZATION = os.getenv("PARAKEET_QUANTIZATION", "").strip() or None
 
 # Audio format expected by the rest of the backend (PCM float32, mono, 16 kHz).
 PCM_SAMPLE_RATE = 16000
@@ -108,6 +116,34 @@ MAX_SEGMENT_S = 9.0
 MAX_CONCURRENT_DECODES = int(os.environ.get("PARAKEET_MAX_CONCURRENT_DECODES", "2"))
 
 
+def resolve_providers() -> list[str] | None:
+    """Return the ONNX execution providers to load models with.
+
+    Priority order:
+      1. ``RTT_ONNX_PROVIDERS`` env (comma-separated) — explicit override.
+      2. CUDAExecutionProvider + CPU fallback when onnxruntime-gpu is
+         installed (GPU build). TensorrtExecutionProvider is explicitly
+         excluded — the CUDA base image has no TensorRT libs, and if
+         onnxruntime tries TensorRT first it fails and silently falls back
+         to **CPU**, bypassing CUDA entirely.
+      3. onnxruntime default (CPU/CoreML auto) for the CPU build.
+
+    Returns:
+        Provider list, or ``None`` for onnxruntime defaults.
+    """
+    providers_env = os.environ.get("RTT_ONNX_PROVIDERS", "")
+    if providers_env.strip():
+        providers = [p.strip() for p in providers_env.split(",") if p.strip()]
+        logger.info("Using ONNX providers (from env): %s", providers)
+        return providers
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        logger.info("Using ONNX providers (auto, GPU): %s", providers)
+        return providers
+    logger.info("Using ONNX providers (auto, CPU default)")
+    return None
+
+
 class ParakeetStreamEngine:
     """Lazy-loaded Parakeet TDT v3 ONNX recognizer + Silero VAD (factory).
 
@@ -142,31 +178,14 @@ class ParakeetStreamEngine:
             import onnx_asr
 
             logger.info(
-                "Loading Parakeet TDT v3 ONNX model (first run downloads ~2.5 GB)..."
+                "Loading ASR model %s (quantization=%s)...",
+                MODEL_NAME,
+                QUANTIZATION or "none",
             )
-
-            # Provider selection, in priority order:
-            #   1. RTT_ONNX_PROVIDERS env (comma-separated) — explicit override.
-            #   2. CUDAExecutionProvider + CPU fallback when onnxruntime-gpu is
-            #      installed (GPU build). TensorrtExecutionProvider is explicitly
-            #      excluded — the CUDA base image has no TensorRT libs, and if
-            #      onnxruntime tries TensorRT first it fails and silently falls
-            #      back to **CPU**, bypassing CUDA entirely.
-            #   3. onnxruntime default (CPU/CoreML auto) for the CPU build.
-            providers_env = os.environ.get("RTT_ONNX_PROVIDERS", "")
-            if providers_env.strip():
-                providers = [p.strip() for p in providers_env.split(",") if p.strip()]
-                logger.info("Using ONNX providers (from env): %s", providers)
-            else:
-                available = ort.get_available_providers()
-                if "CUDAExecutionProvider" in available:
-                    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-                    logger.info("Using ONNX providers (auto, GPU): %s", providers)
-                else:
-                    providers = None
-                    logger.info("Using ONNX providers (auto, CPU default)")
-
-            self._asr = onnx_asr.load_model(MODEL_NAME, providers=providers)
+            providers = resolve_providers()
+            self._asr = onnx_asr.load_model(
+                MODEL_NAME, quantization=QUANTIZATION, providers=providers
+            )
 
             # Raw Silero VAD session for incremental, stateful streaming. The
             # onnx-asr SileroVad class only processes whole waveforms, so we
@@ -183,6 +202,16 @@ class ParakeetStreamEngine:
             self._asr = None
             self._vad_session = None
             return False
+
+    def get_asr(self):
+        """Return the shared ASR model, loading it on first use.
+
+        Raises:
+            RuntimeError: If the model cannot be loaded.
+        """
+        if not self.ensure_loaded():
+            raise RuntimeError("Parakeet stream engine failed to load")
+        return self._asr
 
     def new_session(self) -> "StreamingSession":
         """Create a new live transcription session."""

@@ -4,7 +4,7 @@
   "title": "Profile",
   "tabs": {
     "language": "Language",
-    "dictionary": "My dictionary",
+    "dictionary": "My dictionaries",
     "categories": "My categories",
     "appearance": "Appearance"
   },
@@ -16,8 +16,8 @@
     "saveFailed": "Could not save language"
   },
   "dictionary": {
-    "heading": "My dictionary",
-    "description": "Your personal correction dictionary, applied to every one of your recordings regardless of the selected category."
+    "heading": "My dictionaries",
+    "description": "Your own term lists for the automatic medical term correction, for example for testing. They only take effect in your own categories you attach them to."
   },
   "categories": {
     "heading": "My categories",

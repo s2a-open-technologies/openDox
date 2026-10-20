@@ -42,9 +42,15 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import JSONResponse
-from streaming import PCM_SAMPLE_RATE, parakeet_stream_engine
+from streaming import (
+    MODEL_NAME,
+    PCM_SAMPLE_RATE,
+    QUANTIZATION,
+    parakeet_stream_engine,
+    resolve_providers,
+)
 
-DEFAULT_MODEL = os.getenv("PARAKEET_MODEL", "nemo-parakeet-tdt-0.6b-v3")
+DEFAULT_MODEL = MODEL_NAME
 
 # Sub-path this server is reverse-proxied under (e.g. "/parakeet"), so a
 # separate edge proxy can expose it alongside other services on one port —
@@ -79,41 +85,16 @@ EXPECTED_API_KEY = _read_secret("PARAKEET_API_KEY")
 _models: dict[str, "onnx_asr.adapters.TextResultsAsrAdapter"] = {}
 
 
-def _resolve_providers():
-    """Return the ONNX providers list, excluding TensorRT.
-
-    ``onnxruntime-gpu`` advertises ``TensorrtExecutionProvider`` in
-    ``get_available_providers()``, but the CUDA base image has no TensorRT
-    libs installed. If the full list is passed, onnxruntime tries TensorRT
-    first, fails, and silently falls back to **CPU** — bypassing CUDA
-    entirely. We filter it out so ``CUDAExecutionProvider`` is used directly.
-
-    Override via ``RTT_ONNX_PROVIDERS`` (comma-separated).
-
-    Returns:
-        Provider list (or ``None`` for onnxruntime defaults).
-    """
-    import onnxruntime as ort
-
-    env = os.environ.get("RTT_ONNX_PROVIDERS", "")
-    if env.strip():
-        return [p.strip() for p in env.split(",") if p.strip()]
-    available = ort.get_available_providers()
-    filtered = [p for p in available if p != "TensorrtExecutionProvider"]
-    return filtered or None
-
-
 def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapter":
     """Load and cache an ONNX ASR model by name.
 
-    Models are loaded on first request and kept in memory for subsequent
-    requests. The default model is pre-loaded during application startup
-    via the lifespan handler.
+    The default model (PARAKEET_MODEL) is the streaming engine's instance,
+    pre-loaded at startup and shared with the live WebSocket. Any other
+    model name is loaded on first request and cached here.
 
     Args:
         name: Model identifier (e.g. 'nemo-parakeet-tdt-0.6b-v3').
-              Falls back to the PARAKEET_MODEL environment variable,
-              then to DEFAULT_MODEL.
+              Falls back to DEFAULT_MODEL (= PARAKEET_MODEL).
 
     Returns:
         The loaded and cached model instance.
@@ -123,13 +104,18 @@ def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapt
     """
     model_name = name or DEFAULT_MODEL
 
+    # The default model is the one the streaming engine already holds: share
+    # it instead of loading a second copy (that doubled the VRAM footprint).
+    if model_name == DEFAULT_MODEL:
+        return parakeet_stream_engine.get_asr()
+
     if model_name in _models:
         return _models[model_name]
 
     print(f"[PARAKEET] Loading model: {model_name} ...")
     try:
         _models[model_name] = onnx_asr.load_model(
-            model_name, providers=_resolve_providers()
+            model_name, quantization=QUANTIZATION, providers=resolve_providers()
         )
     except Exception as e:
         raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
@@ -140,18 +126,17 @@ def get_model(name: str | None = None) -> "onnx_asr.adapters.TextResultsAsrAdapt
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI lifespan handler: load the default model on startup, unload on shutdown.
+    """FastAPI lifespan handler: load the models on startup, unload on shutdown.
 
-    Also pre-loads the Silero VAD + Parakeet ONNX sessions used by the
-    streaming WebSocket endpoint so the first client doesn't pay the cold-load
-    penalty.
+    Pre-loads the Parakeet ONNX model (shared by the WebSocket and the HTTP
+    route) and the Silero VAD session so the first client doesn't pay the
+    cold-load penalty.
     """
     if not EXPECTED_API_KEY:
         print(
             "[PARAKEET] WARNING: PARAKEET_API_KEY not set — "
             "endpoints are unauthenticated"
         )
-    get_model()
     parakeet_stream_engine.ensure_loaded()
     yield
     _models.clear()

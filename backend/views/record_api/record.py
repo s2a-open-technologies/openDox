@@ -57,6 +57,7 @@ from backend.components.services.asr_factory import (
 )
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
+    resolve_failed_task,
 )
 from backend.components.services.sanitizing_service import (
     _PRESERVE_TOKENS_INSTRUCTION,
@@ -74,16 +75,20 @@ logger = get_logger(__name__)
 
 
 def _require_owner(current_user: User, owner_id: int) -> None:
-    """Raise 403 unless the current user owns the resource or is an admin.
+    """Raise 403 unless the current user owns the resource.
+
+    Recordings are private to their owner. Admins get no exception: the admin
+    role manages settings and users, not patient data (only the failed-task
+    routes below are admin-scoped, and they expose no transcript content).
 
     Args:
         current_user: Authenticated user making the request.
         owner_id: ``user_id`` of the resource being accessed.
 
     Raises:
-        HTTPException: 403 if the user is neither the owner nor an admin.
+        HTTPException: 403 if the user does not own the resource.
     """
-    if current_user.id != owner_id and not current_user.is_superuser:
+    if current_user.id != owner_id:
         raise HTTPException(status_code=403, detail="Not authorized for this resource")
 
 
@@ -442,11 +447,7 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
         token_user_id = None
 
     authed_user = db.get(User, token_user_id) if token_user_id is not None else None
-    if (
-        authed_user is None
-        or not authed_user.is_active
-        or (token_user_id != user_id_int and not authed_user.is_superuser)
-    ):
+    if authed_user is None or not authed_user.is_active or token_user_id != user_id_int:
         try:
             await websocket.send_json({"error": "Not authorized for this session"})
             await websocket.close(code=1008)
@@ -1165,12 +1166,30 @@ async def regenerate_summary(
         db.add(record)
         db.commit()
         db.refresh(record)
-        return {"summarize": record.summarize}
     except Exception as e:
         logger.error(
             f"[SUMMARIZE] Error re-generating summary for record {record_id}: {e}"
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+    # The recording is complete now: a pipeline that failed earlier (typically
+    # the LLM step) must not keep showing "Fehler". Best effort — the new
+    # summary is already saved either way.
+    task_status = None
+    try:
+        task_status = await asyncio.to_thread(resolve_failed_task, db, record)
+    except Exception:
+        logger.warning(
+            f"[SUMMARIZE] Could not resolve failed task of record {record_id}",
+            exc_info=True,
+        )
+        db.rollback()
+    db.refresh(record)
+    return {
+        "summarize": record.summarize,
+        "task_status": task_status,
+        "has_audio": bool(record.file),
+    }
 
 
 @record_bp.put("/record/{record_id}/archive")

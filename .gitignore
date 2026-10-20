@@ -24,6 +24,8 @@ node_modules
 
 model/
 *.png
+# Handbook screenshots are sources, not artefacts (docs/handbuch/screenshots.md)
+!docs/handbuch/bilder/**/*.png
 *.db
 image/
 

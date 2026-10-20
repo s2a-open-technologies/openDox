@@ -191,6 +191,45 @@ describe("TranscriptView", () => {
     expect(await screen.findByText("Fertig")).toBeInTheDocument();
   });
 
+  it("shows the failure with its detail and clears it after a successful regeneration", async () => {
+    const authFetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/status/")) {
+        return Promise.resolve(jsonResponse({ status: "error", error: "Zeitüberschreitung" }));
+      }
+      if (url.endsWith("/summarize")) {
+        return Promise.resolve(
+          jsonResponse({ summarize: "Neue Zusammenfassung.", task_status: "finished", has_audio: false })
+        );
+      }
+      return Promise.resolve(jsonResponse({ content: "Transkript", summarize: "", has_audio: false }));
+    });
+    const user = userEvent.setup();
+    renderView({ transcript: makeTranscript({ taskId: "task-1", summarize: "" }) }, authFetch);
+
+    expect(await screen.findByText("Verarbeitung fehlgeschlagen")).toBeInTheDocument();
+    expect(screen.getByText("Details: Zeitüberschreitung")).toBeInTheDocument();
+    expect(screen.getByText(/die Zusammenfassung konnte nicht erstellt werden/)).toBeInTheDocument();
+
+    await user.click(screen.getByTitle("Zusammenfassung neu generieren"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("Verarbeitung fehlgeschlagen")).not.toBeInTheDocument()
+    );
+    expect(screen.getByText("Fertig")).toBeInTheDocument();
+  });
+
+  it("points to the administration when the transcription itself failed", async () => {
+    const authFetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/status/")) {
+        return Promise.resolve(jsonResponse({ status: "error", error: "boom" }));
+      }
+      return Promise.resolve(jsonResponse({ content: "", summarize: "", has_audio: false }));
+    });
+    renderView({ transcript: makeTranscript({ taskId: "task-1", content: "", summarize: "" }) }, authFetch);
+
+    expect(await screen.findByText(/Die Transkription ist fehlgeschlagen/)).toBeInTheDocument();
+  });
+
   // Clipboard copy is blocked by a Radix Dialog focus-trap interaction in jsdom:
   // after confirming via the checkbox dialog, pointer events on the main content
   // area are intercepted. This is a known jsdom limitation with Radix Dialog; the

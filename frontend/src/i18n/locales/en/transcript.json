@@ -6,7 +6,11 @@
   },
   "status": {
     "finished": "Done",
-    "error": "Error"
+    "error": "Error",
+    "errorTitle": "Processing failed",
+    "errorHintSummary": "The transcript is available, but the summary could not be created. Create it again with “Regenerate summary” (arrow icon next to the summary); this notice then disappears.",
+    "errorHintTranscript": "The transcription failed. Your administrators can have the recording processed again.",
+    "errorDetail": "Details: {{error}}"
   },
   "processing": {
     "llm": "AI is creating the summary...",

@@ -35,7 +35,7 @@ BATCH_SIZE = 500
 # metadata).
 _ENCRYPTED_TABLES = (
     ("record", ("title", "content", "summarize", "pii_mapping")),
-    ("user", ("personal_glossary",)),
+    ("dictionary", ("terms",)),
     ("ldapsettingsmodel", ("bind_user_password",)),
     ("oidcsettingsmodel", ("client_secret",)),
 )

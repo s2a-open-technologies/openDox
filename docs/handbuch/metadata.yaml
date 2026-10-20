@@ -1,0 +1,7 @@
+# Gemeinsame Metadaten aller Handbücher. Titel/Untertitel stehen im
+# YAML-Kopf der jeweiligen handbuch.md; version und date setzt
+# scripts/build_handbuch.sh beim Bauen.
+author: "S2A Open Technologies gGmbH"
+lang: de-DE
+toc-title: "Inhaltsverzeichnis"
+figureTitle: "Abbildung"

@@ -19,13 +19,30 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import re
 
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
 
 from backend.components.modules.logger import get_logger
 
 logger = get_logger(__name__)
 
 _WORD_RE = re.compile(r"[A-Za-zÄÖÜäöüß]+")
+
+# Acceptance rules for a replacement, calibrated on synthetic dictations: on
+# the error-free reference texts no word may change, while the real ASR
+# misspellings ("Levotyroxen", "Pantobrazol", "mit Formin") are still fixed.
+# See correct_terms() for why the phonetic code alone is not enough.
+PHONETIC_MIN = 75.0
+SPELLING_MIN = 75.0
+LENGTH_TOLERANCE = 1.25
+MIN_WINDOW_LETTERS = 4
+# German inflection endings a correctly spelled term may carry in the text.
+_INFLECTIONS = ("ern", "es", "en", "er", "s", "n", "e")
+
+
+def _letters(text: str) -> str:
+    """Lowercase letters only (no spaces/punctuation), for spelling compares."""
+    return "".join(_WORD_RE.findall(text)).lower()
+
 
 # Kölner Phonetik code table. Context-dependent letters (C, P, D/T, X) are
 # handled separately in ``koelner_phonetik``.
@@ -97,79 +114,81 @@ def koelner_phonetik(word: str) -> str:
     return "".join(result)
 
 
-def parse_glossary(glossary_text: str) -> list[str]:
-    """Parse free-text glossary source into a term list.
-
-    Called with a category's ``glossary`` field merged with the record
-    owner's ``User.personal_glossary`` (see
-    ``background_transcription_service._build_correction_glossary``) —
-    deliberately separate from ``whisper_prompt``, which only feeds
-    Whisper's ``initial_prompt`` and is subject to its 224-token, last-N
-    truncation. Splits on comma/semicolon/newline, trims whitespace, drops
-    very short tokens (<3 chars, too ambiguous phonetically) and
-    duplicates.
-    """
-    if not glossary_text:
-        return []
-
-    seen: set[str] = set()
-    glossary: list[str] = []
-    for raw in re.split(r"[,;\n]+", glossary_text):
-        term = raw.strip()
-        if len(term) < 3:
-            continue
-        key = term.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        glossary.append(term)
-
-    return glossary
-
-
 def correct_terms(
     text: str, glossary: list[str], threshold: float
 ) -> tuple[str, list[dict]]:
     """Fuzzy-correct mistranscribed glossary terms in ``text``.
 
-    Slides every 1-3 word window over ``text``, compares each window's
-    Kölner Phonetik code against the glossary's precomputed codes via
-    ``rapidfuzz.fuzz.ratio``, and collects every window scoring at least
-    ``threshold`` (0-100 scale) as a replacement candidate. Candidates are
-    then applied highest-score-first, skipping any candidate that overlaps
-    a span already claimed by a better-scoring one — this matters because
-    a mediocre 2-3 word window can otherwise outscore-by-being-tried-first
-    a near-exact 1-word match starting one token later.
+    Slides every 1-3 word window over ``text`` and accepts a glossary term as
+    replacement only if the window both *sounds* and *is spelled* like it:
+
+    - Kölner Phonetik codes compared via ``rapidfuzz.fuzz.ratio`` score at
+      least ``PHONETIC_MIN``, the lowercase letters at least ``SPELLING_MIN``,
+      and their mean reaches ``threshold`` (the admin setting, 0-100);
+    - the letter count differs by at most ``LENGTH_TOLERANCE``;
+    - the window has the term's word count or one word more (ASR splits like
+      "mit Formin" for "Metformin"), and at least ``MIN_WINDOW_LETTERS``.
+
+    The phonetic code alone is far too lenient: it drops vowels and merges
+    sounds, so unrelated words share codes — matching on it alone turned an
+    error-free "Notaufnahme" into "Metformin" and "Indikation" into
+    "Appendektomie". Terms already spelled correctly in the text, including
+    inflected forms ("Myokardinfarkts"), are protected and never touched.
+
+    Candidates are applied highest-score-first, skipping any that overlaps a
+    span already claimed by a better-scoring one.
 
     Returns:
         Tuple of (corrected_text, replacements), where replacements is a
         list of ``{"original", "replacement", "score"}`` dicts for logging,
         ordered by position in the text.
     """
+    # Terms under 3 characters are too ambiguous phonetically to correct to.
+    glossary = [term for term in glossary if len(term.strip()) >= 3]
     if not text or not glossary:
         return text, []
 
-    glossary_codes = [
-        (term, code) for term in glossary if (code := koelner_phonetik(term))
-    ]
-    if not glossary_codes:
+    # Spelling first: a term needs SPELLING_MIN anyway, and that cut keeps
+    # far fewer candidates than the phonetic one (codes are short, so many
+    # terms sound alike) — this keeps catalog-sized dictionaries fast. The
+    # phonetic code is computed once per term, in glossary order (first term
+    # wins a tie).
+    entries = []
+    for term in glossary:
+        code = koelner_phonetik(term)
+        if code:
+            entries.append((term, _letters(term), code, len(_WORD_RE.findall(term))))
+    if not entries:
         return text, []
+    entry_letters = [entry[1] for entry in entries]
 
     tokens = list(_WORD_RE.finditer(text))
     if not tokens:
         return text, []
 
-    # Words the text already spells exactly like a glossary term are
-    # "protected" — no window overlapping them becomes a candidate. Without
-    # this, an already-correct term glued to a neighboring word (e.g.
-    # "Sertralin wurde") can still score above threshold against that same
-    # term, since the fuzzy compare has no notion of "this part is already
-    # right, don't touch it".
-    protected_spans = [
-        (m.start(), m.end())
-        for term in glossary
-        for m in re.finditer(rf"\b{re.escape(term)}\b", text, flags=re.IGNORECASE)
-    ]
+    # Words the text already spells like a glossary term — also inflected —
+    # are "protected": no window overlapping them becomes a candidate.
+    # Otherwise "Sertralin wurde" can still score against "Sertralin", and a
+    # correct genitive "Myokardinfarkts" would be "fixed" to the base form.
+    # Only terms whose first word (or its stem) occurs in the text are
+    # searched for, so this stays cheap for thousands of terms.
+    text_stems = set()
+    for m in tokens:
+        word = m.group(0).lower()
+        text_stems.add(word)
+        text_stems.update(
+            word[: -len(suffix)] for suffix in _INFLECTIONS if word.endswith(suffix)
+        )
+    protected_spans = []
+    for term in glossary:
+        first_word = _WORD_RE.search(term)
+        if not first_word or first_word.group(0).lower() not in text_stems:
+            continue
+        pattern = rf"\b{re.escape(term)}(?:{'|'.join(_INFLECTIONS)})?\b"
+        protected_spans.extend(
+            (m.start(), m.end())
+            for m in re.finditer(pattern, text, flags=re.IGNORECASE)
+        )
 
     def _overlaps_protected(span_start: int, span_end: int) -> bool:
         return any(span_start < e and span_end > s for s, e in protected_spans)
@@ -186,21 +205,40 @@ def correct_terms(
             if _overlaps_protected(span_start, span_end):
                 continue
             window_text = text[span_start:span_end]
+            window_letters = _letters(window_text)
+            if len(window_letters) < MIN_WINDOW_LETTERS:
+                continue
             code = koelner_phonetik(window_text)
             if not code:
                 continue
 
-            best_term, best_score = None, 0.0
-            for term, term_code in glossary_codes:
-                score = fuzz.ratio(code, term_code)
-                if score > best_score:
-                    best_term, best_score = term, score
-
-            if (
-                best_term is not None
-                and best_score >= threshold
-                and best_term.lower() != window_text.lower()
+            best_term, best_score, best_idx = None, 0.0, -1
+            for _, spelling, idx in process.extract(
+                window_letters,
+                entry_letters,
+                scorer=fuzz.ratio,
+                score_cutoff=SPELLING_MIN,
+                limit=None,
             ):
+                term, term_letters, term_code, term_words = entries[idx]
+                if window not in (term_words, term_words + 1):
+                    continue
+                if window_letters == term_letters:
+                    continue
+                ratio = len(window_letters) / len(term_letters)
+                if not 1 / LENGTH_TOLERANCE <= ratio <= LENGTH_TOLERANCE:
+                    continue
+                phonetic = fuzz.ratio(code, term_code)
+                if phonetic < PHONETIC_MIN:
+                    continue
+                score = (phonetic + spelling) / 2
+                # Ties go to the earlier glossary entry.
+                if score >= threshold and (
+                    score > best_score or (score == best_score and idx < best_idx)
+                ):
+                    best_term, best_score, best_idx = term, score, idx
+
+            if best_term is not None:
                 candidates.append(
                     {
                         "span_start": span_start,

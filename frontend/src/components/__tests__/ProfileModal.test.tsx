@@ -50,7 +50,7 @@ function renderModal({
   role = "user",
   isOpen = true,
   updateUiLanguage = vi.fn().mockResolvedValue(true),
-  authFetch = vi.fn().mockResolvedValue(jsonResponse({ personal_glossary: null })),
+  authFetch = vi.fn().mockResolvedValue(jsonResponse([])),
 }: {
   role?: "admin" | "moderator" | "demo_viewer" | "user";
   isOpen?: boolean;
@@ -106,14 +106,14 @@ describe("ProfileModal", () => {
     expect(screen.queryByRole("button", { name: /Meine Kategorien/ })).not.toBeInTheDocument();
   });
 
-  it("loads the personal dictionary when its tab is selected", async () => {
+  it("loads the personal dictionaries when their tab is selected", async () => {
     const user = userEvent.setup();
     const { authFetch } = renderModal();
 
-    await user.click(screen.getByRole("button", { name: /Mein Wörterbuch/ }));
+    await user.click(screen.getByRole("button", { name: /Meine Wörterbücher/ }));
 
     await waitFor(() =>
-      expect(authFetch).toHaveBeenCalledWith("/api/v1/settings/my-dictionary/")
+      expect(authFetch).toHaveBeenCalledWith("/api/v1/settings/dictionaries/")
     );
   });
 

@@ -191,6 +191,7 @@ Im Docker-Image laufen Migrationen automatisch vor dem App-Start (`entrypoint.sh
 | [`DISCLAIMER.md`](DISCLAIMER.md) | Kein-Medizinprodukt- und Haftungshinweis |
 | [`docs/data-mapping.md`](docs/data-mapping.md) | Datenflüsse, Verschlüsselung, Aufbewahrung (Ausgangspunkt für Art. 30 DSGVO) |
 | [`docs/pii.md`](docs/pii.md) | PII-Sanitizer (EntityGuard) |
+| [`docs/asr-vergleich.md`](docs/asr-vergleich.md) | Messung Whisper large-v3/turbo, Parakeet, int8 und Fachbegriff-Korrektur, mit Empfehlung |
 | [`docs/audit-checklist-opendox.md`](docs/audit-checklist-opendox.md) | Selbstauskunft für Audits, mit Fundstellen und offenen Lücken |
 | [`docs/hospital-audit-frameworks.md`](docs/hospital-audit-frameworks.md) | Einordnung gegen ISO 27001, BSI, NIS2, CRA, MDR, DSGVO |
 | [`docs/client.md`](docs/client.md) | Desktop-Client |

@@ -12,6 +12,10 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `docs/asr-vergleich.md`: measured comparison of Whisper large-v3 and large-v3-turbo (int8, int8_float16, float16), Parakeet TDT 0.6B v3 (FP32/int8, GPU/CPU) and the term correction on synthetic dictations, with a recommendation and the limits of the measurement.
+
 ## [0.10.4] — 2026-10-20
 
 ### Security

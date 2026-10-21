@@ -12,6 +12,20 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-10-21
+
+### Security
+- Updated certifi to version to >=2026.10.19
+Certifi versions before 2026.10.18 include the emSign ECC Root CA - G3 root certificate in their bundled CA store. Eight eMudhra intermediate CA certificates that chain to this root have compromised private keys and the CA has revoked them.
+
+An attacker with one of the compromised keys can issue valid-looking certificates for any hostname. If the attacker is also on-path, they can intercept or modify TLS traffic from clients that trust the certifi bundle. Examples include requests, urllib3 and pip, and the Python.org macOS installer.
+
+Certifi 2026.10.18 removed all emSign roots from the bundle. Certifi 2026.10.19 restored the emSign roots that are not affected. Upgrade to 2026.10.19 or later, and rebuild container images that vendor certifi.
+- Updated vite to >=8.3.3
+`launch-editor` checked fs.existsSync(fileName) before passing a supplied path to an editor command. On Windows, an attacker can bypass this check with a crafted path ending in \\..:line:column. This removes the requirement that the attacker be able to place a file with a malicious filename.
+`launch-editor` forwarded file paths directly to editors without sanitization. If a path resembles a CLI flag, editors like Vim may interpret it as a command, potentially causing unintended file overwrites or command execution.
+`launch-editor` did not escape % on Windows when passing an argument to cmd. When an environment variable contained a malicious value, it was possible that that content to be executed.
+
 ## [0.10.6] — 2026-10-21
 
 ### Changed

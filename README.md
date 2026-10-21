@@ -195,6 +195,7 @@ Im Docker-Image laufen Migrationen automatisch vor dem App-Start (`entrypoint.sh
 | [`docs/audit-checklist-opendox.md`](docs/audit-checklist-opendox.md) | Selbstauskunft für Audits, mit Fundstellen und offenen Lücken |
 | [`docs/hospital-audit-frameworks.md`](docs/hospital-audit-frameworks.md) | Einordnung gegen ISO 27001, BSI, NIS2, CRA, MDR, DSGVO |
 | [`docs/client.md`](docs/client.md) | Desktop-Client |
+| [`docs/release.md`](docs/release.md) | Release, Images bauen, Server aktualisieren |
 | [`docs/opendox.md`](docs/opendox.md) | Ausführliche Gesamtdokumentation |
 | [`SECURITY.md`](SECURITY.md) | Meldeweg für Schwachstellen, technische Maßnahmen (Art. 32) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), [`CHANGELOG.md`](CHANGELOG.md) | Mitarbeit, Verhaltenskodex, Änderungen |

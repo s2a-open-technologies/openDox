@@ -337,9 +337,11 @@ def background_transcription_task(
         whisper_settings = get_settings()
         if whisper_settings.term_correction_enabled:
             try:
-                # Only the dictionaries attached to the recording's category
-                # apply — whisper_prompt never feeds the correction.
-                glossary = glossary_for_category(db, cat)
+                # The category's dictionaries plus all personal dictionaries
+                # of the recording's owner — whisper_prompt never feeds it.
+                glossary = glossary_for_category(
+                    db, cat, record.user_id if record else None
+                )
                 if glossary:
                     text, replacements = correct_terms(
                         text, glossary, whisper_settings.term_correction_threshold

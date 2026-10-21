@@ -42,14 +42,10 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
   const { user, updateUiLanguage } = useAuth();
   const [activeTab, setActiveTab] = useState('language');
 
-  // Admins/moderators manage categories in the admin modal; only plain users
-  // get their personal-category tab here (same rule as the old dropdown).
   const navItems = [
     { id: 'language', label: t('tabs.language'), icon: Languages },
     { id: 'dictionary', label: t('tabs.dictionary'), icon: BookMarked },
-    ...(user?.role === 'user'
-      ? [{ id: 'categories', label: t('tabs.categories'), icon: BookOpenCheck }]
-      : []),
+    { id: 'categories', label: t('tabs.categories'), icon: BookOpenCheck },
     { id: 'appearance', label: t('tabs.appearance'), icon: Palette },
   ];
 
@@ -107,7 +103,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               <h3 className="text-lg font-medium">{t('categories.heading')}</h3>
               <p className="text-sm text-muted-foreground">{t('categories.description')}</p>
             </div>
-            <CategorySettings />
+            <CategorySettings scope="personal" />
           </div>
         );
       case 'appearance':

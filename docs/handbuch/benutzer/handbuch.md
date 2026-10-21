@@ -116,7 +116,8 @@ Auf dem Smartphone ist die Seitenleiste eingeklappt und über das Menüsymbol
    Einrichtung das nicht ausdrücklich vorsieht.
 3. Wählen Sie eine **Kategorie**. Vorausgewählt ist **Allgemein**. Die
    Kategorie bestimmt, wie die Zusammenfassung aufgebaut wird und welche
-   Wörterbücher gelten (siehe Kapitel *Kategorien*).
+   globalen Wörterbücher gelten (siehe Kapitel *Kategorien*). Ihre eigenen
+   Wörterbücher gelten immer.
 4. Klicken Sie auf **Aufnahme starten**.
 
 ![Dialog „Neue Aufnahme“](bilder/benutzer/04-neue-aufnahme.png)
@@ -156,8 +157,7 @@ Ohne Livevorschau wird die Aufnahme in Form eines Orbs dargestellt.
   Handbreit Abstand zum Mikrofon.
 - Diktieren Sie Satzzeichen nicht; Punkt und Komma setzt openDox selbst.
 - Buchstabieren Sie seltene Namen und Begriffe nicht, sondern tragen Sie sie
-  einmal in eines Ihrer Wörterbücher ein und hängen es an Ihre Kategorie
-  (siehe *Meine Wörterbücher*).
+  einmal in eines Ihrer Wörterbücher ein (siehe *Meine Wörterbücher*).
 - Kurze Denkpausen sind kein Problem. Längere Pausen nutzen Sie besser mit der
   Pause-Taste.
 - Vermeiden Sie Hintergrundgespräche; openDox verschriftlicht alles, was das
@@ -297,8 +297,8 @@ Aufbewahrung für den Audio-Download vorsieht.
 Eine Kategorie legt fest, wie openDox Ihr Diktat verarbeitet:
 
 - welche Fachbegriffe bei der Spracherkennung bevorzugt werden,
-- welche Wörterbücher für die automatische Korrektur von Fachbegriffen
-  gelten,
+- welche globalen Wörterbücher für die automatische Korrektur von
+  Fachbegriffen gelten (Ihre eigenen gelten ohnehin immer),
 - wie die Zusammenfassung aufgebaut wird (z. B. Gliederung, Stil, Länge).
 
 Es gibt zwei Arten:
@@ -318,7 +318,7 @@ Es gibt zwei Arten:
 | **Beschreibung** | Kurze Erklärung für Sie selbst. |
 | **System Prompt (LLM)** | Anweisung an die KI, wie die Zusammenfassung aussehen soll. |
 | **Transkriptions-Hint (Whisper)** | Wenige typische Fachbegriffe und Namen als Hilfe für die Spracherkennung. Nur die letzten rund 224 Tokens werden berücksichtigt, also kurz halten. Optional. |
-| **Wörterbücher** | Haken Sie die Wörterbücher an, deren Begriffe nach der Transkription automatisch korrigiert werden. Zur Auswahl stehen die globalen Wörterbücher und Ihre eigenen (siehe *Meine Wörterbücher*). |
+| **Wörterbücher** | Haken Sie die globalen Wörterbücher an, deren Begriffe nach der Transkription automatisch korrigiert werden. Ihre eigenen Wörterbücher erscheinen hier nicht, weil sie ohnehin für alle Ihre Aufnahmen gelten (siehe *Meine Wörterbücher*). |
 
 Klicken Sie auf **Erstellen**. Bestehende Kategorien ändern Sie mit
 **Bearbeiten** und **Aktualisieren**.
@@ -356,17 +356,17 @@ falsch geschrieben werden: Medikamente, Eigennamen, Abkürzungen, Namen von
 Kolleginnen und Kollegen. Nach der Transkription ersetzt openDox ähnlich
 klingende Wörter automatisch durch die Schreibweise aus dem Wörterbuch.
 
-Ein Wörterbuch wirkt nur in den Kategorien, an die es angehängt ist. So können
-Sie auch ein kleines Wörterbuch gezielt mit einer eigenen Kategorie testen.
+Ihre eigenen Wörterbücher gelten automatisch für alle Ihre Aufnahmen, egal in
+welcher Kategorie Sie diktieren; Sie müssen sie nirgends anhängen. Globale
+Wörterbücher wirken dagegen nur in den Kategorien, an die sie angehängt sind.
 Ihre eigenen Wörterbücher sind nur für Sie sichtbar, auch nicht für
 Administratoren. Globale Wörterbücher stellt Ihre Administration bereit.
 
 1. Öffnen Sie **Profil → Meine Wörterbücher**.
 2. Geben Sie einen Namen ein und klicken Sie auf **Anlegen**.
 3. Tragen Sie Begriffe einzeln ein (**Hinzufügen**) und klicken Sie auf
-   **Speichern**, oder laden Sie eine Datei hoch (siehe unten).
-4. Hängen Sie das Wörterbuch unter **Profil → Meine Kategorien** an eine Ihrer
-   Kategorien (Feld **Wörterbücher**).
+   **Speichern**, oder laden Sie eine Datei hoch (siehe unten). Ab der nächsten
+   Aufnahme wird das Wörterbuch angewendet.
 
 Lange Listen zeigt openDox nur auszugsweise an; über das Suchfeld finden Sie
 jeden Begriff.
@@ -395,7 +395,9 @@ Hypertonie, essentiell
 
 ## Meine Kategorien
 
-Siehe Kapitel *Kategorien*.
+Hier verwalten Sie Ihre eigenen Kategorien, unabhängig von Ihrer Rolle (auch
+Administratoren legen hier persönliche Kategorien an; globale Kategorien
+verwalten sie unter **Administration**). Siehe Kapitel *Kategorien*.
 
 ## Design
 
@@ -432,8 +434,7 @@ Standby. Öffnen Sie openDox neu; die Aufnahme kann meist über **Unfertige
 Aufnahme → Fortsetzen** weitergeführt werden.
 
 **Ein Fachbegriff wird immer wieder falsch erkannt.**
-Tragen Sie ihn in eines Ihrer Wörterbücher ein und hängen Sie es an Ihre
-Kategorie. Betrifft er viele Kolleginnen und Kollegen, bitten Sie die
+Tragen Sie ihn in eines Ihrer Wörterbücher ein. Betrifft er viele Kolleginnen und Kollegen, bitten Sie die
 Administration, ihn in ein globales Wörterbuch aufzunehmen.
 
 **Die Zusammenfassung enthält Angaben, die ich nicht diktiert habe.**
@@ -454,7 +455,7 @@ werden.
 | Zusammenfassung | Von der KI nach den Vorgaben der Kategorie aufbereiteter Text. |
 | Live-Vorschau | Vorläufiger Text während der Aufnahme; nicht das Endergebnis. |
 | Kategorie | Vorlage, die Erkennung und Zusammenfassung für einen Einsatzzweck steuert. |
-| Wörterbuch | Begriffsliste für die automatische Korrektur; wirkt in den Kategorien, an die es angehängt ist. Global (von der Administration) oder eigenes (nur für Sie). |
+| Wörterbuch | Begriffsliste für die automatische Korrektur. Global (von der Administration, wirkt in den Kategorien, an die es angehängt ist) oder eigenes (nur für Sie, wirkt in allen Ihren Aufnahmen). |
 | System Prompt | Anweisung an die KI, wie die Zusammenfassung aussehen soll. |
 | KI / LLM | Sprachmodell, das die Zusammenfassung erstellt. |
 

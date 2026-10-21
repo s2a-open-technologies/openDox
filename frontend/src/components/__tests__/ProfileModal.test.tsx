@@ -96,15 +96,13 @@ describe("ProfileModal", () => {
     expect(screen.getByText("Sprache der Benutzeroberfläche")).toBeInTheDocument();
   });
 
-  it("offers the categories tab to plain users only", () => {
-    renderModal({ role: "user" });
-    expect(screen.getByRole("button", { name: /Meine Kategorien/ })).toBeInTheDocument();
-  });
-
-  it("hides the categories tab for admins (they use the admin modal)", () => {
-    renderModal({ role: "admin" });
-    expect(screen.queryByRole("button", { name: /Meine Kategorien/ })).not.toBeInTheDocument();
-  });
+  it.each(["user", "admin", "moderator"] as const)(
+    "offers the categories tab to role %s",
+    (role) => {
+      renderModal({ role });
+      expect(screen.getByRole("button", { name: /Meine Kategorien/ })).toBeInTheDocument();
+    }
+  );
 
   it("loads the personal dictionaries when their tab is selected", async () => {
     const user = userEvent.setup();

@@ -2,7 +2,7 @@
   "globalTitle": "Dictionaries",
   "globalDescription": "Global dictionaries for the automatic medical term correction. They only take effect in the categories they are attached to, and every user can attach them to their own categories.",
   "personalTitle": "My dictionaries",
-  "personalDescription": "Your own dictionaries, visible only to you, not even to administrators. They only take effect in your own categories you attach them to.",
+  "personalDescription": "Your own dictionaries, visible only to you, not even to administrators. They apply automatically to all your recordings, whatever the category, without attaching them anywhere.",
   "attachHint": "A dictionary only takes effect once it is attached to a category under Categories. This lets you test small dictionaries in a targeted way.",
   "newNamePlaceholder": "Name of the new dictionary",
   "create": "Create",

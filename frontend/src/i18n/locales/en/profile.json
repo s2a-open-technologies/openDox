@@ -17,11 +17,11 @@
   },
   "dictionary": {
     "heading": "My dictionaries",
-    "description": "Your own term lists for the automatic medical term correction, for example for testing. They only take effect in your own categories you attach them to."
+    "description": "Your own term lists for the automatic medical term correction, for example for testing. They apply automatically to all your recordings, whatever the category."
   },
   "categories": {
     "heading": "My categories",
-    "description": "Create and manage your own categories for your recordings. They are only visible to you, in addition to the globally provided categories."
+    "description": "Create and manage your own categories for your recordings. They are only visible to you, in addition to the globally provided categories. You do not need to attach your own dictionaries, they always apply."
   },
   "appearance": {
     "heading": "Appearance",

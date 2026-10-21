@@ -618,10 +618,15 @@ async def create_category(
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
-    """Create a global or personal category for the current user."""
+    """Create a global or personal category for the current user.
+
+    Privileged roles create global categories unless they ask for
+    ``scope="personal"`` (profile view); everyone else always gets a personal one.
+    """
     data = category.model_dump()
     dictionary_ids = data.pop("dictionary_ids") or []
-    if current_user.role in _PRIVILEGED_CATEGORY_ROLES:
+    scope = data.pop("scope")
+    if current_user.role in _PRIVILEGED_CATEGORY_ROLES and scope != "personal":
         data["user_id"] = None
     else:
         data["user_id"] = current_user.id
@@ -702,6 +707,8 @@ async def update_category(
         )
 
     category_data = category.model_dump(exclude_unset=True)
+    # The scope is fixed at creation time.
+    category_data.pop("scope", None)
     # Omitted = leave the attached dictionaries as they are.
     dictionary_ids = category_data.pop("dictionary_ids", None)
     is_privileged_editor = current_user.role in _PRIVILEGED_CATEGORY_ROLES
@@ -765,7 +772,8 @@ async def delete_category(
 # by admins/moderators (same roles as global categories); otherwise personal
 # and visible to its owner ONLY — unlike personal categories, admins never see
 # another user's dictionaries (users realistically enter names there). A
-# dictionary only takes effect through the categories it is attached to.
+# global dictionary takes effect through the categories it is attached to; a
+# personal one always applies to its owner's recordings, whatever the category.
 
 
 def _get_visible_dictionary(

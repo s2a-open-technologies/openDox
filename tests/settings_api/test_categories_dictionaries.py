@@ -1,8 +1,9 @@
 """Tests for attaching dictionaries to categories (``dictionary_ids``).
 
 A global category takes global dictionaries only; a personal category takes
-global ones plus its owner's. The attached dictionaries are the only source
-of the term-correction glossary (see dictionary_service.glossary_for_category).
+global ones plus its owner's. The term-correction glossary is the category's
+dictionaries plus every personal dictionary of the recording's owner (see
+dictionary_service.glossary_for_category).
 """
 
 from backend.components.models.categories import Categories
@@ -153,3 +154,61 @@ def test_glossary_for_category_merges_and_dedupes(
 def test_glossary_for_category_without_category_is_empty(session_factory):
     with session_factory() as session:
         assert glossary_for_category(session, None) == []
+
+
+def test_glossary_includes_owners_personal_dictionaries_without_link(
+    client, create_user, auth_headers, session_factory
+):
+    admin = create_user("admin_user", role="admin")
+    owner = create_user("owner", role="user")
+    other = create_user("other", role="user")
+    admin_headers = auth_headers(admin)
+    icd = _dictionary(client, admin_headers, "ICD", "global", ["Hypertonie"])
+    _dictionary(
+        client, auth_headers(owner), "Mein", "personal", ["hypertonie", "Dr. Ölz"]
+    )
+    _dictionary(client, auth_headers(other), "Fremd", "personal", ["Geheim"])
+    category_id = client.post(
+        CATEGORIES, json=_category_payload(dictionary_ids=[icd]), headers=admin_headers
+    ).json()["id"]
+
+    with session_factory() as session:
+        category = session.get(Categories, category_id)
+        with_owner = glossary_for_category(session, category, owner.id)
+        without_category = glossary_for_category(session, None, owner.id)
+        without_owner = glossary_for_category(session, category)
+
+    assert with_owner == ["Hypertonie", "Dr. Ölz"]
+    assert without_category == ["hypertonie", "Dr. Ölz"]
+    assert without_owner == ["Hypertonie"]
+
+
+def test_admin_creates_personal_category_with_scope(client, create_user, auth_headers):
+    admin = create_user("admin_user", role="admin")
+    headers = auth_headers(admin)
+
+    personal = client.post(
+        CATEGORIES,
+        json=_category_payload(
+            scope="personal", llm_override_enabled=True, llm_model="x"
+        ),
+        headers=headers,
+    )
+    global_ = client.post(CATEGORIES, json=_category_payload(), headers=headers)
+
+    assert personal.status_code == 200, personal.text
+    assert personal.json()["user_id"] == admin.id
+    assert personal.json()["llm_override_enabled"] is False
+    assert global_.json()["user_id"] is None
+
+
+def test_user_cannot_create_global_category_via_scope(
+    client, create_user, auth_headers
+):
+    user = create_user("plain", role="user")
+
+    response = client.post(
+        CATEGORIES, json=_category_payload(scope="global"), headers=auth_headers(user)
+    )
+
+    assert response.json()["user_id"] == user.id

@@ -69,7 +69,12 @@ const emptyForm = (): CategorySettingsData => ({
     llm_enable_thinking: null,
 });
 
-const CategorySettings = () => {
+interface CategorySettingsProps {
+    /** "personal" = the profile view: only the caller's own categories, new ones personal. */
+    scope?: 'global' | 'personal';
+}
+
+const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
     const { t } = useTranslation(['categories', 'common']);
     const { user, authFetch } = useAuth();
     const isPrivileged = user?.role === 'admin' || user?.role === 'moderator' || user?.role === 'demo_viewer';
@@ -87,7 +92,11 @@ const CategorySettings = () => {
             const res = await authFetch('/api/v1/settings/categories/');
             if (res.ok) {
                 const data = await res.json();
-                setCategories(data);
+                setCategories(
+                    scope === 'personal'
+                        ? data.filter((c: CategorySettingsData) => c.user_id === user?.id)
+                        : data
+                );
             }
         } catch (error) {
             console.error('Failed to fetch categories:', error);
@@ -110,13 +119,12 @@ const CategorySettings = () => {
         fetchDictionaries();
     }, []);
 
-    // A global category takes global dictionaries only; a personal one also
-    // its owner's (the server enforces the same rule). New categories are
-    // global for privileged roles and personal for everyone else.
-    const formIsGlobal = isEditing ? settings.user_id == null : isPrivileged;
-    const selectableDictionaries = dictionaries.filter(d =>
-        d.user_id == null || (!formIsGlobal && d.user_id === user?.id)
-    );
+    // New categories are global for privileged roles in the admin view and
+    // personal otherwise. Only global dictionaries are offered: personal ones
+    // always apply to their owner's recordings, whatever the category.
+    // Already attached personal ones stay in dictionary_ids untouched.
+    const formIsGlobal = isEditing ? settings.user_id == null : isPrivileged && scope === 'global';
+    const selectableDictionaries = dictionaries.filter(d => d.user_id == null);
     const toggleDictionary = (id: number, checked: boolean) => {
         setSettings({
             ...settings,
@@ -137,10 +145,11 @@ const CategorySettings = () => {
             const method = isEditing && settings.id ? 'PUT' : 'POST';
 
             // When override is disabled, clear the LLM fields before sending
+            const base = scope === 'personal' ? { ...settings, scope: 'personal' } : settings;
             const payload = settings.llm_override_enabled
-                ? settings
+                ? base
                 : {
-                    ...settings,
+                    ...base,
                     llm_model: null,
                     llm_api_endpoint: null,
                     llm_api_key: null,
@@ -349,7 +358,7 @@ const CategorySettings = () => {
                             </p>
                         </div>
 
-                        {isPrivileged && (
+                        {isPrivileged && formIsGlobal && (
                         <div className="border rounded-lg p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>

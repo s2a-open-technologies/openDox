@@ -199,23 +199,41 @@ def set_category_dictionaries(
         )
 
 
-def glossary_for_category(db: Session, category: Categories | None) -> list[str]:
-    """Return the merged, de-duplicated terms of a category's dictionaries.
+def glossary_for_category(
+    db: Session, category: Categories | None, user_id: int | None = None
+) -> list[str]:
+    """Return the merged, de-duplicated term-correction glossary of a recording.
 
-    This is the only source of the term-correction glossary: a dictionary
-    takes effect solely through the categories it is attached to.
+    Sources: the dictionaries attached to the recording's category, plus every
+    personal dictionary of the recording's owner (``user_id``) — personal
+    dictionaries always apply, whatever the category; global ones only through
+    the categories they are attached to. Category dictionaries come first, so
+    ties in the correction go to them.
     """
-    if category is None or category.id is None:
-        return []
-    dictionaries = db.exec(
-        select(Dictionary)
-        .join(
-            CategoryDictionaryLink,
-            CategoryDictionaryLink.dictionary_id == Dictionary.id,
+    dictionaries: list[Dictionary] = []
+    if category is not None and category.id is not None:
+        dictionaries.extend(
+            db.exec(
+                select(Dictionary)
+                .join(
+                    CategoryDictionaryLink,
+                    CategoryDictionaryLink.dictionary_id == Dictionary.id,
+                )
+                .where(CategoryDictionaryLink.category_id == category.id)
+                .order_by(Dictionary.id)
+            ).all()
         )
-        .where(CategoryDictionaryLink.category_id == category.id)
-        .order_by(Dictionary.id)
-    ).all()
+    if user_id is not None:
+        attached = {d.id for d in dictionaries}
+        dictionaries.extend(
+            d
+            for d in db.exec(
+                select(Dictionary)
+                .where(Dictionary.user_id == user_id)
+                .order_by(Dictionary.id)
+            ).all()
+            if d.id not in attached
+        )
     terms: list[str] = []
     seen: set[str] = set()
     for dictionary in dictionaries:

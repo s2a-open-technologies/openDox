@@ -280,7 +280,9 @@ const DictionarySettings = ({ scope }: DictionarySettingsProps) => {
                             <div className="text-center text-muted-foreground py-6">{t('empty')}</div>
                         )}
                     </div>
-                    <p className="text-xs text-muted-foreground">{t('attachHint')}</p>
+                    {scope === 'global' && (
+                        <p className="text-xs text-muted-foreground">{t('attachHint')}</p>
+                    )}
                 </CardContent>
             </Card>
 

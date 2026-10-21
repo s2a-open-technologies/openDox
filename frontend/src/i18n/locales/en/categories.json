@@ -22,7 +22,7 @@
     "dictionaryTerms_other": "{{count}} terms",
     "noDictionaries": "No dictionaries yet. Create one under Dictionaries.",
     "dictionariesHintGlobal": "Terms from these dictionaries are corrected phonetically after the final transcription. A global category can only use global dictionaries.",
-    "dictionariesHintOwn": "Terms from these dictionaries are corrected phonetically after the final transcription. Your own category can use global dictionaries and your own."
+    "dictionariesHintOwn": "Terms from these dictionaries are corrected phonetically after the final transcription. Your own dictionaries already apply automatically to all your recordings; choose additional global ones here."
   },
   "llm": {
     "useOwn": "Use own LLM",

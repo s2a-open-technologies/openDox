@@ -17,7 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 from sqlmodel import Field, SQLModel
 
@@ -59,6 +59,8 @@ class CategoriesCreate(SQLModel):
     llm_top_p: Optional[float] = None
     llm_frequency_penalty: Optional[float] = None
     llm_enable_thinking: Optional[bool] = None
+    # Only privileged roles choose; everyone else always gets "personal".
+    scope: Optional[Literal["global", "personal"]] = None
 
 
 class CategoriesRead(SQLModel):

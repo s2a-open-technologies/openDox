@@ -2,7 +2,7 @@
   "globalTitle": "Wörterbücher",
   "globalDescription": "Globale Wörterbücher für die automatische Fachbegriff-Korrektur. Sie wirken nur in den Kategorien, an die sie angehängt sind, und stehen allen Benutzern für ihre eigenen Kategorien zur Verfügung.",
   "personalTitle": "Meine Wörterbücher",
-  "personalDescription": "Ihre eigenen Wörterbücher, nur für Sie sichtbar, auch nicht für Administratoren. Sie wirken nur in Ihren eigenen Kategorien, an die Sie sie anhängen.",
+  "personalDescription": "Ihre eigenen Wörterbücher, nur für Sie sichtbar, auch nicht für Administratoren. Sie gelten automatisch für alle Ihre Aufnahmen, unabhängig von der Kategorie, ohne dass Sie sie anhängen müssen.",
   "attachHint": "Ein Wörterbuch wirkt erst, wenn es unter Kategorien an eine Kategorie angehängt ist. So lassen sich auch kleine Wörterbücher gezielt testen.",
   "newNamePlaceholder": "Name des neuen Wörterbuchs",
   "create": "Anlegen",

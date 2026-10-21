@@ -38,3 +38,4 @@ frontend/dist/
 # Local-only, not tracked in git
 docker_build_push.sh
 docs/superpowers/
+docs/release.md

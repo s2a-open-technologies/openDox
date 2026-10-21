@@ -189,20 +189,3 @@ Bereits ausführlich in [`docs/data-mapping.md`](data-mapping.md) und
 Data-Subject-Rights-Tabelle) sowie in
 [`docs/oss-audit-talk-outline.md`](oss-audit-talk-outline.md) behandelt —
 hier nur der Querverweis, um Dopplung zu vermeiden.
-
-## Kernbotschaft für diesen Teil des Vortrags
-
-Lokale/self-hosted KI ist im Krankenhausumfeld kein Nice-to-have, sondern
-reduziert strukturell die Anzahl der Angriffsflächen, die ein Auditor über
-*mehrere* dieser Rahmenwerke hinweg gleichzeitig bewerten muss: weniger
-Datenabfluss an Dritte (ISO 27001/BSI-Grundschutz), weniger
-Lieferketten-Glieder (NIS2 Art. 21), keine Drittland-Transfer-Fragen für
-den ASR-Kernprozess (DSGVO). Das ersetzt aber **nicht** die
-Rahmenwerke, die auf *Prozessreife* statt *Architektur* zielen (CRA:
-automatisiertes Vulnerability-Handling; ISO 27001: Managementsystem der
-Organisation) — dort hat openDox, wie in
-[`docs/audit-checklist-opendox.md`](audit-checklist-opendox.md) offen
-dokumentiert, reale Lücken. Genau diese Kombination — Architektur als
-struktureller Vorteil, Prozessreife als offen benannte Baustelle — ist
-die differenzierte Aussage, die im Vortrag überzeugt, statt "lokal =
-automatisch audit-sicher" zu behaupten.

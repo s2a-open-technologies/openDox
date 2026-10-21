@@ -17,11 +17,11 @@
   },
   "dictionary": {
     "heading": "Meine Wörterbücher",
-    "description": "Eigene Begriffslisten für die automatische Fachbegriff-Korrektur, zum Beispiel zum Testen. Sie wirken nur in Ihren eigenen Kategorien, an die Sie sie anhängen."
+    "description": "Eigene Begriffslisten für die automatische Fachbegriff-Korrektur, zum Beispiel zum Testen. Sie gelten automatisch für alle Ihre Aufnahmen, unabhängig von der Kategorie."
   },
   "categories": {
     "heading": "Meine Kategorien",
-    "description": "Eigene Kategorien für Ihre Aufnahmen anlegen und verwalten. Diese sind nur für Sie sichtbar, zusätzlich zu den global bereitgestellten Kategorien."
+    "description": "Eigene Kategorien für Ihre Aufnahmen anlegen und verwalten. Diese sind nur für Sie sichtbar, zusätzlich zu den global bereitgestellten Kategorien. Ihre eigenen Wörterbücher müssen Sie dafür nicht anhängen, sie gelten immer."
   },
   "appearance": {
     "heading": "Design",

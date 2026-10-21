@@ -12,6 +12,13 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.10.6] — 2026-10-21
+
+### Changed
+
+- Personal dictionaries now always apply to all of their owner's recordings, whatever the category; they no longer have to be attached to a personal category. Global dictionaries still apply only through the categories they are attached to, and the category form now offers only global ones.
+- Profile → "My categories" is available to every role. Admins and moderators can create personal categories there (`POST /categories/` accepts `scope: "personal"`); global categories stay in the admin view.
+
 ## [0.10.5] — 2026-10-21
 
 ### Added
@@ -386,7 +393,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.5...HEAD
+[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.6...HEAD
+[0.10.6]: https://github.com/daemolition/openDox/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/daemolition/openDox/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/daemolition/openDox/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/daemolition/openDox/compare/v0.10.2...v0.10.3

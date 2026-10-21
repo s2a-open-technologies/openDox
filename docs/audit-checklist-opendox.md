@@ -97,21 +97,4 @@
 | Commit-/Maintainer-Aktivität | ✅ (aktiv) | 148 Commits (Stand 2026-10-08), aktuelle Feature-Cadence (Rate-Limiting, Governance-Aufbau, Licensing) | Projekt ist nicht verwaist |
 | Bus-Faktor | ❌ (=1) | Alle 148 Commits (Stand 2026-10-08) stammen von einer Person; Git-Identitäten per `git filter-repo` auf `Christopher Abanilla <christopher.abanilla@gmx.de>` vereinheitlicht | Kein zweiter Maintainer, kein dokumentierter Nachfolgeprozess |
 | Docker-Reproduzierbarkeit | ⚠️ | Dockerfiles für alle 4 Services vorhanden; Base-Images gemischt gepinnt (`dxflrs/garage:v1.0.1` exakt vs. `node:22-slim`/`python:3.12-slim` mit floatendem Minor/Patch) | Keine Digest-Pins (`@sha256:...`) — Builds nicht bit-identisch reproduzierbar |
-| Health-Check-Endpoint für Betrieb | ✅ | `GET /api/v1/settings/services-health/`, prüft Postgres/Redis/Whisper/Parakeet/EntityGuard/S3/Encryption-Key-Status | |
-
-## Zusammenfassung für den Vortrag
-
-**Stärken, die openDox als Beispiel für gute Auditierbarkeit tragen**:
-durchgängige Verschlüsselungsarchitektur, sauberes Secrets-Handling,
-implementierte (nicht nur beschriebene) Key-Rotation, umfangreiche und vor
-allem *ehrliche* Sicherheits-/Datenschutzdokumentation mit explizit
-markierten Lücken, vollständige Lizenz-Header.
-
-**Lücken, die die Gegenthese im Vortrag liefern** ("auch ein
-security-fokussiertes Projekt hat blinde Flecken"): kein Audit-Log,
-Bus-Faktor 1, keine Digest-Pins bei Docker-Base-Images,
-fehlende Access-/Portability-Rechte nach DSGVO.
-
-Beide Listen zusammen sind der eigentliche Beweis für die These des
-Vortrags: **Auditierbarkeit zeigt sich nicht daran, keine Lücken zu haben,
-sondern daran, dass man sie findet, weil sie dokumentiert sind.**
+| Health-Check-Endpoint für Betrieb | ✅ | `GET /api/v1/settings/services-health/`, prüft Postgres/Redis/Whisper/Parakeet/EntityGuard/S3/Encryption-Key-Status | 

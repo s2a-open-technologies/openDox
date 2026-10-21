@@ -47,7 +47,8 @@ function renderWithAuth(
   authFetch: ReturnType<typeof vi.fn>,
   role: "admin" | "moderator" | "demo_viewer" | "user" = "admin",
   id = 1,
-  dictionaries: unknown[] = []
+  dictionaries: unknown[] = [],
+  scope: "global" | "personal" = "global"
 ) {
   const routedFetch = vi.fn((url: string, options?: RequestInit) =>
     url === DICTIONARIES_URL
@@ -63,7 +64,7 @@ function renderWithAuth(
     authFetch: routedFetch,
     acceptDisclaimer: vi.fn(),
   });
-  return render(<CategorySettings />);
+  return render(<CategorySettings scope={scope} />);
 }
 
 async function fillRequiredFields(
@@ -239,7 +240,7 @@ describe("CategorySettings", () => {
     expect(screen.queryByRole("checkbox", { name: /Mein Test/ })).not.toBeInTheDocument();
   });
 
-  it("offers global and own dictionaries for a user's own category", async () => {
+  it("offers no personal dictionaries for a user's own category (they always apply)", async () => {
     const authFetch = vi.fn().mockResolvedValue(jsonResponse([]));
     renderWithAuth(authFetch, "user", 7, [
       { id: 3, name: "ICD", user_id: null, term_count: 2, category_ids: [] },
@@ -247,7 +248,36 @@ describe("CategorySettings", () => {
     ]);
 
     expect(await screen.findByRole("checkbox", { name: /ICD/ })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: /Mein Test/ })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Mein Test/ })).not.toBeInTheDocument();
+  });
+
+  it("lists only own categories and creates personal ones in the personal scope", async () => {
+    const own = { id: 2, name: "Meine", description: "x", system_prompt: "p", user_id: 1 };
+    const authFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { id: 1, name: "Kardiologie", description: "x", system_prompt: "p", user_id: null },
+          own,
+          { id: 3, name: "Fremde", description: "x", system_prompt: "p", user_id: 9 },
+        ])
+      )
+      .mockResolvedValueOnce(jsonResponse({ id: 4 }))
+      .mockResolvedValueOnce(jsonResponse([own]));
+    const user = userEvent.setup();
+    renderWithAuth(authFetch, "admin", 1, [], "personal");
+
+    expect(await screen.findByText("Meine")).toBeInTheDocument();
+    expect(screen.queryByText("Kardiologie")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fremde")).not.toBeInTheDocument();
+    expect(screen.queryByText("Eigenes LLM verwenden")).not.toBeInTheDocument();
+
+    await fillRequiredFields(user, { name: "Neu", description: "d", systemPrompt: "p" });
+    await user.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(3));
+    const [, options] = authFetch.mock.calls[1];
+    expect(JSON.parse(options.body).scope).toBe("personal");
   });
 
   it("shows the server error detail and keeps the form on create failure", async () => {

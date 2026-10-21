@@ -22,7 +22,7 @@
     "dictionaryTerms_other": "{{count}} Begriffe",
     "noDictionaries": "Noch keine Wörterbücher vorhanden. Legen Sie eines unter Wörterbücher an.",
     "dictionariesHintGlobal": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Eine globale Kategorie kann nur globale Wörterbücher verwenden.",
-    "dictionariesHintOwn": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Ihre eigene Kategorie kann globale und Ihre eigenen Wörterbücher verwenden."
+    "dictionariesHintOwn": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Ihre eigenen Wörterbücher gelten ohnehin automatisch für alle Ihre Aufnahmen; hier wählen Sie zusätzliche globale."
   },
   "llm": {
     "useOwn": "Eigenes LLM verwenden",

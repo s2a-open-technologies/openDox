@@ -24,5 +24,5 @@ Alle Bilder, die die Handbücher referenzieren. Fehlende Dateien ersetzt
 | `bilder/benutzer/06-audio-hochladen.png` | Dialog „Audio hochladen“ | Benutzer |
 | `bilder/benutzer/07-transkript.png` | Fertige Aufnahme: Transkript, Zusammenfassung, Hinweis, Bestätigungshaken | Benutzer |
 | `bilder/benutzer/08-zeilenmenue.png` | Geöffnetes Zeilenmenü einer Aufnahme (Archivieren/Löschen) | Benutzer |
-| `bilder/benutzer/09-meine-kategorien.png` | Profil → Meine Kategorien mit ausgefülltem Formular, ein Wörterbuch angehakt | Benutzer |
+| `bilder/benutzer/09-meine-kategorien.png` | Profil → Meine Kategorien mit ausgefülltem Formular, ein globales Wörterbuch angehakt | Benutzer |
 | `bilder/benutzer/10-profil.png` | Profil-Dialog, Tab „Meine Wörterbücher“ mit einem geöffneten Wörterbuch und Beispielbegriffen | Benutzer |

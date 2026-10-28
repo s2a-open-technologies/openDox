@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-10-28
+
 ### Added
 - **Automatic logout after inactivity** — the web UI logs out after a configurable time without input
   (Administration → Authentifizierung → *Sitzung*, default 30 min, 0 = never). Never during a recording
@@ -70,6 +72,7 @@ section as the GitHub Release notes.
   check (403 `account_locked`, the web login shows "account locked"), for local, LDAP and OIDC users alike.
 - The refresh token is sent in the request body instead of the URL (`POST /auth/refresh`), so it no longer
   lands in proxy access logs. The query parameter is still accepted for older desktop clients.
+- Security fixes
 
 ## [0.10.7] - 2026-10-21
 
@@ -466,7 +469,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.6...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.7...v0.11.0
 [0.10.6]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.3...v0.10.4

@@ -56,7 +56,7 @@ Enhancement suggestions are tracked as GitHub issues. Please provide:
 
 ```bash
 # Clone the repository
-git clone https://github.com/daemolition/openDox.git
+git clone https://github.com/s2a-open-technologies/openDox.git
 cd openDox
 
 # Install dependencies (creates .venv from uv.lock; install uv first:
@@ -288,6 +288,7 @@ uv run alembic downgrade -1
 
 ## Pull Request Process
 
+0. **Accept the [CLA](CLA.md)** by ticking the box in the pull request template
 1. **Update documentation** for any changed functionality
 2. **Add tests** for new features and bug fixes
 3. **Ensure all tests pass**:
@@ -328,9 +329,15 @@ Contributors will be:
 - Mentioned in release notes
 - Credited in security advisories (for security contributions)
 
-## License
+## License and Contributor License Agreement
 
-By contributing, you agree that your contributions will be licensed under the AGPL-3.0-or-later license. New source files need the SPDX/AGPL header (`scripts/add_spdx_headers.py`; check with `reuse lint`).
+The project is licensed under the AGPL-3.0-or-later. Before a contribution can be
+merged, you have to accept the [Contributor License Agreement](CLA.md) (CLA) by
+ticking the box in the pull request template; it applies to all your future
+contributions as well. In short: you grant S2A Open Technologies gGmbH exclusive
+rights of use in your contribution, get a license back to keep using it yourself,
+and the gGmbH commits to keep it available under an open-source license. The
+German version of the CLA is authoritative. New source files need the SPDX/AGPL header (`scripts/add_spdx_headers.py`; check with `reuse lint`).
 
 ---
 

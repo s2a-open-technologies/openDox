@@ -131,6 +131,26 @@ describe("AuthContext", () => {
     expect(result.current.isAuthenticated).toBe(false);
   });
 
+  it("throws the server's message when the account is locked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        detail: { code: "account_locked", message: "Account locked", params: {} },
+      }),
+    } as Response);
+
+    const { result } = renderAuth();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.login("admin1", "secret")).rejects.toThrow(
+        "Ihr Konto ist gesperrt"
+      );
+    });
+    expect(localStorage.getItem("access_token")).toBeNull();
+  });
+
   it("returns false when the login response has no access_token", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({}));
 
@@ -252,5 +272,207 @@ describe("AuthContext", () => {
     });
 
     expect(success).toBe(false);
+  });
+
+  describe("session renewal", () => {
+    const statusResponse = (status: number, body: unknown = {}) =>
+      ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
+
+    const me = { id: 1, name: "dr.mueller", is_active: true, role: "user" };
+
+    const fakeJwt = (expSeconds: number) =>
+      `x.${btoa(JSON.stringify({ exp: expSeconds }))}.y`;
+
+    it("renews the access token on 401 and retries the request once", async () => {
+      localStorage.setItem("access_token", "old-access");
+      localStorage.setItem("refresh_token", "old-refresh");
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+        if (url.startsWith("/api/v1/auth/refresh")) {
+          return statusResponse(200, { access_token: "new-access", refresh_token: "new-refresh" });
+        }
+        if (url === "/api/v1/auth/me") return statusResponse(200, me);
+        return auth === "Bearer new-access" ? statusResponse(200, { ok: 1 }) : statusResponse(401);
+      });
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      let response: Response | undefined;
+      await act(async () => {
+        response = await result.current.authFetch("/api/v1/something");
+      });
+
+      expect(response?.status).toBe(200);
+      expect(localStorage.getItem("access_token")).toBe("new-access");
+      expect(localStorage.getItem("refresh_token")).toBe("new-refresh");
+      const refreshCalls = vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).startsWith("/api/v1/auth/refresh"));
+      expect(refreshCalls).toHaveLength(1);
+      expect(String(refreshCalls[0][0])).not.toContain("old-refresh");
+      expect(JSON.parse((refreshCalls[0][1] as RequestInit).body as string)).toEqual({
+        refresh_token: "old-refresh",
+      });
+    });
+
+    it("shares one renewal between parallel 401s", async () => {
+      localStorage.setItem("access_token", "old-access");
+      localStorage.setItem("refresh_token", "old-refresh");
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+        if (url.startsWith("/api/v1/auth/refresh")) {
+          return statusResponse(200, { access_token: "new-access", refresh_token: "new-refresh" });
+        }
+        if (url === "/api/v1/auth/me") return statusResponse(200, me);
+        return auth === "Bearer new-access" ? statusResponse(200) : statusResponse(401);
+      });
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      await act(async () => {
+        await Promise.all([
+          result.current.authFetch("/api/v1/a"),
+          result.current.authFetch("/api/v1/b"),
+        ]);
+      });
+
+      const refreshCalls = vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).startsWith("/api/v1/auth/refresh"));
+      expect(refreshCalls).toHaveLength(1);
+    });
+
+    it("ends the session when the server refuses the renewal", async () => {
+      localStorage.setItem("access_token", "old-access");
+      localStorage.setItem("refresh_token", "revoked");
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = String(input);
+        if (url === "/api/v1/auth/me") return statusResponse(200, me);
+        return statusResponse(401);
+      });
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      await act(async () => {
+        await result.current.authFetch("/api/v1/something");
+      });
+
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(localStorage.getItem("access_token")).toBeNull();
+      expect(localStorage.getItem("refresh_token")).toBeNull();
+    });
+
+    it("keeps the session when the server cannot be reached for the renewal", async () => {
+      localStorage.setItem("access_token", "old-access");
+      localStorage.setItem("refresh_token", "old-refresh");
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = String(input);
+        if (url === "/api/v1/auth/me") return statusResponse(200, me);
+        if (url.startsWith("/api/v1/auth/refresh")) throw new Error("offline");
+        return statusResponse(401);
+      });
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      await act(async () => {
+        await result.current.authFetch("/api/v1/something");
+      });
+
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(localStorage.getItem("refresh_token")).toBe("old-refresh");
+    });
+
+    it("restores an expired session on mount through the refresh token", async () => {
+      localStorage.setItem("access_token", "expired");
+      localStorage.setItem("refresh_token", "valid-refresh");
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+        if (url.startsWith("/api/v1/auth/refresh")) {
+          return statusResponse(200, { access_token: "fresh", refresh_token: "fresh-refresh" });
+        }
+        return auth === "Bearer fresh" ? statusResponse(200, me) : statusResponse(401);
+      });
+
+      const { result } = renderAuth();
+
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+      expect(result.current.user?.name).toBe("dr.mueller");
+    });
+
+    it("stores the refresh token on password login", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(statusResponse(200, { access_token: "a", refresh_token: "r" }))
+        .mockResolvedValueOnce(statusResponse(200, me));
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => {
+        await result.current.login("dr.mueller", "pw");
+      });
+
+      expect(localStorage.getItem("refresh_token")).toBe("r");
+    });
+
+    it("loginWithTokens (OIDC) stores both tokens and loads the user", async () => {
+      vi.mocked(fetch).mockResolvedValue(statusResponse(200, me));
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => {
+        await result.current.loginWithTokens("oidc-access", "oidc-refresh");
+      });
+
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(localStorage.getItem("access_token")).toBe("oidc-access");
+      expect(localStorage.getItem("refresh_token")).toBe("oidc-refresh");
+    });
+
+    it("getFreshToken renews a token that is about to expire", async () => {
+      const soon = fakeJwt(Math.floor(Date.now() / 1000) + 10);
+      localStorage.setItem("access_token", soon);
+      localStorage.setItem("refresh_token", "r");
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        if (String(input).startsWith("/api/v1/auth/refresh")) {
+          return statusResponse(200, { access_token: "renewed", refresh_token: "r2" });
+        }
+        return statusResponse(200, me);
+      });
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      let token = "";
+      await act(async () => {
+        token = await result.current.getFreshToken();
+      });
+
+      expect(token).toBe("renewed");
+    });
+
+    it("getFreshToken keeps a token that is still valid", async () => {
+      const later = fakeJwt(Math.floor(Date.now() / 1000) + 3600);
+      localStorage.setItem("access_token", later);
+      vi.mocked(fetch).mockResolvedValue(statusResponse(200, me));
+
+      const { result } = renderAuth();
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      let token = "";
+      await act(async () => {
+        token = await result.current.getFreshToken();
+      });
+
+      expect(token).toBe(later);
+      expect(
+        vi.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith("/api/v1/auth/refresh"))
+      ).toBe(false);
+    });
   });
 });

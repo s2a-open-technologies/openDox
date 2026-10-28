@@ -358,3 +358,84 @@ def test_is_authorized_denies_everyone_without_configured_groups():
     service = OidcService(_settings())
 
     assert service.is_authorized({"groups": ["users"]}) is False
+
+
+@pytest.fixture
+def provider(monkeypatch):
+    """Fake provider for refresh(): discovery + userinfo GETs, token POST."""
+    state = {"token_response": None, "userinfo": {}, "posts": []}
+
+    def fake_get(url, headers=None, timeout=None):
+        if url.endswith("/.well-known/openid-configuration"):
+            return _FakeResponse(DISCOVERY_DOC)
+        if url == DISCOVERY_DOC["userinfo_endpoint"]:
+            return _FakeResponse(state["userinfo"])
+        raise AssertionError(f"Unexpected GET {url}")
+
+    def fake_post(url, data=None, timeout=None):
+        state["posts"].append(data)
+        response = state["token_response"]
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(httpx, "post", fake_post)
+    return state
+
+
+def test_refresh_ok_maps_role_and_rotates_token(provider):
+    provider["token_response"] = _FakeResponse(
+        {"access_token": "at", "refresh_token": "rt-new"}
+    )
+    provider["userinfo"] = {"groups": ["opendox-admins"]}
+    service = OidcService(
+        _settings(allowed_groups="opendox", admin_groups="opendox-admins")
+    )
+
+    result = service.refresh("rt-old")
+
+    assert result == {"status": "ok", "role": "admin", "refresh_token": "rt-new"}
+    assert provider["posts"][0]["grant_type"] == "refresh_token"
+    assert provider["posts"][0]["refresh_token"] == "rt-old"
+
+
+def test_refresh_keeps_token_when_provider_does_not_rotate(provider):
+    provider["token_response"] = _FakeResponse({"access_token": "at"})
+    provider["userinfo"] = {"groups": ["opendox"]}
+
+    result = OidcService(_settings(allowed_groups="opendox")).refresh("rt-old")
+
+    assert result["status"] == "ok"
+    assert result["refresh_token"] == "rt-old"
+
+
+def test_refresh_denied_when_user_left_every_group(provider):
+    provider["token_response"] = _FakeResponse({"access_token": "at"})
+    provider["userinfo"] = {"groups": ["other"]}
+
+    result = OidcService(_settings(allowed_groups="opendox")).refresh("rt")
+
+    assert result["status"] == "denied"
+
+
+def test_refresh_denied_when_provider_rejects_grant(provider):
+    provider["token_response"] = _FakeResponse(
+        {"error": "invalid_grant"}, status_code=400
+    )
+
+    result = OidcService(_settings(allowed_groups="opendox")).refresh("rt")
+
+    assert result["status"] == "denied"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [httpx.ConnectError("down"), _FakeResponse({}, status_code=503)],
+)
+def test_refresh_unavailable_when_provider_cannot_answer(provider, response):
+    provider["token_response"] = response
+
+    result = OidcService(_settings(allowed_groups="opendox")).refresh("rt")
+
+    assert result["status"] == "unavailable"

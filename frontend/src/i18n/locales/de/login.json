@@ -7,5 +7,7 @@
   "or": "oder",
   "sso": "Mit Single Sign-On anmelden",
   "success": "Erfolgreich angemeldet",
-  "failed": "Anmeldung fehlgeschlagen"
+  "failed": "Anmeldung fehlgeschlagen",
+  "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+  "idleLogout": "Sie wurden wegen Inaktivität abgemeldet."
 }

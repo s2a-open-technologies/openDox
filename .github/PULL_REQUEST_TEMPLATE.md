@@ -31,3 +31,12 @@ Brief description of the change. Reference related issues with
 - [ ] "Kein Medizinprodukt" disclaimer preserved in recording dialog and
       transcript view, and the first-login gate stays unbypassable
       (only relevant if auth/disclaimer flow was touched)
+
+## Contributor License Agreement
+
+Ohne Haken kann der Pull Request nicht übernommen werden. /
+*The pull request cannot be merged without this box ticked.*
+
+- [ ] Ich habe die [CLA](https://github.com/s2a-open-technologies/openDox/blob/master/CLA.md) gelesen und stimme ihr für diesen und alle
+      künftigen Beiträge zu. / I have read the [CLA](https://github.com/s2a-open-technologies/openDox/blob/master/CLA.md) and agree to it
+      for this and all future contributions.

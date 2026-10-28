@@ -21,7 +21,7 @@
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { useAuth } from "@/contexts/AuthContext";
+import { LoginRefusedError, useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ const Login = () => {
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
   const [oidcEnabled, setOidcEnabled] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginWithTokens, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -48,10 +48,10 @@ const Login = () => {
     const access = searchParams.get("access_token");
     const refresh = searchParams.get("refresh_token");
     if (access) {
-      localStorage.setItem("access_token", access);
-      if (refresh) localStorage.setItem("refresh_token", refresh);
-      // Clean the URL so tokens don't linger in the address bar / history.
-      navigate("/dashboard", { replace: true });
+      // Clean the URL so tokens don't linger in the address bar / history;
+      // the redirect to the dashboard follows once the user is loaded.
+      navigate("/login", { replace: true });
+      loginWithTokens(access, refresh);
     }
   }, [searchParams, navigate]);
 
@@ -73,7 +73,7 @@ const Login = () => {
         toast.error(t("failed"));
       }
     } catch (error) {
-      toast.error(t("failed"));
+      toast.error(error instanceof LoginRefusedError ? error.message : t("failed"));
     }
   };
 

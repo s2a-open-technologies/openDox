@@ -79,7 +79,13 @@ typst() {
 }
 
 for book in "${BOOKS[@]}"; do
-  name="openDox-${book^}handbuch-$VERSION"
+  # Dateiname aus dem Ordnernamen, mit Fugen-s wo das Deutsche eins verlangt
+  case "$book" in
+    administration) label="Administrationshandbuch" ;;
+    installation)   label="Installationshandbuch" ;;
+    *)              label="${book^}handbuch" ;;
+  esac
+  name="openDox-$label-$VERSION"
   args=("$book/handbuch.md" --metadata-file=metadata.yaml
         -M version="$VERSION" -M stand="$DATE")
   for fmt in $FORMATS; do

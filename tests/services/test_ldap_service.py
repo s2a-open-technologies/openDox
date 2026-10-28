@@ -387,3 +387,72 @@ def test_authenticate_nested_group_not_checked_when_disabled(patched_connection)
 
     assert result["success"] is False
     assert bind_conn.search.call_count == 1
+
+
+def test_check_user_ok_returns_role(patched_connection):
+    bind_conn = _bind_connection(
+        [
+            _user_entry(
+                "uid=jdoe,dc=example,dc=com",
+                member_of=["cn=opendox-admins,dc=example,dc=com"],
+            )
+        ]
+    )
+    patched_connection(bind_conn)
+    service = LdapService(
+        _settings(allowed_groups="opendox", admin_groups="opendox-admins")
+    )
+
+    assert service.check_user("jdoe") == {"status": "ok", "role": "admin"}
+    bind_conn.unbind.assert_called_once()
+
+
+def test_check_user_denied_when_not_found(patched_connection):
+    patched_connection(_bind_connection([]))
+
+    result = LdapService(_settings(allowed_groups="opendox")).check_user("jdoe")
+
+    assert result["status"] == "denied"
+
+
+def test_check_user_denied_when_group_removed(patched_connection):
+    bind_conn = _bind_connection(
+        [_user_entry("uid=jdoe,dc=example,dc=com", member_of=[])]
+    )
+    patched_connection(bind_conn)
+
+    result = LdapService(_settings(allowed_groups="opendox")).check_user("jdoe")
+
+    assert result["status"] == "denied"
+
+
+def test_check_user_denied_when_ad_account_disabled(patched_connection):
+    entry = _user_entry(
+        "uid=jdoe,dc=example,dc=com",
+        member_of=["cn=opendox,dc=example,dc=com"],
+    )
+    entry.userAccountControl = SimpleNamespace(value=512 | 0x2)
+    patched_connection(_bind_connection([entry]))
+
+    result = LdapService(_settings(allowed_groups="opendox")).check_user("jdoe")
+
+    assert result == {"status": "denied", "message": "Account disabled"}
+
+
+def test_check_user_unavailable_when_server_unreachable(patched_connection):
+    patched_connection(Exception("connection refused"))
+
+    result = LdapService(_settings(allowed_groups="opendox")).check_user("jdoe")
+
+    assert result["status"] == "unavailable"
+
+
+def test_check_user_unavailable_without_service_account(patched_connection):
+    connection = patched_connection()
+
+    result = LdapService(
+        _settings(allowed_groups="opendox", bind_user_dn=None)
+    ).check_user("jdoe")
+
+    assert result["status"] == "unavailable"
+    connection.assert_not_called()

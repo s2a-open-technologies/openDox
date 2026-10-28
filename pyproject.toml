@@ -76,7 +76,7 @@ ignore = [
 # Konfiguration der Import-Sortierung
 [tool.ruff.lint.isort]
 # Definiere die Reihenfolge deiner Imports
-known-first-party = ["dein_projektname"]
+known-first-party = ["backend"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 # Konfiguration für Google-Style Docstrings

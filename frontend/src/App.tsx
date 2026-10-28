@@ -24,6 +24,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { useIdleLogout } from '@/hooks/useIdleLogout';
 import { BASE_PATH } from '@/api';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/settings/ThemeToggle';
@@ -37,6 +38,7 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { t } = useTranslation('common');
   const { isAuthenticated, isLoading, user } = useAuth();
+  useIdleLogout();
 
   if (isLoading) {
     return (

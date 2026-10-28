@@ -655,7 +655,7 @@ def authenticate(self, username: str, password: str):
 
     # Rollen-Mapping: App baut die erwartete Group-DN selbst (cn={name},{base_dn}) —
     # Admins tragen nur Klartext-Gruppennamen ein, nie eine DN
-    allowed = _parse_groups(self.settings.allowed_groups)   # Gate; Zugang nur für Mitglieder von allowed/admin/moderator, ohne Gruppe niemand
+    allowed = _parse_groups(self.settings.allowed_groups)   # Gate (UI: „User-Gruppen“); Zugang nur für Mitglieder von allowed/admin/moderator, ohne Gruppe niemand
     admin = _parse_groups(self.settings.admin_groups)       # Rollen-Mapping, Admin hat Vorrang
     moderator = _parse_groups(self.settings.moderator_groups)
 ```
@@ -666,7 +666,7 @@ Nutzer werden beim ersten erfolgreichen Login auto-provisioniert (leerer Passwor
 
 ### 3. OIDC/SSO (`oidc_bp`, `/api/v1/auth/oidc/{login,callback,status}`)
 
-Authorization-Code-Flow mit Discovery (`{provider_url}/.well-known/openid-configuration`). Der `state`-Parameter wird mit `SECRET_KEY` über `itsdangerous.URLSafeSerializer` signiert und in einem kurzlebigen Cookie gespeichert. Der Callback stellt lokale JWTs aus und leitet auf `/login?access_token=...&refresh_token=...` weiter — das Frontend (`Login.tsx`) liest die Query-Parameter und speichert sie in `localStorage`. `OidcSettingsModel.admin_groups`/`moderator_groups` mappen OIDC-Gruppen auf Rollen, gleiche Admin-hat-Vorrang-Logik wie bei LDAP. `allowed_groups` bildet auch hier das Gate: nur Mitglieder von allowed/admin/moderator dürfen sich anmelden (403 sonst), ohne konfigurierte Gruppe niemand. Nutzer werden beim ersten Login auto-provisioniert; der OIDC-Button in `Login.tsx` erscheint nur, wenn `/oidc/status` `{"enabled": true}` liefert.
+Authorization-Code-Flow mit Discovery (`{provider_url}/.well-known/openid-configuration`). Der `state`-Parameter wird mit `SECRET_KEY` über `itsdangerous.URLSafeSerializer` signiert und in einem kurzlebigen Cookie gespeichert. Der Callback stellt lokale JWTs aus und leitet auf `/login?access_token=...&refresh_token=...` weiter — das Frontend (`Login.tsx`) liest die Query-Parameter und speichert sie in `localStorage`. `OidcSettingsModel.admin_groups`/`moderator_groups` mappen OIDC-Gruppen auf Rollen, gleiche Admin-hat-Vorrang-Logik wie bei LDAP. `allowed_groups` (UI: „User-Gruppen“) bildet auch hier das Gate: nur Mitglieder von allowed/admin/moderator dürfen sich anmelden (403 sonst), ohne konfigurierte Gruppe niemand. Nutzer werden beim ersten Login auto-provisioniert; der OIDC-Button in `Login.tsx` erscheint nur, wenn `/oidc/status` `{"enabled": true}` liefert.
 
 `_build_redirect_uri()` respektiert `X-Forwarded-Proto`/`X-Forwarded-Host` **nur**, wenn der unmittelbare Peer ein vertrauenswürdiger Reverse-Proxy ist (`TRUSTED_PROXY_IPS`) — sonst wären diese Header vom Client fälschbar und könnten den OIDC-Callback umleiten.
 
@@ -1371,23 +1371,15 @@ Für den Vite Dev-Server muss `VITE_ROOT_PATH` in `.env` denselben Wert wie `ROO
 
 Ohne gültigen `ENCRYPTION_KEY` (bzw. `ENCRYPTION_KEY_FILE`) bricht der Start mit `EncryptionKeyError` ab. Key erzeugen: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` und in `.env` (Entwicklung) oder als Docker-Secret eintragen. Beim Docker-Compose-Stack ist die Variable in `.env` Pflicht.
 
-### 15. ruff known-first-party: Platzhalter statt korrektem Wert
-
-`pyproject.toml` enthält `known-first-party = ["dein_projektname"]` — das ist ein Template-Platzhalter. Für korrekte Import-Sortierung sollte dies `["backend"]` sein.
-
-### 16. Frontend-Build: Output geht nach `../backend/static`, nicht `frontend/dist`
+### 15. Frontend-Build: Output geht nach `../backend/static`, nicht `frontend/dist`
 
 `vite.config.ts` konfiguriert `outDir: path.resolve(__dirname, "../backend/static")`. Das bedeutet `npm run build` schreibt direkt in `backend/static/`, nicht in `frontend/dist/`. Der Eintrag `frontend/dist/` in `.gitignore` ist daher überflüssig; stattdessen ist `static/` (im Backend-Verzeichnis) die relevante Ignore-Regel.
 
-### 17. `/api/health` ist toter Code — nicht mit `/api/endpoint` verwechseln
-
-`backend/views/root_view/root.py` definiert `/health` und ein doppeltes `/api/endpoint`, aber dieser Router wird nie in `create_app()` per `include_router()` eingebunden. Ein Request auf `/api/health` fällt still auf den `SPAStaticFiles`-Catch-all durch und liefert die SPA-Shell mit Status 200 zurück — sieht wie ein funktionierender Health-Check aus, ist aber keiner. Die echten Liveness-/Versions-Routen sind `/api/endpoint` und `/api/version`, beide direkt in `create_app()` registriert. Neue öffentliche Root-Level-Routen sollten diesem Inline-Registrierungsmuster folgen, nicht dem ungemounteten `root_view`-Router.
-
-### 18. Apache-Reverse-Proxy + WebSocket: `mod_proxy_wstunnel` fehlt
+### 16. Apache-Reverse-Proxy + WebSocket: `mod_proxy_wstunnel` fehlt
 
 Bricht die Live-Transkription hinter Apache nach 1-2 Sätzen ab, fehlt vermutlich `mod_proxy_wstunnel` — `mod_proxy_http` lässt das WS-Upgrade zwar durch, bricht aber bei binären Audio-Frames ab. Fix: `a2enmod proxy_wstunnel` und die WS-`ProxyPass`-Regel für `/api/v1/records/ws/record` **vor** dem Catch-all `ProxyPass /` deklarieren.
 
-### 19. `docker stack config`/`deploy`-Interpolationsbug bei Bindestrichen
+### 17. `docker stack config`/`deploy`-Interpolationsbug bei Bindestrichen
 
 Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${VAR:?Fehlermeldung}`-Klausel lässt den Compose-Spec-Interpolator die Substitution stillschweigend verstümmeln (liefert Datenmüll statt des Variablenwerts, selbst wenn die Variable gesetzt ist) — reproduziert, kein Theoriegebilde. In `:?`/`:-`-Default-/Fehlertexten in Swarm-Compose-Dateien Bindestriche vermeiden.
 
@@ -1397,7 +1389,7 @@ Ein wörtliches ` - ` (Leerzeichen-Bindestrich-Leerzeichen) innerhalb einer `${V
 
 ### Repositories
 
-- **Quellcode:** [GitHub - daemolition/openDox](https://github.com/daemolition/openDox)
+- **Quellcode:** [GitHub - s2a-open-technologies/openDox](https://github.com/s2a-open-technologies/openDox)
 - **Docker Images:** App, Whisper, Parakeet, Garage-Init; multi-arch (amd64+arm64) über den manuellen Workflow `.github/workflows/docker-publish.yml` nach `ghcr.io/<owner>`
 - **Weitere Dokumentation:** `docs/zweckbestimmung.md` (Zweckbestimmung, Abgrenzung zur MDR), `docs/client.md` (Desktop-Client), `docs/pii.md` (PII-Sanitizer-Ablauf), `docs/data-mapping.md` (Datenfluss/DSGVO), `SECURITY.md`, `AGENTS.md`/`CLAUDE.md` (technische Agenten-Referenz)
 

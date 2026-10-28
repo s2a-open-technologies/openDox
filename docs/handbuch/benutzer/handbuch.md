@@ -106,6 +106,15 @@ gespeichert und nur einmal abgefragt.
 Auf dem Smartphone ist die Seitenleiste eingeklappt und über das Menüsymbol
 (**Menü öffnen**) erreichbar.
 
+## Automatische Abmeldung
+
+Arbeiten Sie eine Zeit lang nicht mit openDox, meldet es Sie ab (Ihre
+Administration legt fest, nach wie vielen Minuten; üblich sind 30). Sie sehen
+dann die Anmeldeseite mit einem Hinweis. Während einer Aufnahme und solange
+die Transkription läuft, werden Sie nie abgemeldet. Melden Sie sich trotzdem
+selbst über **Abmelden** ab, wenn Sie einen gemeinsam genutzten Rechner
+verlassen.
+
 # Eine Aufnahme erstellen
 
 ## Neue Aufnahme anlegen

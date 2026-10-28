@@ -12,6 +12,44 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+- **Automatic logout after inactivity** — the web UI logs out after a configurable time without input
+  (Administration → System → *Automatische Abmeldung*, default 30 min, 0 = never). Never during a recording
+  or while its transcription runs; activity in any open tab counts.
+- **Directory re-check on session renewal** — every token refresh re-checks LDAP users with the service
+  account (account gone, AD account disabled, removed from every permitted group) and renews OIDC users at
+  the identity provider. A revoked account loses access within one access-token lifetime (30 min); the
+  role follows the current groups. If the directory cannot be reached the session is kept. New columns
+  `user.auth_source` and `user.idp_refresh_token` (encrypted), table `sessionsettingsmodel`.
+
+### Changed
+
+- Repository links (README, CONTRIBUTING, installation manual, CHANGELOG compare links, `bump_version.py`) point to `github.com/s2a-open-technologies/openDox`. The default desktop-client download URL now uses `github.com/s2a-open-technologies/openDox-client` directly instead of relying on the GitHub redirect from the old repository.
+- Ruff import sorting treats `backend` as first-party (`known-first-party` was still a template placeholder).
+- LDAP/OIDC settings: "Allowed groups" is now labelled "User groups", and its hint says that admin/moderator groups need not be repeated there. The LDAP search filter hint now explains what the filter is for (attributes such as object class or OU) instead of suggesting it for groups.
+
+### Removed
+
+- The unused `backend/views/root_view` router (`/health`, a second `/api/endpoint`). It was never mounted; liveness stays at `/api/endpoint`, version at `/api/version`.
+
+### Fixed
+- **Web UI no longer breaks silently after 30 minutes** — it now stores the refresh token (password and SSO
+  login), renews the access token on 401 and retries, and shows the login page with a notice once the
+  session really ends, instead of staying "logged in" with every request failing.
+- `/auth/refresh` refused nothing but malformed tokens: deactivated or deleted users could renew forever.
+
+### Security
+- **Settings backup no longer contains credentials** — API keys (Whisper, Parakeet, LLM, EntityGuard, per-category
+  LLM), the LDAP service-account password and CA certificate and the OIDC client secret are left out of the
+  export, and a restore keeps the values stored on the server (an old backup can no longer put back a rotated
+  key). The backup now also covers the OIDC settings and the desktop-client policy; credentials have to be
+  entered once by hand on a new server.
+- **A lock set in openDox now survives an LDAP or SSO login** — a successful directory login used to set the
+  account active again, silently undoing the admin's lock. A locked account is now refused after the password
+  check (403 `account_locked`, the web login shows "account locked"), for local, LDAP and OIDC users alike.
+- The refresh token is sent in the request body instead of the URL (`POST /auth/refresh`), so it no longer
+  lands in proxy access logs. The query parameter is still accepted for older desktop clients.
+
 ## [0.10.7] - 2026-10-21
 
 ### Security
@@ -407,16 +445,16 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/daemolition/openDox/compare/v0.10.6...HEAD
-[0.10.6]: https://github.com/daemolition/openDox/compare/v0.10.5...v0.10.6
-[0.10.5]: https://github.com/daemolition/openDox/compare/v0.10.4...v0.10.5
-[0.10.4]: https://github.com/daemolition/openDox/compare/v0.10.3...v0.10.4
-[0.10.3]: https://github.com/daemolition/openDox/compare/v0.10.2...v0.10.3
-[0.10.2]: https://github.com/daemolition/openDox/compare/v0.10.1...v0.10.2
-[0.10.1]: https://github.com/daemolition/openDox/compare/v0.10.0...v0.10.1
-[0.10.0]: https://github.com/daemolition/openDox/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/daemolition/openDox/compare/v0.8.3...v0.9.0
-[0.8.3]: https://github.com/daemolition/openDox/compare/v0.8.2...v0.8.3
-[0.8.2]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.2
-[0.8.0]: https://github.com/daemolition/openDox/compare/v0.1.0...v0.8.0
-[0.1.0]: https://github.com/daemolition/openDox/releases/tag/v0.1.0
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.6...HEAD
+[0.10.6]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.5...v0.10.6
+[0.10.5]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.4...v0.10.5
+[0.10.4]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.3...v0.10.4
+[0.10.3]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.2...v0.10.3
+[0.10.2]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.8.3...v0.9.0
+[0.8.3]: https://github.com/s2a-open-technologies/openDox/compare/v0.8.2...v0.8.3
+[0.8.2]: https://github.com/s2a-open-technologies/openDox/compare/v0.1.0...v0.8.2
+[0.8.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.1.0...v0.8.0
+[0.1.0]: https://github.com/s2a-open-technologies/openDox/releases/tag/v0.1.0

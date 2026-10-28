@@ -26,3 +26,29 @@ Alle Bilder, die die Handbücher referenzieren. Fehlende Dateien ersetzt
 | `bilder/benutzer/08-zeilenmenue.png` | Geöffnetes Zeilenmenü einer Aufnahme (Archivieren/Löschen) | Benutzer |
 | `bilder/benutzer/09-meine-kategorien.png` | Profil → Meine Kategorien mit ausgefülltem Formular, ein globales Wörterbuch angehakt | Benutzer |
 | `bilder/benutzer/10-profil.png` | Profil-Dialog, Tab „Meine Wörterbücher“ mit einem geöffneten Wörterbuch und Beispielbegriffen | Benutzer |
+
+## Administrationshandbuch
+
+| Datei | Was zu sehen ist | Rolle |
+|---|---|---|
+| `bilder/administration/01-administration.png` | Administration geöffnet, Navigation links vollständig sichtbar (Bereich „Dienste“) | Administrator |
+| `bilder/administration/02-whisper-allgemein.png` | Dienste → Whisper / ASR → Allgemein, Sprache „Deutsch“ | Administrator |
+| `bilder/administration/03-whisper-live.png` | Dienste → Whisper / ASR → Live mit Parakeet, Endpoint, Testergebnis „Erreichbar“ | Administrator |
+| `bilder/administration/04-whisper-final.png` | Dienste → Whisper / ASR → Final mit Fachbegriff-Korrektur an, Schwellenwert 85 | Administrator |
+| `bilder/administration/05-llm.png` | Dienste → LLM mit Testergebnis „Verbunden“, darunter PII-Sanitizer | Administrator |
+| `bilder/administration/06-kategorien.png` | Kategorien: Liste und Formular einer globalen Kategorie mit angehaktem Wörterbuch | Administrator |
+| `bilder/administration/07-woerterbuecher.png` | Wörterbücher: Liste mit Begriffs-/Kategorienzahl, ein Wörterbuch geöffnet, Upload-Bereich | Administrator |
+| `bilder/administration/08-archivierung.png` | Archivierung: Audio-Download, Auto-Archivierung, Liste fehlgeschlagener Transkriptionen mit einem Eintrag | Administrator |
+| `bilder/administration/09-benutzer.png` | Benutzerliste mit mehreren Rollen, Dialog „Benutzer bearbeiten“ | Administrator |
+| `bilder/administration/10-ldap.png` | Authentifizierung → LDAP mit Beispielwerten (Demo-Domain), ohne echtes Passwort | Administrator |
+| `bilder/administration/11-oidc.png` | Authentifizierung → OIDC / SSO mit Beispielwerten, Client Secret leer/maskiert | Administrator |
+| `bilder/administration/12-clients.png` | Clients: Installer-Links, settings.json, Intune/SCCM-Befehle, Client-Einstellungen | Administrator |
+| `bilder/administration/13-backup.png` | Backup: Export und Wiederherstellung | Administrator |
+| `bilder/administration/14-system.png` | System: alle Dienste mit Status | Administrator |
+
+## Installations- und Betriebshandbuch
+
+| Datei | Was zu sehen ist | Rolle |
+|---|---|---|
+| `bilder/installation/01-architektur.png` | Diagramm: Browser/Client → Reverse Proxy → app → postgres/redis/whisper/parakeet/garage, extern LLM und PII-Sanitizer | – (Grafik) |
+| `bilder/installation/02-systemstatus.png` | Administration → System direkt nach der Installation, alle Dienste online | Administrator |

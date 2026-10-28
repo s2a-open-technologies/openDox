@@ -19,8 +19,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # routers/auth.py
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Body, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlmodel import select
 
 from backend.components.models.ldap_model import LdapSettingsModel
@@ -43,11 +45,23 @@ from backend.components.security.hashing import (
 )
 from backend.components.services.ldap import LdapService
 from backend.components.services.rate_limiter import login_limiter
+from backend.components.services.session_revalidation import revalidate_user
 from backend.components.sql.sql_engine import SessionDep
 from backend.views.auth_api import auth_bp
 from backend.views.auth_api.dependencies import get_current_user
 
 # ── Authentication ──────────────────────────────────────────────────────
+
+
+def _reject_locked(user: User) -> None:
+    """Refuse a login for an account an admin locked in openDox.
+
+    Only called after the credentials were verified, so the lock is never
+    revealed to someone without the password. A directory login does not undo
+    the lock: access is revoked by removing the group, or here in the app.
+    """
+    if not user.is_active:
+        raise api_error(403, "account_locked", "Account locked")
 
 
 @auth_bp.post("/login", response_model=Token)
@@ -62,6 +76,11 @@ async def login(request: Request, user_in: UserLogin, db: SessionDep):
     # 1. Local Login
     if user and user.hashed_password:
         if verify_password(user_in.password, user.hashed_password):
+            _reject_locked(user)
+            if user.auth_source != "local":
+                user.auth_source = "local"
+                db.add(user)
+                db.commit()
             access_token = create_access_token(sub=str(user.id))
             refresh_token = create_refresh_token(sub=str(user.id))
             return Token(access_token=access_token, refresh_token=refresh_token)
@@ -84,14 +103,15 @@ async def login(request: Request, user_in: UserLogin, db: SessionDep):
                     hashed_password="",  # No password for LDAP users
                     is_active=True,
                     role=role,
+                    auth_source="ldap",
                 )
                 db.add(user)
 
             else:
-                # Update existing user if needed (e.g. reactivate, re-sync role
-                # from current LDAP group membership on every login)
-                user.is_active = True
+                _reject_locked(user)
+                # Re-sync the role from current LDAP group membership.
                 user.role = role
+                user.auth_source = "ldap"
 
             db.commit()
             db.refresh(user)
@@ -106,10 +126,33 @@ async def login(request: Request, user_in: UserLogin, db: SessionDep):
     )
 
 
+class RefreshIn(BaseModel):
+    """Request body for ``/refresh``."""
+
+    refresh_token: str
+
+
 @auth_bp.post("/refresh", response_model=Token)
-async def refresh_token_endpoint(refresh_token: str):
-    """Issue a new token pair for a valid refresh token."""
-    # Refreshes token
+async def refresh_token_endpoint(
+    db: SessionDep,
+    body: Optional[RefreshIn] = Body(default=None),
+    refresh_token: Optional[str] = None,
+):
+    """Issue a new token pair for a valid refresh token.
+
+    The token belongs in the JSON body; the query parameter is only accepted
+    for older desktop clients, since URLs end up in proxy access logs.
+
+    The user must still exist and be active, and LDAP/OIDC users are re-checked
+    against their directory (``session_revalidation.revalidate_user``), so a
+    revoked account loses access within one access-token lifetime.
+    """
+    refresh_token = body.refresh_token if body else refresh_token
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token required",
+        )
     try:
         payload = decode_token(refresh_token)
     except Exception:
@@ -131,12 +174,24 @@ async def refresh_token_endpoint(refresh_token: str):
             detail="Invalid token payload",
         )
 
-    new_access = create_access_token(sub=sub)
-    new_refresh = create_refresh_token(sub=sub)
+    try:
+        user = db.get(User, int(sub))
+    except ValueError:
+        user = None
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+    if revalidate_user(db, user) == "denied":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access revoked",
+        )
 
     return Token(
-        access_token=new_access,
-        refresh_token=new_refresh,
+        access_token=create_access_token(sub=sub),
+        refresh_token=create_refresh_token(sub=sub),
     )
 
 

@@ -6,8 +6,8 @@ Markdown; DOCX, PDF und XWiki-Seiten werden daraus erzeugt.
 | Handbuch | Datei | Zielgruppe |
 |---|---|---|
 | Benutzerhandbuch | `benutzer/handbuch.md` | Alle, die diktieren und Texte bearbeiten |
-| Administrationshandbuch (geplant) | `administration/handbuch.md` | Administratoren in der Weboberfläche |
-| Installations- und Betriebshandbuch (geplant) | `installation/handbuch.md` | IT / Betrieb |
+| Administrationshandbuch | `administration/handbuch.md` | Administratoren in der Weboberfläche |
+| Installations- und Betriebshandbuch | `installation/handbuch.md` | IT / Betrieb |
 
 Ein neues Handbuch ist ein Ordner mit einer `handbuch.md`; das Build-Script
 findet es von selbst.

@@ -13,5 +13,12 @@
     "Datenbank": "Database",
     "Transkription": "Transcription",
     "Verschlüsselung": "Encryption"
+  },
+  "session": {
+    "title": "Automatic logout",
+    "description": "Logs the web interface out after a period without input. Applies to all users, not to the desktop client.",
+    "idleTimeout": "Log out after inactivity (minutes)",
+    "idleTimeoutHint": "0 = never. Never logs out during a recording or while its transcription is running.",
+    "saved": "Setting saved"
   }
 }

@@ -30,5 +30,6 @@
   "dictionary_upload_too_big": "The file is larger than {{max_mb}} MB",
   "dictionary_too_large": "A dictionary may contain at most {{max}} terms",
   "dictionary_term_too_long": "A term may be at most {{max}} characters long",
-  "dictionary_name_required": "Please enter a name"
+  "dictionary_name_required": "Please enter a name",
+  "account_locked": "Your account is locked. Please contact your administrator."
 }

@@ -18,9 +18,16 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, ReactNode } from 'react';
+import { toast } from 'sonner';
 import { BASE_PATH } from '../api';
-import { applyUiLanguage, isSupportedLanguage, type UiLanguage } from '@/i18n';
+import i18n, { applyUiLanguage, isSupportedLanguage, type UiLanguage } from '@/i18n';
+import { clearActivity, markActivity } from '@/lib/sessionActivity';
+import { apiErrorMessage } from '@/lib/apiError';
+
+// Credentials were right but the server refuses the login (e.g. the account
+// is locked); its message is meant for the user, unlike a plain failure.
+export class LoginRefusedError extends Error {}
 
 // Typen definieren
 type User = {
@@ -38,13 +45,39 @@ type AuthContextType = {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (name: string, password: string) => Promise<boolean>;
+  loginWithTokens: (accessToken: string, refreshToken: string | null) => Promise<void>;
   logout: () => Promise<void>;
+  expireSession: (reason: 'expired' | 'idle') => void;
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
+  getFreshToken: () => Promise<string>;
   acceptDisclaimer: () => Promise<boolean>;
   updateUiLanguage: (code: UiLanguage) => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type RefreshOutcome = 'ok' | 'rejected' | 'error';
+
+// Renew a little before the access token runs out, so a WebSocket opened with
+// it is not refused right at the edge.
+const REFRESH_MARGIN_MS = 60_000;
+
+// Expiry of a JWT in ms since the epoch; 0 if it cannot be read.
+const tokenExpiry = (token: string): number => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const clearTokens = () => {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("currentSession");
+  clearActivity();
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -58,8 +91,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (parts.length === 2) return parts.pop()?.split(";").shift();
   };
 
-  // Authentifizierten Fetch mit Token und CSRF
-  const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  // One renewal at a time: parallel 401s wait for the same refresh instead of
+  // each spending the (rotating) refresh token.
+  const refreshInFlight = useRef<Promise<RefreshOutcome> | null>(null);
+
+  // Swap the refresh token for a fresh token pair. The server also re-checks
+  // LDAP/OIDC users here, so "rejected" means the session is really over;
+  // "error" (server unreachable) leaves the tokens alone.
+  const refreshAccessToken = (): Promise<RefreshOutcome> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!refreshToken) return Promise.resolve('rejected');
+    refreshInFlight.current = (async (): Promise<RefreshOutcome> => {
+      try {
+        // In the body, not the URL: URLs end up in proxy access logs.
+        const res = await fetch("/api/v1/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (res.status === 401) return 'rejected';
+        if (!res.ok) return 'error';
+        const data = await res.json();
+        if (!data.access_token || !data.refresh_token) return 'error';
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+        return 'ok';
+      } catch (error) {
+        console.error("Token refresh error:", error);
+        return 'error';
+      } finally {
+        refreshInFlight.current = null;
+      }
+    })();
+    return refreshInFlight.current;
+  };
+
+  // End the session on the client and send the user to the login page
+  // (ProtectedRoute redirects as soon as isAuthenticated is false).
+  const expireSession = (reason: 'expired' | 'idle'): void => {
+    clearTokens();
+    setUser(null);
+    setIsAuthenticated(false);
+    toast.info(i18n.t(reason === 'idle' ? 'login:idleLogout' : 'login:sessionExpired'));
+  };
+
+  const plainFetch = (url: string, options: RequestInit): Promise<Response> => {
     const token = localStorage.getItem("access_token");
     const csrfToken = getCookie("csrf_access_token");
     const headers = {
@@ -68,6 +145,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       Authorization: token ? `Bearer ${token}` : "",
     };
     return fetch(url, { ...options, headers, credentials: "include" });
+  };
+
+  // Authentifizierten Fetch mit Token und CSRF. Ein abgelaufenes Access-Token
+  // wird still erneuert und die Anfrage einmal wiederholt.
+  const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const res = await plainFetch(url, options);
+    if (res.status !== 401) return res;
+    const outcome = await refreshAccessToken();
+    if (outcome === 'ok') return plainFetch(url, options);
+    if (outcome === 'rejected' && localStorage.getItem("access_token")) {
+      expireSession('expired');
+    }
+    return res;
+  };
+
+  // Access token for connections that cannot retry on 401 (the recording
+  // WebSocket): renewed first if it is about to run out.
+  const getFreshToken = async (): Promise<string> => {
+    const token = localStorage.getItem("access_token") || "";
+    const expiry = token ? tokenExpiry(token) : 0;
+    if (expiry && expiry - Date.now() < REFRESH_MARGIN_MS) {
+      const outcome = await refreshAccessToken();
+      if (outcome === 'rejected') {
+        expireSession('expired');
+        return "";
+      }
+    }
+    return localStorage.getItem("access_token") || "";
   };
 
   // User-Daten vom Server abrufen
@@ -126,6 +231,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ detail: "Login failed" }));
         console.error("Login error:", errorData);
+        if (res.status === 403) {
+          throw new LoginRefusedError(apiErrorMessage(errorData, i18n.t('login:failed')));
+        }
         return false;
       }
 
@@ -136,14 +244,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       localStorage.setItem("access_token", data.access_token);
+      if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
+      markActivity();
       await fetchUser();
       return true;
     } catch (error) {
+      if (error instanceof LoginRefusedError) throw error;
       console.error("Login error:", error);
       return false;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Abschluss eines OIDC/SSO-Logins: die Tokens kommen aus der Redirect-URL
+  // statt aus dem Passwort-Formular, danach gilt dieselbe Erneuerung.
+  const loginWithTokens = async (accessToken: string, refreshToken: string | null): Promise<void> => {
+    setIsLoading(true);
+    localStorage.setItem("access_token", accessToken);
+    if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+    markActivity();
+    await fetchUser();
   };
 
   // Logout-Funktion
@@ -158,8 +279,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Logout error:", error);
     } finally {
       // Bereinige alle Tokens und Benutzerdaten
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("currentSession");
+      clearTokens();
       setUser(null);
       setIsAuthenticated(false);
     }
@@ -216,8 +336,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isLoading,
     isAuthenticated,
     login,
+    loginWithTokens,
     logout,
+    expireSession,
     authFetch,
+    getFreshToken,
     acceptDisclaimer,
     updateUiLanguage,
   };

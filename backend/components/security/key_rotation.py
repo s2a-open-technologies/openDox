@@ -38,6 +38,7 @@ _ENCRYPTED_TABLES = (
     ("dictionary", ("terms",)),
     ("ldapsettingsmodel", ("bind_user_password",)),
     ("oidcsettingsmodel", ("client_secret",)),
+    ("user", ("idp_refresh_token",)),
 )
 
 

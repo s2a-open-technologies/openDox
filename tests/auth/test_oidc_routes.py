@@ -236,3 +236,30 @@ def test_callback_rejects_user_outside_permitted_groups(
         from backend.components.models.user_model import User
 
         assert session.exec(select(User).where(User.name == "outsider")).first() is None
+
+
+def test_callback_does_not_undo_admin_lock(
+    client, session_factory, monkeypatch, create_user
+):
+    from backend.components.models.user_model import User
+
+    _create_settings(session_factory)
+    locked = create_user("dr.mueller")
+    with session_factory() as session:
+        user = session.get(User, locked.id)
+        user.is_active = False
+        session.add(user)
+        session.commit()
+    client.cookies.set("oidc_state", _serializer.dumps({"state": "expected-state"}))
+    _patch_happy_path(monkeypatch, username="dr.mueller")
+
+    response = client.get(
+        "/api/v1/auth/oidc/callback",
+        params={"code": "abc", "state": "expected-state"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Konto gesperrt"
+    with session_factory() as session:
+        assert session.get(User, locked.id).is_active is False

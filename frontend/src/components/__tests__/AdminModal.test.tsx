@@ -45,6 +45,9 @@ vi.mock("@/components/settings/OidcSettings", () => ({ default: stub("oidc-setti
 vi.mock("@/components/settings/LdapSettings", () => ({ default: stub("ldap-settings") }));
 vi.mock("@/components/settings/UserSettings", () => ({ default: stub("user-settings") }));
 vi.mock("@/components/settings/SystemSettings", () => ({ default: stub("system-settings") }));
+vi.mock("@/components/settings/SessionSettings", () => ({
+  SessionSettings: stub("session-settings"),
+}));
 vi.mock("@/components/settings/CategorySettings", () => ({ default: stub("category-settings") }));
 vi.mock("@/components/settings/BackupSettings", () => ({ default: stub("backup-settings") }));
 vi.mock("@/components/settings/AudioConfig", () => ({ AudioConfig: stub("audio-config") }));
@@ -163,6 +166,7 @@ describe("AdminModal", () => {
     await user.click(screen.getByRole("button", { name: /System/ }));
 
     expect(screen.getByTestId("system-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("session-settings")).toHaveTextContent("editable");
   });
 
   it("shows LDAP by default and switches to OIDC within the Authentifizierung tab", async () => {

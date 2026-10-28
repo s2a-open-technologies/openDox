@@ -131,6 +131,7 @@ function renderRecorder(
     login: vi.fn(),
     logout: vi.fn(),
     authFetch,
+    getFreshToken: vi.fn().mockResolvedValue("tok"),
     acceptDisclaimer: vi.fn(),
   });
 

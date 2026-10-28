@@ -43,6 +43,7 @@ from backend.components.models.record_model import (
     RecordRead,
     RecordUpdate,
 )
+from backend.components.models.session_settings_model import SessionSettingsModel
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.task_model import Task
 from backend.components.models.token_model import Token
@@ -69,6 +70,7 @@ __all__ = [
     "RecordRead",
     "RecordChunk",
     "FinalizeRecord",
+    "SessionSettingsModel",
     "WhisperSettingsModel",
     "Task",
     "Token",

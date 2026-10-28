@@ -21,7 +21,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
+
+from backend.components.security.field_encryption import EncryptedString
 
 # Valid role values. ``admin`` supersedes the legacy ``is_superuser=True``.
 # ``demo_viewer``: sieht alle Admin-Bereiche, aber nur lesend (Demo-Zwecke);
@@ -32,6 +35,10 @@ ROLES = ("admin", "moderator", "demo_viewer", "user")
 # code here together with its locale folder. Not to be confused with the
 # transcription language (WhisperSettingsModel.language).
 UI_LANGUAGES = ("de", "en")
+
+# Where a user logs in. Decides how a session renewal re-checks the account
+# (services/session_revalidation.py).
+AUTH_SOURCES = ("local", "ldap", "oidc")
 
 
 class User(SQLModel, table=True):
@@ -46,6 +53,14 @@ class User(SQLModel, table=True):
     # Preferred UI language (one of UI_LANGUAGES); None = not chosen yet, the
     # frontend then falls back to the browser language.
     ui_language: Optional[str] = Field(default=None)
+    # One of AUTH_SOURCES, set on every login; None = not logged in since the
+    # column was added, treated like "local".
+    auth_source: Optional[str] = Field(default=None)
+    # The OIDC provider's refresh token from the last login, used to re-check
+    # the account at the provider when the session is renewed. Never exposed.
+    idp_refresh_token: Optional[str] = Field(
+        default=None, sa_column=Column(EncryptedString, nullable=True)
+    )
 
     @property
     def is_superuser(self) -> bool:

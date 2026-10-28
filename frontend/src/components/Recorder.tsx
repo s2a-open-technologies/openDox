@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BASE_PATH } from "@/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { setRecordingActive } from "@/lib/sessionActivity";
 import {
   Dialog,
   DialogContent,
@@ -60,7 +61,7 @@ export interface RecorderHandle {
 
 const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }, ref) => {
   const { t } = useTranslation("record");
-  const { authFetch } = useAuth();
+  const { authFetch, getFreshToken } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -122,9 +123,11 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     return record;
   };
 
-  const openWebSocket = (userId: string, session_id: string) => {
+  const openWebSocket = async (userId: string, session_id: string) => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const token = localStorage.getItem("access_token") || "";
+    // The token is only checked when the socket opens, so renew it first if
+    // it is about to run out; a long recording is unaffected afterwards.
+    const token = await getFreshToken();
     const ws = new WebSocket(
       `${protocol}//${window.location.host}${BASE_PATH}/api/v1/records/ws/record?session_id=${session_id}&user_id=${userId}&token=${encodeURIComponent(token)}`
     );
@@ -233,7 +236,7 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
         record = await createRecord();
       }
 
-      openWebSocket(userId, record.session_id);
+      await openWebSocket(userId, record.session_id);
 
       // 1) User-Audio holen
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -354,6 +357,12 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
     setIsStopDialogOpen(false);
     stopRecording();
   };
+
+  useEffect(() => {
+    // No idle logout while recording or waiting for the transcription.
+    setRecordingActive(isRecording || isProcessing);
+    return () => setRecordingActive(false);
+  }, [isRecording, isProcessing]);
 
   useEffect(() => {
     // Load settings to determine if live transcription is enabled

@@ -61,7 +61,8 @@ function mockAuth({ isAuthenticated, isLoading, user }: AuthState) {
     isAuthenticated,
     login: vi.fn(),
     logout: vi.fn(),
-    authFetch: vi.fn(),
+    authFetch: vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }),
+    expireSession: vi.fn(),
     acceptDisclaimer: vi.fn(),
   });
 }

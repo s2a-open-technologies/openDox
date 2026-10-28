@@ -23,11 +23,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import Login from "@/pages/Login";
-import { useAuth } from "@/contexts/AuthContext";
+import { LoginRefusedError, useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(),
+  LoginRefusedError: class LoginRefusedError extends Error {},
 }));
 
 vi.mock("sonner", () => ({
@@ -47,12 +48,17 @@ function jsonResponse(body: unknown, ok = true) {
   return { ok, json: async () => body } as Response;
 }
 
-function renderLogin(login: ReturnType<typeof vi.fn>, initialEntries = ["/login"]) {
+function renderLogin(
+  login: ReturnType<typeof vi.fn>,
+  initialEntries = ["/login"],
+  loginWithTokens: ReturnType<typeof vi.fn> = vi.fn()
+) {
   mockedUseAuth.mockReturnValue({
     user: null,
     isLoading: false,
     isAuthenticated: false,
     login,
+    loginWithTokens,
     logout: vi.fn(),
     authFetch: vi.fn(),
     acceptDisclaimer: vi.fn(),
@@ -127,6 +133,18 @@ describe("Login", () => {
     );
   });
 
+  it("shows the server's message when the login is refused", async () => {
+    const login = vi.fn().mockRejectedValue(new LoginRefusedError("Konto gesperrt"));
+    const user = userEvent.setup();
+    renderLogin(login);
+
+    await user.type(screen.getByPlaceholderText("Username"), "dr.mueller");
+    await user.type(screen.getByPlaceholderText("Passwort"), "secret");
+    await user.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Konto gesperrt"));
+  });
+
   it("shows the SSO button when the OIDC status check reports enabled", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ enabled: true })));
     renderLogin(vi.fn());
@@ -158,12 +176,12 @@ describe("Login", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("extracts access/refresh tokens from the OIDC callback URL and redirects to the dashboard", async () => {
-    renderLogin(vi.fn(), ["/login?access_token=abc123&refresh_token=def456"]);
+  it("hands the OIDC callback tokens to loginWithTokens and cleans the URL", async () => {
+    const loginWithTokens = vi.fn();
+    renderLogin(vi.fn(), ["/login?access_token=abc123&refresh_token=def456"], loginWithTokens);
 
-    await waitFor(() => expect(localStorage.getItem("access_token")).toBe("abc123"));
-    expect(localStorage.getItem("refresh_token")).toBe("def456");
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
+    await waitFor(() => expect(loginWithTokens).toHaveBeenCalledWith("abc123", "def456"));
+    expect(mockNavigate).toHaveBeenCalledWith("/login", { replace: true });
   });
 
   it("redirects to the dashboard when already authenticated", () => {

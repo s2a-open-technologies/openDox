@@ -42,6 +42,7 @@ import { AudioConfig } from './settings/AudioConfig';
 import { AutoArchiveConfig } from './settings/AutoArchiveConfig';
 import { FailedTranscriptions } from './settings/FailedTranscriptions';
 import { ClientConfig } from './settings/ClientConfig';
+import { SessionSettings } from './settings/SessionSettings';
 import { ClientDistribution } from './settings/ClientDistribution';
 
 interface AdminModalProps {
@@ -156,6 +157,9 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">{t('system.heading')}</h3>
             <SystemSettings />
+            <fieldset>
+              <SessionSettings readOnly={readOnly} />
+            </fieldset>
           </div>
         );
       case 'backup':

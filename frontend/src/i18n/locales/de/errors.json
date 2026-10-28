@@ -30,5 +30,6 @@
   "dictionary_upload_too_big": "Die Datei ist größer als {{max_mb}} MB",
   "dictionary_too_large": "Ein Wörterbuch darf höchstens {{max}} Begriffe enthalten",
   "dictionary_term_too_long": "Ein Begriff darf höchstens {{max}} Zeichen lang sein",
-  "dictionary_name_required": "Bitte einen Namen angeben"
+  "dictionary_name_required": "Bitte einen Namen angeben",
+  "account_locked": "Ihr Konto ist gesperrt. Wenden Sie sich an Ihre Administration."
 }

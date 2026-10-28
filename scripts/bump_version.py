@@ -38,7 +38,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 PACKAGE_JSON = PROJECT_ROOT / "frontend" / "package.json"
 CHANGELOG = PROJECT_ROOT / "CHANGELOG.md"
-REPO_URL = "https://github.com/daemolition/openDox"
+REPO_URL = "https://github.com/s2a-open-technologies/openDox"
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 

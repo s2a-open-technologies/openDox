@@ -39,3 +39,4 @@ frontend/dist/
 docker_build_push.sh
 docs/superpowers/
 docs/release.md
+docs/drafts/

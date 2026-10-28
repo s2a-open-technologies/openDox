@@ -13,5 +13,12 @@
     "Datenbank": "Datenbank",
     "Transkription": "Transkription",
     "Verschlüsselung": "Verschlüsselung"
+  },
+  "session": {
+    "title": "Automatische Abmeldung",
+    "description": "Meldet die Weboberfläche ab, wenn eine Zeit lang nichts eingegeben wurde. Gilt für alle Benutzer, nicht für den Desktop-Client.",
+    "idleTimeout": "Abmelden nach Inaktivität (Minuten)",
+    "idleTimeoutHint": "0 = nie. Während einer Aufnahme und solange die Transkription läuft, wird nie abgemeldet.",
+    "saved": "Einstellung gespeichert"
   }
 }

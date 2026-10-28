@@ -137,6 +137,69 @@ class OidcService:
             )
         return resp.json()
 
+    def refresh(self, refresh_token: str) -> dict[str, Any]:
+        """Renew the session at the provider and re-check the user's groups.
+
+        Used when the local session is renewed: a provider refuses the refresh
+        token once the account is disabled or its sessions were revoked, and a
+        successful refresh returns the user's current groups.
+
+        Args:
+            refresh_token: The provider's refresh token from the last login or
+                refresh.
+
+        Returns:
+            ``{"status": "ok", "role", "refresh_token"}`` (the provider may
+            rotate the refresh token, otherwise the old one is returned),
+            ``{"status": "denied", "message"}`` if the provider refuses or the
+            user is no longer in a permitted group, or
+            ``{"status": "unavailable", "message"}`` if the provider could not
+            be asked.
+        """
+        try:
+            doc = self.discover()
+            resp = httpx.post(
+                doc["token_endpoint"],
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                    "client_id": self.settings.client_id,
+                    "client_secret": self.settings.client_secret,
+                },
+                timeout=10,
+            )
+        except (OidcDiscoveryError, httpx.HTTPError) as exc:
+            return {"status": "unavailable", "message": str(exc)}
+        # RFC 6749 §5.2: an invalid, expired or revoked grant is a 400/401.
+        if resp.status_code in (400, 401):
+            return {"status": "denied", "message": resp.text}
+        if resp.status_code != 200:
+            return {
+                "status": "unavailable",
+                "message": f"Token endpoint returned {resp.status_code}",
+            }
+
+        token_data = resp.json()
+        try:
+            claims: dict[str, Any] = {}
+            id_token = token_data.get("id_token")
+            if id_token:
+                claims = self.verify_id_token(id_token)
+            access_token = token_data.get("access_token")
+            if access_token:
+                claims = {**self.get_userinfo(access_token), **claims}
+        except (OidcDiscoveryError, jwt.PyJWTError) as exc:
+            return {"status": "unavailable", "message": str(exc)}
+        if not claims:
+            return {"status": "unavailable", "message": "No claims in refresh"}
+        if not self.is_authorized(claims):
+            return {"status": "denied", "message": "Not authorized (group restriction)"}
+        return {
+            "status": "ok",
+            "role": self.map_groups_to_role(claims),
+            "refresh_token": token_data.get("refresh_token") or refresh_token,
+        }
+
     def get_userinfo(self, access_token: str) -> dict[str, Any]:
         """Fetch userinfo claims with the access token.
 

@@ -1,14 +1,14 @@
 {
   "export": {
     "title": "Export",
-    "description": "Alle Einstellungen als JSON-Datei sichern (Whisper, LLM, LDAP, Kategorien, Sprachen, Terminologie)",
+    "description": "Alle globalen Einstellungen als JSON-Datei sichern (Whisper, Parakeet, LLM, LDAP, OIDC, Audio, Client, Kategorien, Sprachen, Wörterbücher), ohne Zugangsdaten (Passwörter, API-Schlüssel, Zertifikate)",
     "button": "Backup herunterladen",
     "success": "Backup heruntergeladen",
     "failed": "Export fehlgeschlagen"
   },
   "restore": {
     "title": "Wiederherstellung",
-    "description": "Einstellungen aus einer Backup-Datei einspielen. Überschreibt alle aktuellen Werte.",
+    "description": "Einstellungen aus einer Backup-Datei einspielen. Überschreibt alle aktuellen Werte; gespeicherte Zugangsdaten bleiben erhalten.",
     "remove": "Entfernen",
     "chooseFile": "Datei auswählen",
     "button": "Backup einspielen",

@@ -223,8 +223,13 @@ async def oidc_callback(request: Request, db: SessionDep):
         )
         db.add(user)
     else:
-        user.is_active = True
+        # A lock set by an admin in openDox outlives the SSO login.
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Konto gesperrt")
         user.role = role
+    user.auth_source = "oidc"
+    # Kept to re-check the account at the provider on every session renewal.
+    user.idp_refresh_token = token_data.get("refresh_token")
     db.commit()
     db.refresh(user)
 

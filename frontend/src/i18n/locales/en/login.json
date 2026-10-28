@@ -7,5 +7,7 @@
   "or": "or",
   "sso": "Sign in with single sign-on",
   "success": "Signed in successfully",
-  "failed": "Sign-in failed"
+  "failed": "Sign-in failed",
+  "sessionExpired": "Your session has expired. Please log in again.",
+  "idleLogout": "You were logged out due to inactivity."
 }

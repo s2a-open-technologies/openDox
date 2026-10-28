@@ -30,6 +30,7 @@ path = [
   "docs/**",
   ".agents/AGENTS.md",
   "AUTHORS",
+  "CLA.md",
   "DISCLAIMER.md",
   "THIRD_PARTY_NOTICES.md",
 ]
@@ -62,6 +63,7 @@ path = [
   "parakeet_server/requirements.gpu.txt",
   "garage/garage.toml",
   "garage/init/init.sh",
+  "scripts/build_handbuch.sh",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 S2A Open Technologies gGmbH"

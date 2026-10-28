@@ -28,7 +28,7 @@ Die schnellste Möglichkeit, das gesamte System lokal zu starten:
 
 ```bash
 # Repository klonen
-git clone https://github.com/daemolition/openDox.git
+git clone https://github.com/s2a-open-technologies/openDox.git
 cd openDox
 
 # Environment konfigurieren: ENCRYPTION_KEY ist Pflicht (Erzeugung siehe Konfiguration unten)

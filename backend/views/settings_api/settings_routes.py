@@ -57,6 +57,10 @@ from backend.components.models.languages import (
 from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
+from backend.components.models.session_settings_model import (
+    SessionConfig,
+    SessionSettingsModel,
+)
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.user_model import (
     UI_LANGUAGES,
@@ -1052,12 +1056,40 @@ async def delete_language(
 
 # Backup / Restore Endpoints
 
+# Global settings rows in the backup, as (model, backup key).
+_BACKUP_SINGLETONS: tuple[tuple[type, str], ...] = (
+    (WhisperSettingsModel, "whisper"),
+    (LlmSettingsModel, "llm"),
+    (LdapSettingsModel, "ldap"),
+    (OidcSettingsModel, "oidc"),
+    (AudioSettingsModel, "audio"),
+    (SessionSettingsModel, "session"),
+    (ClientSettingsModel, "client"),
+)
 
-def _serialize_model(model) -> dict[str, Any]:
-    """Serialize a single SQLModel instance to a dict, excluding the PK."""
+# Credentials never leave the server in a backup file, and a restore never
+# writes them (an old backup would otherwise put back a rotated key). The
+# admin enters them once on a new server.
+_BACKUP_SECRET_FIELDS: dict[str, tuple[str, ...]] = {
+    "whisper": ("live_api_key", "final_api_key"),
+    "llm": ("llm_api_key", "sanitizer_api_key"),
+    "ldap": ("bind_user_password", "cert_data", "cert_filename"),
+    "oidc": ("client_secret",),
+    "categories": ("llm_api_key",),
+}
+
+
+def _without_secrets(data: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return ``data`` without the credential fields of backup section ``key``."""
+    secrets = _BACKUP_SECRET_FIELDS.get(key, ())
+    return {k: v for k, v in data.items() if k not in secrets}
+
+
+def _serialize_model(model, key: str) -> dict[str, Any]:
+    """Serialize a settings row for the backup, without PK and credentials."""
     data = model.model_dump()
     data.pop("id", None)
-    return data
+    return _without_secrets(data, key)
 
 
 def _export_all_settings(db: SessionDep) -> dict[str, Any]:
@@ -1071,10 +1103,10 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
         key is a table name and the value is either a single dict (singleton
         settings) or a list of dicts (list tables).
     """
-    whisper = db.exec(select(WhisperSettingsModel)).first()
-    llm = db.exec(select(LlmSettingsModel)).first()
-    ldap = db.exec(select(LdapSettingsModel)).first()
-    audio = db.exec(select(AudioSettingsModel)).first()
+    singletons = {}
+    for model_cls, key in _BACKUP_SINGLETONS:
+        row = db.exec(select(model_cls)).first()
+        singletons[key] = _serialize_model(row, key) if row else None
     categories = db.exec(select(Categories)).all()
     languages = db.exec(select(Languages)).all()
     # Personal dictionaries stay out, like the User table; categories carry
@@ -1091,21 +1123,18 @@ def _export_all_settings(db: SessionDep) -> dict[str, Any]:
     def _category_entry(category: Categories) -> dict[str, Any]:
         ids = links[category.id]
         return {
-            **_serialize_model(category),
+            **_serialize_model(category, "categories"),
             "global_dictionaries": [global_names[i] for i in ids if i in global_names],
             "personal_dictionary_ids": [i for i in ids if i not in global_names],
         }
 
     return {
-        "version": "1.0",
+        "version": "1.1",
         "exported_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "settings": {
-            "whisper": _serialize_model(whisper) if whisper else None,
-            "llm": _serialize_model(llm) if llm else None,
-            "ldap": _serialize_model(ldap) if ldap else None,
-            "audio": _serialize_model(audio) if audio else None,
+            **singletons,
             "categories": [_category_entry(c) for c in categories],
-            "languages": [_serialize_model(lang) for lang in languages],
+            "languages": [_serialize_model(lang, "languages") for lang in languages],
             "dictionaries": [
                 {
                     "name": d.name,
@@ -1147,17 +1176,12 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     if not isinstance(settings, dict):
         raise api_error(400, "backup_invalid_format", "Ungültiges Backup-Format")
 
-    # --- Singleton settings (upsert first row) ---
-    for model_cls, key in [
-        (WhisperSettingsModel, "whisper"),
-        (LlmSettingsModel, "llm"),
-        (LdapSettingsModel, "ldap"),
-        (AudioSettingsModel, "audio"),
-    ]:
+    # --- Singleton settings (upsert first row, stored credentials kept) ---
+    for model_cls, key in _BACKUP_SINGLETONS:
         row_data = settings.get(key)
         if not row_data or not isinstance(row_data, dict):
             continue
-        row_data = _known_fields(model_cls, row_data)
+        row_data = _without_secrets(_known_fields(model_cls, row_data), key)
         if model_cls is WhisperSettingsModel and row_data.get("live_backend") == "api":
             # Near-live Whisper was removed; older backups still select it.
             row_data["live_backend"] = "disabled"
@@ -1201,14 +1225,22 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     # --- Categories (replace wholesale, re-attach dictionaries) ---
     categories_data = settings.get("categories")
     if isinstance(categories_data, list):
+        # The backup carries no per-category LLM key; keep the stored one of
+        # the category with the same name and owner.
+        kept_keys: dict[tuple[str, int | None], str] = {}
         for row in db.exec(select(Categories)).all():
+            if row.llm_api_key:
+                kept_keys[(row.name, row.user_id)] = row.llm_api_key
             _delete_links(db, CategoryDictionaryLink.category_id, row.id)
             db.delete(row)
         db.flush()
         for row_data in categories_data:
             if not isinstance(row_data, dict):
                 continue
-            category = Categories(**_known_fields(Categories, row_data))
+            category = Categories(
+                **_without_secrets(_known_fields(Categories, row_data), "categories")
+            )
+            category.llm_api_key = kept_keys.get((category.name, category.user_id))
             db.add(category)
             db.flush()
             dictionary_ids = [
@@ -1424,7 +1456,7 @@ async def update_audio_settings(
 # GitHub release assets under fixed names — ``releases/latest/download/<name>``
 # then always resolves to the newest client, without a server update.
 _DEFAULT_CLIENT_DOWNLOAD_BASE_URL = (
-    "https://github.com/daemolition/opendox-client/releases/latest/download"
+    "https://github.com/s2a-open-technologies/openDox-client/releases/latest/download"
 )
 _CLIENT_DOWNLOAD_FILES = {
     "windows_msi": "opendox-client-installer.msi",
@@ -1466,6 +1498,41 @@ async def update_client_config(
     db.commit()
     db.refresh(settings)
     return ClientConfig.from_row(settings)
+
+
+def _get_or_create_session_settings(db) -> SessionSettingsModel:
+    settings = db.exec(select(SessionSettingsModel)).first()
+    if not settings:
+        settings = SessionSettingsModel()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@settings_bp.get("/session-config/", response_model=SessionConfig)
+async def get_session_config(
+    db: SessionDep,
+    _: User = Depends(get_current_user),
+):
+    """Return the web UI session policy (idle timeout) for any logged-in user."""
+    settings = _get_or_create_session_settings(db)
+    return SessionConfig(idle_timeout_minutes=settings.idle_timeout_minutes)
+
+
+@settings_bp.put("/session-config/", response_model=SessionConfig)
+async def update_session_config(
+    config_in: SessionConfig,
+    db: SessionDep,
+    _: User = Depends(_require_admin),
+):
+    """Save the web UI session policy from the admin UI."""
+    settings = _get_or_create_session_settings(db)
+    settings.idle_timeout_minutes = config_in.idle_timeout_minutes
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return SessionConfig(idle_timeout_minutes=settings.idle_timeout_minutes)
 
 
 @settings_bp.get("/client-distribution/")

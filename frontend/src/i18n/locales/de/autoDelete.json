@@ -1,0 +1,11 @@
+{
+  "title": "Automatisches Löschen",
+  "description": "Löscht Aufnahmen endgültig, wenn sie älter als die Frist sind (bezogen auf die Uhrzeit der Aufnahme): Transkript, Zusammenfassung und gespeichertes Audio, egal ob archiviert. Die Frist ist die Obergrenze für alle; Benutzer können im Profil für ihre eigenen Aufnahmen eine kürzere wählen.",
+  "enabled": "Automatisch löschen",
+  "days": "Aufbewahrung höchstens (Tage)",
+  "daysInvalid": "Bitte eine ganze Zahl zwischen 1 und 3650 eingeben.",
+  "daysInvalidToast": "Frist muss eine ganze Zahl zwischen 1 und 3650 sein",
+  "hint": "Prüflauf alle 6 Stunden; geänderte Werte greifen ohne Neustart. Aufnahmen, deren Transkription noch läuft, werden übersprungen. Jeder Lauf mit Löschungen erscheint im Audit-Log.",
+  "warning": "Gelöschte Aufnahmen inklusive Audio sind unwiederbringlich. Übernehmen Sie Texte rechtzeitig in die Patientendokumentation.",
+  "saved": "Automatisches Löschen gespeichert"
+}

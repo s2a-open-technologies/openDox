@@ -1,0 +1,11 @@
+{
+  "title": "Automatic deletion",
+  "description": "Permanently deletes recordings older than the period (counted from the time of recording): transcript, summary and stored audio, archived or not. The period is the upper limit for everyone; users can choose a shorter one for their own recordings in their profile.",
+  "enabled": "Delete automatically",
+  "days": "Keep at most (days)",
+  "daysInvalid": "Please enter a whole number between 1 and 3650.",
+  "daysInvalidToast": "The period must be a whole number between 1 and 3650",
+  "hint": "Checked every 6 hours; changes apply without a restart. Recordings whose transcription is still running are skipped. Every run that deletes something appears in the audit log.",
+  "warning": "Deleted recordings, audio included, cannot be recovered. Transfer texts to the patient record in time.",
+  "saved": "Automatic deletion saved"
+}

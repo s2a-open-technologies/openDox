@@ -8,7 +8,8 @@
     "clients": "Clients",
     "categories": "Categories",
     "dictionaries": "Dictionaries",
-    "system": "System"
+    "system": "System",
+    "audit": "Audit"
   },
   "services": {
     "heading": "Configure API services"
@@ -20,7 +21,8 @@
     "heading": "User management"
   },
   "auth": {
-    "heading": "Authentication"
+    "heading": "Authentication",
+    "session": "Session"
   },
   "system": {
     "heading": "System administration"

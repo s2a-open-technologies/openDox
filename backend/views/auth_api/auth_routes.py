@@ -43,6 +43,7 @@ from backend.components.security.hashing import (
     get_password_hash,
     verify_password,
 )
+from backend.components.services.audit_service import audit, changed_fields
 from backend.components.services.ldap import LdapService
 from backend.components.services.rate_limiter import login_limiter
 from backend.components.services.session_revalidation import revalidate_user
@@ -64,9 +65,40 @@ def _reject_locked(user: User) -> None:
         raise api_error(403, "account_locked", "Account locked")
 
 
+# Audit reason per status code of a refused login.
+_LOGIN_FAILURE_REASONS = {
+    401: "invalid_credentials",
+    403: "account_locked",
+    429: "rate_limited",
+}
+
+
 @auth_bp.post("/login", response_model=Token)
 async def login(request: Request, user_in: UserLogin, db: SessionDep):
-    """Authenticate via local DB or LDAP and return a token pair."""
+    """Authenticate via local DB or LDAP and return a token pair.
+
+    Every refused login is written to the audit log (successful ones are not).
+    """
+    try:
+        return _authenticate(request, user_in, db)
+    except HTTPException as exc:
+        # Nothing of a refused login may be persisted except the audit entry.
+        db.rollback()
+        audit(
+            db,
+            "auth.login",
+            request=request,
+            actor_name=user_in.name,
+            outcome="denied" if exc.status_code in (403, 429) else "failure",
+            details={
+                "reason": _LOGIN_FAILURE_REASONS.get(exc.status_code, "error"),
+            },
+            commit=True,
+        )
+        raise
+
+
+def _authenticate(request: Request, user_in: UserLogin, db: SessionDep) -> Token:
     login_limiter.check(request)
 
     # Check if user exists and password is correct
@@ -110,6 +142,16 @@ async def login(request: Request, user_in: UserLogin, db: SessionDep):
             else:
                 _reject_locked(user)
                 # Re-sync the role from current LDAP group membership.
+                if user.role != role:
+                    audit(
+                        db,
+                        "user.role_sync",
+                        request=request,
+                        actor=user,
+                        target_type="user",
+                        target_id=user.id,
+                        details={"from": user.role, "to": role, "source": "ldap"},
+                    )
                 user.role = role
                 user.auth_source = "ldap"
 
@@ -260,6 +302,15 @@ async def create_user(
         role=user_in.role if user_in.role in ROLES else "user",
     )
     db.add(db_user)
+    db.flush()
+    audit(
+        db,
+        "user.create",
+        actor=current_user,
+        target_type="user",
+        target_id=db_user.id,
+        details={"name": db_user.name, "role": db_user.role},
+    )
     db.commit()
     db.refresh(db_user)
     return db_user
@@ -290,6 +341,7 @@ async def update_user(
     if not user:
         raise api_error(404, "user_not_found", "User not found")
 
+    before = {"name": user.name, "is_active": user.is_active, "role": user.role}
     if user_in.name is not None:
         user.name = user_in.name
     if user_in.is_active is not None:
@@ -299,6 +351,22 @@ async def update_user(
     if user_in.password is not None:
         user.hashed_password = get_password_hash(user_in.password)
 
+    after = {"name": user.name, "is_active": user.is_active, "role": user.role}
+    details: dict = {"fields": changed_fields(before, after)}
+    if user_in.password is not None:
+        details["fields"].append("password")
+    if before["role"] != after["role"]:
+        details["role"] = {"from": before["role"], "to": after["role"]}
+    if before["is_active"] != after["is_active"]:
+        details["is_active"] = after["is_active"]
+    audit(
+        db,
+        "user.update",
+        actor=current_user,
+        target_type="user",
+        target_id=user.id,
+        details=details,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -320,6 +388,14 @@ async def delete_user(
     if user.id == current_user.id:
         raise api_error(400, "cannot_delete_self", "Cannot delete yourself")
 
+    audit(
+        db,
+        "user.delete",
+        actor=current_user,
+        target_type="user",
+        target_id=user.id,
+        details={"name": user.name, "role": user.role},
+    )
     db.delete(user)
     db.commit()
     return {"ok": True}

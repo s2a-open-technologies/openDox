@@ -36,6 +36,10 @@ vi.mock("@/components/settings/CategorySettings", () => ({
   default: () => <div data-testid="category-settings" />,
 }));
 
+vi.mock("@/components/settings/MyRetention", () => ({
+  MyRetention: () => <div data-testid="my-retention" />,
+}));
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));

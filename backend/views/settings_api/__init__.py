@@ -22,4 +22,7 @@ from fastapi import APIRouter
 settings_bp = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 # Import routes after creating router to avoid circular imports
-from backend.views.settings_api import settings_routes  # noqa: E402,F401
+from backend.views.settings_api import (
+    audit_routes,  # noqa: E402,F401
+    settings_routes,  # noqa: E402,F401
+)

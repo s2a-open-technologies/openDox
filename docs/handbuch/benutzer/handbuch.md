@@ -292,6 +292,12 @@ Ihre Administration kann einstellen, dass Aufnahmen nach einer bestimmten
 Anzahl von Tagen automatisch archiviert werden. Archivierte Aufnahmen bleiben
 jederzeit wiederherstellbar.
 
+Außerdem kann Ihre Administration eine Frist festlegen, nach der Aufnahmen
+**automatisch gelöscht** werden, auch archivierte. Gelöschte Aufnahmen lassen
+sich nicht wiederherstellen. Übernehmen Sie Ihre Texte daher rechtzeitig in
+die Patientendokumentation. Wie lange Ihre Aufnahmen höchstens aufbewahrt
+werden, sehen Sie im Profil unter **Aufbewahrung**.
+
 ## Wer sieht meine Aufnahmen?
 
 Ihre Aufnahmen, Transkripte und Zusammenfassungen sind Ihrem Konto
@@ -407,6 +413,15 @@ Hypertonie, essentiell
 Hier verwalten Sie Ihre eigenen Kategorien, unabhängig von Ihrer Rolle (auch
 Administratoren legen hier persönliche Kategorien an; globale Kategorien
 verwalten sie unter **Administration**). Siehe Kapitel *Kategorien*.
+
+## Aufbewahrung
+
+Unter **Aufbewahrung** sehen Sie, nach wie vielen Tagen Ihre Einrichtung
+Aufnahmen spätestens löscht. Bei **Eigene Aufnahmen löschen nach (Tagen)**
+können Sie für Ihre eigenen Aufnahmen eine **kürzere** Frist eintragen,
+zum Beispiel 14 Tage, wenn Sie Ihre Texte immer sofort übernehmen. Lassen Sie
+das Feld leer, gilt nur die Frist der Einrichtung. Eine längere Frist als die
+der Einrichtung ist nicht möglich.
 
 ## Design
 

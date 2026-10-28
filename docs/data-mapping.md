@@ -66,6 +66,7 @@ PII-Sanitizer aktiv ist).
 | Patientenbezogene Identifikatoren | Namen, Orte, Daten, die im Transkript vorkommen (nicht strukturiert, Freitext) | Teil von `record.content`/`record.summarize`; ggf. maskiert falls Sanitizer aktiv |
 | Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle, UI-Sprache, privates Korrektur-Wörterbuch (`personal_glossary`, nie für Admins einsehbar) | `User`-Tabelle |
 | Zugangsdaten zu Drittsystemen | LDAP-Bind-Passwort, OIDC-Client-Secret, API-Keys für LLM/Whisper/Sanitizer | Settings-Tabellen (siehe Verschlüsselung unten) |
+| Audit-Log (Praxispersonal, nicht Patienten) | Wer wann welche Einstellung/welchen Benutzer geändert hat (nur Feldnamen, keine Werte), fehlgeschlagene Anmeldungen (eingegebener Benutzername), abgelehnte Zugriffe, IP-Adresse, Rolle | `auditevent`-Tabelle, nur für Admins lesbar; keine Gesundheitsdaten, keine Aufnahmetitel, keine Zugangsdaten |
 | Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes Audio (Format konfigurierbar: MP3/WAV/FLAC/OGG) | `chunks/` (temporär, bei fehlgeschlagener Transkription länger, siehe unten), Objektspeicher (optional, dauerhaft bis Löschung; dort auch archiviertes Fehlschlag-Audio unter `archive/`) |
 
 ## Verarbeitungsschritte im Detail
@@ -81,6 +82,7 @@ PII-Sanitizer aktiv ist).
 | 7 | Audio-Download (optional) | Komprimiertes Audio | Objektspeicher (S3-kompatibel), verschlüsselt vor Upload | `audio_storage.py`, `background_transcription_service.py` |
 | 8 | Client-Richtlinie abrufen | Keine personenbezogenen Daten (Programmnamen, Schalter) | Desktop-Client, `GET /api/v1/settings/client-config/` bewusst ohne Login | `settings_routes.py` (`get_client_config`) |
 | 9 | Login | Zugangsdaten | Lokale DB, oder externer LDAP-/OIDC-Server | `auth_routes.py`, `ldap.py`, `oidc_routes.py` |
+| 10 | Audit-Log | Admin-Aktionen, abgelehnte Logins/Zugriffe (Benutzername, Rolle, IP, Aktion) | PostgreSQL (`auditevent`), Lesen und CSV-Export nur durch Admins | `audit_service.py`, `audit_routes.py` |
 
 ## Verschlüsselung im Detail
 
@@ -159,12 +161,24 @@ Drittland im Spiel ist:**
   lokal liegen. Ein Retry holt sie zurück und löscht das Archiv-Objekt. Es gibt
   **keine** Konfigurationsoption, das rohe Audio einer erfolgreich
   verarbeiteten Aufnahme dauerhaft aufzubewahren.
-- **Transkript, Zusammenfassung, PII-Mapping**: bleiben bis zur manuellen
-  Löschung des Datensatzes durch einen Nutzer bestehen (kein automatisches
-  Ablaufdatum).
+- **Transkript, Zusammenfassung, PII-Mapping, persistiertes Audio**: bleiben
+  bis zur manuellen Löschung bestehen, oder bis zum **automatischen Löschen**
+  (`auto_delete_service.py`, alle 6 h): Der Admin setzt eine globale
+  Höchstfrist (`AudioSettingsModel.auto_delete_*`, Standard aus/365 Tage),
+  jeder Nutzer kann für seine Aufnahmen eine kürzere wählen
+  (`User.auto_delete_days`). Es gilt die kürzere; archivierte Aufnahmen
+  werden ebenfalls gelöscht. Ohne aktivierte Frist gibt es kein automatisches
+  Ablaufdatum.
 - **Persistiertes Audio** (falls Feature aktiviert, Format konfigurierbar):
   bleibt bis zur manuellen Löschung des Datensatzes bestehen, wird dann aus
   dem Objektspeicher entfernt.
+- **Audit-Log**: Einträge werden nach `AUDIT_RETENTION_DAYS` (Standard 365,
+  `0` = unbegrenzt) täglich automatisch gelöscht. Das Log protokolliert das
+  Handeln von Beschäftigten (Administration, fehlgeschlagene Anmeldungen) und
+  ist damit eine technische Einrichtung im Sinne von § 87 Abs. 1 Nr. 6 BetrVG
+  bzw. der Personalvertretungsgesetze: Einführung und Aufbewahrungsfrist sind
+  mit Betriebs- bzw. Personalrat abzustimmen. Die Arbeit von Benutzern mit
+  ihren eigenen Aufnahmen wird bewusst nicht protokolliert.
 
 ## Bekannte Lücken (Stand: 2026-10-08)
 
@@ -180,8 +194,14 @@ Drittland im Spiel ist:**
   API-Keys aber nur noch an Admins. Bis zum Fix (siehe `CHANGELOG.md`,
   Abschnitt Security, Unreleased) waren LLM-/ASR-/LDAP-/OIDC-Zugangsdaten
   ohne Login lesbar; betroffene Instanzen sollten sie rotieren.
-- Kein Self-Service-Export und kein Audit-Log (siehe
-  [`audit-checklist-opendox.md`](audit-checklist-opendox.md)).
+- Kein Self-Service-Export (siehe
+  [`audit-checklist-opendox.md`](audit-checklist-opendox.md)). Das Audit-Log
+  protokolliert Administrationsaktionen und Sicherheitsereignisse, aber
+  bewusst keine Lesezugriffe von Benutzern auf ihre eigenen Aufnahmen
+  (fremde Aufnahmen sind für niemanden lesbar, Versuche erscheinen als
+  `access.denied`). Es ist append-only aus Sicht der Anwendung, aber nicht
+  kryptografisch gegen Änderungen durch einen Datenbank-Administrator
+  geschützt.
 
 ## Verweise
 

@@ -111,40 +111,40 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════════
   # Parakeet Server (CPU, onnx-asr, OpenAI-compatible API for live ASR)
   # ═══════════════════════════════════════════════════════════════════════════════
-  parakeet:
-    image: ghcr.io/s2a-open-technologies/opendox-parakeet:latest
-    build:
-      context: .
-      dockerfile: parakeet_server/Dockerfile
-      args:
-        DEVICE: ${PARAKEET_DEVICE:-gpu}
-    container_name: opendox-parakeet
-    restart: always
-    environment:
-      PARAKEET_MAX_CONCURRENT_DECODES: ${PARAKEET_MAX_CONCURRENT_DECODES:-2}
-      # Optional URL sub-path (e.g. "/parakeet") for reverse-proxy deployments
-      # where a separate edge proxy exposes this service alongside others on
-      # one port — see AGENTS.md "Parakeet server". Empty = served at root.
-      ROOT_PATH: ${PARAKEET_ROOT_PATH:-}
-      # Bearer token required on /v1/audio/transcriptions and the streaming
-      # WS (not /v1/models, which is the unauthenticated healthcheck target).
-      # Empty disables auth (dev fallback, logs a startup warning).
-      PARAKEET_API_KEY: ${PARAKEET_API_KEY:-}
-    # Published so a reverse proxy on a different host than the Docker engine
-    # can reach this container (see docs/examples/nginx-vhost.conf.example).
-    ports:
-      - "${PARAKEET_PORT:-5001}:5001"
-    # GPU access — the parakeet image defaults to the CUDA+cuDNN base and
-    # uses CUDAExecutionProvider when a GPU is present. On CPU-only hosts
-    # onnxruntime falls back to CPUExecutionProvider automatically, so this
-    # deploy block can stay as-is; Docker simply ignores the device reservation.
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  #parakeet:
+  #  image: ghcr.io/s2a-open-technologies/opendox-parakeet:latest
+  #  build:
+  #    context: .
+  #    dockerfile: parakeet_server/Dockerfile
+  #    args:
+  #      DEVICE: ${PARAKEET_DEVICE:-gpu}
+  #  container_name: opendox-parakeet
+  #  restart: always
+  #  environment:
+  #    PARAKEET_MAX_CONCURRENT_DECODES: ${PARAKEET_MAX_CONCURRENT_DECODES:-2}
+  #    # Optional URL sub-path (e.g. "/parakeet") for reverse-proxy deployments
+  #    # where a separate edge proxy exposes this service alongside others on
+  #    # one port — see AGENTS.md "Parakeet server". Empty = served at root.
+  #    ROOT_PATH: ${PARAKEET_ROOT_PATH:-}
+  #    # Bearer token required on /v1/audio/transcriptions and the streaming
+  #    # WS (not /v1/models, which is the unauthenticated healthcheck target).
+  #    # Empty disables auth (dev fallback, logs a startup warning).
+  #    PARAKEET_API_KEY: ${PARAKEET_API_KEY:-}
+  #  # Published so a reverse proxy on a different host than the Docker engine
+  #  # can reach this container (see docs/examples/nginx-vhost.conf.example).
+  #  ports:
+  #    - "${PARAKEET_PORT:-5001}:5001"
+  #  # GPU access — the parakeet image defaults to the CUDA+cuDNN base and
+  #  # uses CUDAExecutionProvider when a GPU is present. On CPU-only hosts
+  #  # onnxruntime falls back to CPUExecutionProvider automatically, so this
+  #  # deploy block can stay as-is; Docker simply ignores the device reservation.
+  #  deploy:
+  #    resources:
+  #      reservations:
+  #        devices:
+  #          - driver: nvidia
+  #            count: 1
+  #            capabilities: [gpu]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # openDox Application (FastAPI + React)

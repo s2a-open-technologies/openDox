@@ -6,7 +6,8 @@
     "language": "Sprache",
     "dictionary": "Meine Wörterbücher",
     "categories": "Meine Kategorien",
-    "appearance": "Design"
+    "appearance": "Design",
+    "retention": "Aufbewahrung"
   },
   "language": {
     "heading": "Sprache der Benutzeroberfläche",
@@ -29,5 +30,9 @@
     "light": "Hell",
     "dark": "Dunkel",
     "system": "System"
+  },
+  "retention": {
+    "heading": "Aufbewahrung",
+    "description": "Wie lange Ihre Aufnahmen aufbewahrt werden, bevor sie automatisch gelöscht werden."
   }
 }

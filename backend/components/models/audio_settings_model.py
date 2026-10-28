@@ -38,3 +38,9 @@ class AudioSettingsModel(SQLModel, table=True):
     auto_archive_enabled: bool = Field(default=False)
 
     auto_archive_days: int = Field(default=90)
+
+    # Maximum retention: records older than this are deleted for everyone,
+    # users may only choose a shorter period for themselves.
+    auto_delete_enabled: bool = Field(default=False)
+
+    auto_delete_days: int = Field(default=365)

@@ -6,5 +6,9 @@
   "recording": "Aufnahme #{{id}}",
   "unknownError": "Unbekannter Fehler",
   "retry": "Erneut versuchen",
-  "empty": "Keine fehlgeschlagenen Transkriptionen"
+  "empty": "Keine fehlgeschlagenen Transkriptionen",
+  "discard": "Verwerfen",
+  "discardConfirm": "Aufbewahrtes Audio endgültig löschen? Die Transkription kann danach nicht mehr wiederholt werden. Die Aufnahme bleibt für den Benutzer sichtbar und kann von ihm gelöscht werden.",
+  "discarded": "Audio verworfen",
+  "discardFailed": "Verwerfen fehlgeschlagen"
 }

@@ -64,6 +64,8 @@ from backend.components.models.session_settings_model import (
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.user_model import (
     UI_LANGUAGES,
+    RetentionRead,
+    RetentionUpdate,
     UiLanguageRead,
     UiLanguageUpdate,
     User,
@@ -78,6 +80,7 @@ from backend.components.services.asr_factory import (
     get_live_backend,
     reset_asr_backends,
 )
+from backend.components.services.audit_service import audit, changed_fields, snapshot
 from backend.components.services.ldap import LdapService
 from backend.components.services.session_store import (
     reconnect_session_store,
@@ -122,6 +125,31 @@ def _require_secret_reader(current_user: User = Depends(get_current_user)) -> Us
     return current_user
 
 
+def _audit_settings(
+    db: SessionDep,
+    request: Request,
+    admin: User,
+    key: str,
+    before: dict[str, Any],
+    row,
+) -> None:
+    """Audit a settings save by the names of the changed fields (no values).
+
+    A save that changes nothing is not logged.
+    """
+    fields = changed_fields(before, snapshot(row))
+    if fields:
+        audit(
+            db,
+            f"settings.{key}.update",
+            request=request,
+            actor=admin,
+            target_type="settings",
+            target_id=key,
+            details={"fields": fields},
+        )
+
+
 def _redact_secrets(settings, user: User | None, fields: tuple[str, ...]):
     """Return ``settings`` with ``fields`` blanked unless ``user`` is an admin.
 
@@ -160,11 +188,13 @@ async def get_whisper_settings(
 @settings_bp.put("/whisper-settings/", response_model=WhisperSettingsModel)
 async def update_whisper_settings(
     settings_in: WhisperSettingsModel,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Update the Whisper settings and reset cached ASR backends."""
     settings = db.exec(select(WhisperSettingsModel)).first()
+    before = snapshot(settings)
     if not settings:
         settings = WhisperSettingsModel()
 
@@ -195,6 +225,7 @@ async def update_whisper_settings(
     settings.term_correction_enabled = settings_in.term_correction_enabled
     settings.term_correction_threshold = settings_in.term_correction_threshold
 
+    _audit_settings(db, request, admin, "whisper", before, settings)
     db.add(settings)
     db.commit()
     db.refresh(settings)
@@ -225,11 +256,13 @@ async def get_llm_settings(
 @settings_bp.put("/llm-settings/", response_model=LlmSettingsModel)
 async def update_llm_settings(
     settings_in: LlmSettingsModel,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Update the LLM settings and invalidate the settings cache."""
     settings = db.exec(select(LlmSettingsModel)).first()
+    before = snapshot(settings)
     if not settings:
         settings = LlmSettingsModel()
 
@@ -247,6 +280,7 @@ async def update_llm_settings(
     settings.sanitizer_endpoint = settings_in.sanitizer_endpoint or None
     settings.sanitizer_api_key = settings_in.sanitizer_api_key or None
 
+    _audit_settings(db, request, admin, "llm", before, settings)
     db.add(settings)
     db.commit()
     db.refresh(settings)
@@ -485,11 +519,13 @@ async def get_ldap_settings(
 @settings_bp.put("/ldap-settings/", response_model=LdapSettingsModel)
 async def update_ldap_settings(
     settings_in: LdapSettingsModel,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Create or update the LDAP settings (admin only)."""
     settings = db.exec(select(LdapSettingsModel)).first()
+    before = snapshot(settings)
     if not settings:
         settings = LdapSettingsModel(**settings_in.dict(exclude={"id"}))
         db.add(settings)
@@ -498,6 +534,7 @@ async def update_ldap_settings(
         for key, value in settings_data.items():
             setattr(settings, key, value)
         db.add(settings)
+    _audit_settings(db, request, admin, "ldap", before, settings)
 
     db.commit()
     db.refresh(settings)
@@ -524,9 +561,10 @@ async def test_ldap_connection(
 
 @settings_bp.post("/ldap-settings/upload-cert/")
 async def upload_ldap_cert(
+    request: Request,
     db: SessionDep,
     file: UploadFile = File(...),
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Store an uploaded LDAP CA certificate directly in the settings row.
 
@@ -554,6 +592,15 @@ async def upload_ldap_cert(
         )
     settings.cert_data = cert_text
     settings.cert_filename = display_name
+    audit(
+        db,
+        "settings.ldap.certificate_upload",
+        request=request,
+        actor=admin,
+        target_type="settings",
+        target_id="ldap",
+        details={"filename": display_name},
+    )
     db.add(settings)
     db.commit()
 
@@ -619,6 +666,7 @@ def _category_out(db: SessionDep, category: Categories, schema: type) -> Any:
 @settings_bp.post("/categories/", response_model=CategoriesRead)
 async def create_category(
     category: CategoriesCreate,
+    request: Request,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -640,6 +688,16 @@ async def create_category(
     db.add(db_category)
     db.flush()
     dictionary_service.set_category_dictionaries(db, db_category.id, dictionary_ids)
+    if db_category.user_id is None:
+        audit(
+            db,
+            "category.create",
+            request=request,
+            actor=current_user,
+            target_type="category",
+            target_id=db_category.id,
+            details={"name": db_category.name},
+        )
     db.commit()
     db.refresh(db_category)
     return _category_out(db, db_category, CategoriesRead)
@@ -689,6 +747,7 @@ async def read_category(
 async def update_category(
     category_id: int,
     category: CategoriesCreate,
+    request: Request,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -723,10 +782,30 @@ async def update_category(
         # didn't touch it would otherwise wipe the stored key on every save.
         category_data.pop("llm_api_key", None)
 
+    before = snapshot(db_category)
+    old_dictionary_ids = dictionary_service.dictionary_ids_by_category(
+        db, [db_category.id]
+    )[db_category.id]
     if dictionary_ids is not None:
         _validate_dictionary_ids(db, dictionary_ids, db_category.user_id)
         dictionary_service.set_category_dictionaries(db, db_category.id, dictionary_ids)
     db_category.sqlmodel_update(category_data)
+    if db_category.user_id is None:
+        fields = changed_fields(before, snapshot(db_category))
+        if dictionary_ids is not None and sorted(dictionary_ids) != sorted(
+            old_dictionary_ids
+        ):
+            fields.append("dictionary_ids")
+        if fields:
+            audit(
+                db,
+                "category.update",
+                request=request,
+                actor=current_user,
+                target_type="category",
+                target_id=db_category.id,
+                details={"name": db_category.name, "fields": fields},
+            )
     db.add(db_category)
     db.commit()
     db.refresh(db_category)
@@ -745,6 +824,7 @@ def _delete_links(db: SessionDep, column, value: int) -> None:
 @settings_bp.delete("/categories/{category_id}")
 async def delete_category(
     category_id: int,
+    request: Request,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -765,6 +845,16 @@ async def delete_category(
         )
 
     _delete_links(db, CategoryDictionaryLink.category_id, category_id)
+    if category.user_id is None:
+        audit(
+            db,
+            "category.delete",
+            request=request,
+            actor=current_user,
+            target_type="category",
+            target_id=category_id,
+            details={"name": category.name},
+        )
     db.delete(category)
     db.commit()
     return {"ok": True}
@@ -823,6 +913,28 @@ def _dictionary_out(db: SessionDep, dictionary: Dictionary, with_terms: bool) ->
     return DictionaryListRead(**fields)
 
 
+def _audit_dictionary(
+    db: SessionDep,
+    request: Request,
+    user: User,
+    action: str,
+    dictionary: Dictionary,
+    **details: Any,
+) -> None:
+    """Audit a change to a global dictionary; personal ones are never logged."""
+    if dictionary.user_id is not None:
+        return
+    audit(
+        db,
+        f"dictionary.{action}",
+        request=request,
+        actor=user,
+        target_type="dictionary",
+        target_id=dictionary.id,
+        details={"name": dictionary.name, **details},
+    )
+
+
 def _normalized_terms(terms: list[str]) -> list[str]:
     """Normalize typed terms, mapping input errors to API errors."""
     try:
@@ -871,6 +983,7 @@ async def read_dictionary(
 @settings_bp.post("/dictionaries/", response_model=DictionaryRead)
 async def create_dictionary(
     payload: DictionaryCreate,
+    request: Request,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -888,6 +1001,10 @@ async def create_dictionary(
     )
     dictionary_service.set_terms(dictionary, _normalized_terms(payload.terms or []))
     db.add(dictionary)
+    db.flush()
+    _audit_dictionary(
+        db, request, current_user, "create", dictionary, terms=dictionary.term_count
+    )
     db.commit()
     db.refresh(dictionary)
     return _dictionary_out(db, dictionary, with_terms=True)
@@ -897,6 +1014,7 @@ async def create_dictionary(
 async def update_dictionary(
     dictionary_id: int,
     payload: DictionaryUpdate,
+    request: Request,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -910,6 +1028,9 @@ async def update_dictionary(
     if payload.terms is not None:
         dictionary_service.set_terms(dictionary, _normalized_terms(payload.terms))
     dictionary.updated_at = datetime.now(timezone.utc)
+    _audit_dictionary(
+        db, request, current_user, "update", dictionary, terms=dictionary.term_count
+    )
     db.add(dictionary)
     db.commit()
     db.refresh(dictionary)
@@ -921,6 +1042,7 @@ async def update_dictionary(
 )
 async def upload_dictionary_terms(
     dictionary_id: int,
+    request: Request,
     db: SessionDep,
     file: UploadFile = File(...),
     mode: str = Form("replace"),
@@ -944,6 +1066,15 @@ async def upload_dictionary_terms(
         raise api_error(400, e.code, e.message, **e.params) from e
     dictionary_service.set_terms(dictionary, uploaded)
     dictionary.updated_at = datetime.now(timezone.utc)
+    _audit_dictionary(
+        db,
+        request,
+        current_user,
+        "upload",
+        dictionary,
+        mode=mode,
+        terms=dictionary.term_count,
+    )
     db.add(dictionary)
     db.commit()
     db.refresh(dictionary)
@@ -953,12 +1084,14 @@ async def upload_dictionary_terms(
 @settings_bp.delete("/dictionaries/{dictionary_id}")
 async def delete_dictionary(
     dictionary_id: int,
+    request: Request,
     db: SessionDep,
     current_user: User = Depends(get_current_user),
 ):
     """Delete a dictionary; it is detached from all categories."""
     dictionary = _get_editable_dictionary(db, dictionary_id, current_user)
     _delete_links(db, CategoryDictionaryLink.dictionary_id, dictionary_id)
+    _audit_dictionary(db, request, current_user, "delete", dictionary)
     db.delete(dictionary)
     db.commit()
     return {"ok": True}
@@ -989,16 +1122,72 @@ async def update_my_language(
     return UiLanguageRead(ui_language=current_user.ui_language)
 
 
+# Retention Endpoint — the caller's own automatic deletion period only.
+
+
+def _retention_out(db: SessionDep, user: User) -> RetentionRead:
+    audio = db.exec(select(AudioSettingsModel)).first() or AudioSettingsModel()
+    return RetentionRead(
+        personal_days=user.auto_delete_days,
+        global_enabled=audio.auto_delete_enabled,
+        global_days=audio.auto_delete_days,
+    )
+
+
+@settings_bp.get("/my-retention/", response_model=RetentionRead)
+async def get_my_retention(
+    db: SessionDep, current_user: User = Depends(get_current_user)
+):
+    """Return the caller's retention and the global limit it must stay within."""
+    return _retention_out(db, current_user)
+
+
+@settings_bp.put("/my-retention/", response_model=RetentionRead)
+async def update_my_retention(
+    payload: RetentionUpdate,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Set (or with ``null`` clear) the caller's own, shorter retention."""
+    current = _retention_out(db, current_user)
+    if (
+        payload.personal_days is not None
+        and current.global_enabled
+        and payload.personal_days > current.global_days
+    ):
+        raise api_error(
+            400,
+            "retention_exceeds_global",
+            f"Höchstens {current.global_days} Tage erlaubt",
+            max=current.global_days,
+        )
+    current_user.auto_delete_days = payload.personal_days
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return _retention_out(db, current_user)
+
+
 # Languages Endpoints
 @settings_bp.post("/languages/", response_model=LanguagesRead)
 async def create_language(
     language: LanguagesCreate,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Create a new language (admin only)."""
     db_language = Languages.model_validate(language)
     db.add(db_language)
+    db.flush()
+    audit(
+        db,
+        "language.create",
+        request=request,
+        actor=admin,
+        target_type="language",
+        target_id=db_language.id,
+    )
     db.commit()
     db.refresh(db_language)
     return db_language
@@ -1024,15 +1213,26 @@ async def read_language(language_id: int, db: SessionDep):
 async def update_language(
     language_id: int,
     language: LanguagesCreate,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Update a language by ID (admin only)."""
     db_language = db.get(Languages, language_id)
     if not db_language:
         raise HTTPException(status_code=404, detail="Language not found")
     language_data = language.model_dump(exclude_unset=True)
+    before = snapshot(db_language)
     db_language.sqlmodel_update(language_data)
+    audit(
+        db,
+        "language.update",
+        request=request,
+        actor=admin,
+        target_type="language",
+        target_id=language_id,
+        details={"fields": changed_fields(before, snapshot(db_language))},
+    )
     db.add(db_language)
     db.commit()
     db.refresh(db_language)
@@ -1042,13 +1242,22 @@ async def update_language(
 @settings_bp.delete("/languages/{language_id}")
 async def delete_language(
     language_id: int,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Delete a language by ID (admin only)."""
     language = db.get(Languages, language_id)
     if not language:
         raise HTTPException(status_code=404, detail="Language not found")
+    audit(
+        db,
+        "language.delete",
+        request=request,
+        actor=admin,
+        target_type="language",
+        target_id=language_id,
+    )
     db.delete(language)
     db.commit()
     return {"ok": True}
@@ -1287,8 +1496,9 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
 
 @settings_bp.get("/backup/")
 async def export_backup(
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Export all settings tables as a downloadable JSON file.
 
@@ -1299,6 +1509,7 @@ async def export_backup(
     from fastapi import Response
 
     data = _export_all_settings(db)
+    audit(db, "backup.export", request=request, actor=admin, commit=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     filename = f"opendox-backup-{stamp}.json"
     content = json.dumps(data, indent=2, ensure_ascii=False)
@@ -1311,15 +1522,18 @@ async def export_backup(
 
 @settings_bp.post("/backup/restore/")
 async def import_backup(
+    request: Request,
     db: SessionDep,
     file: UploadFile = File(...),
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Restore settings from an uploaded JSON backup file.
 
     Args:
+        request: Current request (audit log).
         db: Active database session.
         file: Uploaded JSON file produced by the export endpoint.
+        admin: The admin restoring the backup.
 
     Returns:
         Dict with an "ok" flag and a summary of restored tables.
@@ -1332,7 +1546,16 @@ async def import_backup(
             400, "backup_invalid_json", f"Kein gültiges JSON: {exc}", error=str(exc)
         )
     _import_all_settings(db, data)
-    return {"ok": True, "restored": list(data.get("settings", {}).keys())}
+    restored = list(data.get("settings", {}).keys())
+    audit(
+        db,
+        "backup.restore",
+        request=request,
+        actor=admin,
+        details={"sections": restored},
+        commit=True,
+    )
+    return {"ok": True, "restored": restored}
 
 
 # OIDC Endpoints
@@ -1355,11 +1578,13 @@ async def get_oidc_settings(
 @settings_bp.put("/oidc-settings/", response_model=OidcSettingsModel)
 async def update_oidc_settings(
     settings_in: OidcSettingsModel,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Upsert OIDC settings from the admin UI."""
     settings = db.exec(select(OidcSettingsModel)).first()
+    before = snapshot(settings)
     if not settings:
         settings = OidcSettingsModel(**settings_in.dict(exclude={"id"}))
         db.add(settings)
@@ -1368,6 +1593,7 @@ async def update_oidc_settings(
         for key, value in settings_data.items():
             setattr(settings, key, value)
         db.add(settings)
+    _audit_settings(db, request, admin, "oidc", before, settings)
     db.commit()
     db.refresh(settings)
     return settings
@@ -1402,8 +1628,9 @@ _ALLOWED_AUDIO_BITRATES = {
 @settings_bp.put("/audio-settings/", response_model=AudioSettingsModel)
 async def update_audio_settings(
     settings_in: AudioSettingsModel,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Upsert audio download settings from the admin UI."""
     if (
@@ -1434,8 +1661,17 @@ async def update_audio_settings(
             "auto_archive_days_invalid",
             "auto_archive_days muss zwischen 1 und 3650 liegen",
         )
+    if settings_in.auto_delete_days is not None and not (
+        1 <= settings_in.auto_delete_days <= 3650
+    ):
+        raise api_error(
+            422,
+            "auto_delete_days_invalid",
+            "auto_delete_days muss zwischen 1 und 3650 liegen",
+        )
 
     settings = db.exec(select(AudioSettingsModel)).first()
+    before = snapshot(settings)
     if not settings:
         settings = AudioSettingsModel(**settings_in.dict(exclude={"id"}))
         db.add(settings)
@@ -1444,6 +1680,7 @@ async def update_audio_settings(
         for key, value in settings_data.items():
             setattr(settings, key, value)
         db.add(settings)
+    _audit_settings(db, request, admin, "audio", before, settings)
     db.commit()
     db.refresh(settings)
     get_settings_service().invalidate_cache()
@@ -1488,12 +1725,15 @@ async def get_client_config(db: SessionDep):
 @settings_bp.put("/client-config/", response_model=ClientConfig)
 async def update_client_config(
     config_in: ClientConfig,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Save the desktop-client policy from the admin UI."""
     settings = _get_or_create_client_settings(db)
+    before = snapshot(settings)
     config_in.apply_to(settings)
+    _audit_settings(db, request, admin, "client", before, settings)
     db.add(settings)
     db.commit()
     db.refresh(settings)
@@ -1523,12 +1763,15 @@ async def get_session_config(
 @settings_bp.put("/session-config/", response_model=SessionConfig)
 async def update_session_config(
     config_in: SessionConfig,
+    request: Request,
     db: SessionDep,
-    _: User = Depends(_require_admin),
+    admin: User = Depends(_require_admin),
 ):
     """Save the web UI session policy from the admin UI."""
     settings = _get_or_create_session_settings(db)
+    before = snapshot(settings)
     settings.idle_timeout_minutes = config_in.idle_timeout_minutes
+    _audit_settings(db, request, admin, "session", before, settings)
     db.add(settings)
     db.commit()
     db.refresh(settings)

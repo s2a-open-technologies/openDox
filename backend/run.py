@@ -193,10 +193,14 @@ async def _auto_archive_loop(logger) -> None:
     Every 6 hours (same cadence as the failed-audio archival loop) the service
     re-reads the settings, so enabling/disabling or changing the age takes
     effect on the next tick without a restart. Archiving is idempotent —
-    already-archived records are excluded by the query.
+    already-archived records are excluded by the query. The same tick first
+    deletes records past their retention (``auto_delete_service``).
     """
     from backend.components.services.auto_archive_service import (
         auto_archive_old_records,
+    )
+    from backend.components.services.auto_delete_service import (
+        auto_delete_old_records,
     )
     from backend.components.services.leader_lock import try_acquire
 
@@ -205,11 +209,40 @@ async def _auto_archive_loop(logger) -> None:
         try:
             if not try_acquire("auto-archive", 6 * 3600 - 300):
                 continue
+            # Delete first: no point archiving what is past retention anyway.
+            deleted = await asyncio.to_thread(auto_delete_old_records)
+            if deleted:
+                logger.info("Auto-deleted %d record(s) past retention", deleted)
             count = await asyncio.to_thread(auto_archive_old_records)
             if count:
                 logger.info("Auto-archived %d old record(s)", count)
         except Exception as exc:
             logger.warning("Auto-archive run failed: %s", exc)
+
+
+async def _audit_retention_loop(logger) -> None:
+    """Once a day, delete audit entries older than ``AUDIT_RETENTION_DAYS``.
+
+    Default 365 days; ``0`` keeps everything. Leader-locked, so with several
+    instances only one prunes per day.
+    """
+    from backend.components.services.audit_service import purge_expired
+    from backend.components.services.leader_lock import try_acquire
+    from backend.components.sql.sql_engine import get_session_factory
+
+    retention_days = int(env_or_file("AUDIT_RETENTION_DAYS", "365"))
+    while True:
+        await asyncio.sleep(24 * 3600)
+        try:
+            if not try_acquire("audit-retention", 24 * 3600 - 300):
+                continue
+            count = await asyncio.to_thread(
+                purge_expired, get_session_factory(), retention_days
+            )
+            if count:
+                logger.info("Deleted %d audit entries past retention", count)
+        except Exception as exc:
+            logger.warning("Audit retention run failed: %s", exc)
 
 
 @contextlib.asynccontextmanager
@@ -228,21 +261,27 @@ async def lifespan(app: FastAPI):
     logger.info("Failed-audio archival loop started (interval=6h)")
     auto_archive_task = asyncio.create_task(_auto_archive_loop(logger))
     logger.info("Record auto-archive loop started (interval=6h)")
+    audit_retention_task = asyncio.create_task(_audit_retention_loop(logger))
+    logger.info("Audit retention loop started (interval=24h)")
     try:
         yield
     finally:
         cleanup_task.cancel()
         archival_task.cancel()
         auto_archive_task.cancel()
+        audit_retention_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
         with contextlib.suppress(asyncio.CancelledError):
             await archival_task
         with contextlib.suppress(asyncio.CancelledError):
             await auto_archive_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await audit_retention_task
         logger.info("Stale-session cleanup loop stopped")
         logger.info("Failed-audio archival loop stopped")
         logger.info("Record auto-archive loop stopped")
+        logger.info("Audit retention loop stopped")
 
 
 def create_app():
@@ -300,8 +339,18 @@ def create_app():
         response.headers["Permissions-Policy"] = "microphone=(self), camera=(self)"
         return response
 
+    # Registered before mark_trusted_proxy, so it runs inside it and sees
+    # request.state.trusted_proxy when it resolves the caller's IP.
+    from backend.components.services.audit_service import (
+        add_denied_access_middleware,
+    )
+    from backend.components.sql.sql_engine import get_session_factory
+
+    add_denied_access_middleware(app, get_session_factory())
+
     trusted_proxy_ips = get_trusted_proxy_ips()
-    logger.info(f"Trusted reverse-proxy IPs: {trusted_proxy_ips}")
+    # Count only: the addresses would expose the network layout in the logs.
+    logger.info("Trusted reverse-proxy entries: %d", len(trusted_proxy_ips))
 
     @app.middleware("http")
     async def mark_trusted_proxy(request: Request, call_next):

@@ -1,0 +1,9 @@
+{
+  "label": "Eigene Aufnahmen löschen nach (Tagen)",
+  "placeholder": "keine eigene Frist",
+  "globalLimit": "Ihre Einrichtung löscht Aufnahmen spätestens nach {{days}} Tagen. Sie können für Ihre eigenen Aufnahmen eine kürzere Frist wählen.",
+  "noGlobalLimit": "Ihre Einrichtung hat keine Löschfrist festgelegt. Sie können für Ihre eigenen Aufnahmen eine Frist wählen.",
+  "invalid": "Bitte eine ganze Zahl zwischen 1 und {{max}} eingeben.",
+  "hint": "Leer lassen, um nur die Frist der Einrichtung zu verwenden. Gelöschte Aufnahmen inklusive Audio sind unwiederbringlich.",
+  "saved": "Aufbewahrung gespeichert"
+}

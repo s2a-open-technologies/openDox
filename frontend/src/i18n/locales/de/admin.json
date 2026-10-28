@@ -8,7 +8,8 @@
     "clients": "Clients",
     "categories": "Kategorien",
     "dictionaries": "Wörterbücher",
-    "system": "System"
+    "system": "System",
+    "audit": "Audit"
   },
   "services": {
     "heading": "API-Dienste konfigurieren"
@@ -20,7 +21,8 @@
     "heading": "Benutzerverwaltung"
   },
   "auth": {
-    "heading": "Authentifizierung"
+    "heading": "Authentifizierung",
+    "session": "Sitzung"
   },
   "system": {
     "heading": "Systemverwaltung"

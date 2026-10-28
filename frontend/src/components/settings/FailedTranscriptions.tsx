@@ -24,7 +24,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FailedTask {
@@ -40,6 +40,7 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
   const { authFetch } = useAuth();
   const [tasks, setTasks] = useState<FailedTask[]>([]);
   const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [discardingId, setDiscardingId] = useState<number | null>(null);
 
   const fetchFailedTasks = async () => {
     try {
@@ -75,6 +76,26 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
     }
   };
 
+  const discard = async (taskId: number) => {
+    if (!window.confirm(t('discardConfirm'))) return;
+    setDiscardingId(taskId);
+    try {
+      const res = await authFetch(`/api/v1/records/tasks/${taskId}/retained-audio`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success(t('discarded'));
+        setTasks((prev) => prev.filter((task) => task.task_id !== taskId));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(apiErrorMessage(err, t('discardFailed')));
+      }
+    } catch (error) {
+      console.error('Failed to discard task audio:', error);
+      toast.error(t('common:connectionError'));
+    } finally {
+      setDiscardingId(null);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -99,16 +120,28 @@ export function FailedTranscriptions({ readOnly = false }: { readOnly?: boolean 
                   {new Date(task.updated_at).toLocaleString(i18n.language)}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-                disabled={retryingId === task.task_id || readOnly}
-                onClick={() => retry(task.task_id)}
-              >
-                <RotateCcw className="h-4 w-4" />
-                {t('retry')}
-              </Button>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  disabled={retryingId === task.task_id || discardingId === task.task_id || readOnly}
+                  onClick={() => retry(task.task_id)}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {t('retry')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 text-destructive"
+                  disabled={retryingId === task.task_id || discardingId === task.task_id || readOnly}
+                  onClick={() => discard(task.task_id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t('discard')}
+                </Button>
+              </div>
             </div>
           ))}
           {tasks.length === 0 && (

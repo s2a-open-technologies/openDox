@@ -28,6 +28,7 @@ from backend.components.models.ldap_model import LdapSettingsModel
 from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.user_model import User
 from backend.components.modules.logger import get_logger
+from backend.components.services.audit_service import audit
 from backend.components.services.ldap import LdapService
 from backend.components.services.oidc import OidcService
 
@@ -94,6 +95,19 @@ def revalidate_user(db: Session, user: User) -> Literal["ok", "denied"]:
         )
         return "ok"
 
+    if user.role != result["role"]:
+        audit(
+            db,
+            "user.role_sync",
+            actor=user,
+            target_type="user",
+            target_id=user.id,
+            details={
+                "from": user.role,
+                "to": result["role"],
+                "source": user.auth_source,
+            },
+        )
     user.role = result["role"]
     db.add(user)
     db.commit()

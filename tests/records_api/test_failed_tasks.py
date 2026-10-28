@@ -178,3 +178,96 @@ def test_retry_archived_audio_missing_in_s3_returns_410(
     with session_factory() as session:
         refreshed = session.get(Task, task.id)
         assert refreshed.status == "error"  # untouched
+
+
+def test_discard_removes_local_audio_and_leaves_the_retry_list(
+    client, create_user, auth_headers, session_factory, tmp_path
+):
+    from sqlmodel import select
+
+    from backend.components.models.audit_model import AuditEvent
+
+    admin = create_user("admin", role="admin")
+    owner = create_user("dr.mueller")
+    audio = tmp_path / "task_1.wav"
+    audio.write_bytes(b"RIFF")
+    task = _create_error_task(session_factory, retry_audio_path=str(audio))
+    record = _link_record_to_task(session_factory, owner.id, task.id)
+    headers = auth_headers(admin)
+
+    response = client.delete(
+        f"/api/v1/records/tasks/{task.id}/retained-audio", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert not audio.exists()
+    assert client.get("/api/v1/records/tasks/failed", headers=headers).json() == []
+    with session_factory() as session:
+        stored = session.get(Task, task.id)
+        assert stored.retry_audio_path is None and stored.status == "error"
+        # The recording stays with its owner.
+        assert session.get(Record, record.id) is not None
+        event = session.exec(
+            select(AuditEvent).where(AuditEvent.action == "task.discard")
+        ).one()
+    assert event.details == {"record_id": record.id}
+
+
+def test_discard_deletes_archived_audio_from_s3(
+    client, create_user, auth_headers, session_factory, monkeypatch
+):
+    admin = create_user("admin", role="admin")
+    task = _create_error_task(
+        session_factory,
+        retry_audio_path="archive/task_1.wav.enc",
+        retry_audio_in_s3=True,
+    )
+    _link_record_to_task(session_factory, admin.id, task.id)
+    delete = MagicMock()
+    monkeypatch.setattr(
+        "backend.components.services.retained_audio.audio_storage.delete", delete
+    )
+
+    response = client.delete(
+        f"/api/v1/records/tasks/{task.id}/retained-audio", headers=auth_headers(admin)
+    )
+
+    assert response.status_code == 200
+    delete.assert_called_once_with("archive/task_1.wav.enc")
+
+
+def test_discard_requires_admin_and_retained_audio(
+    client, create_user, auth_headers, session_factory
+):
+    admin = create_user("admin", role="admin")
+    user = create_user("dr.mueller")
+    task = _create_error_task(session_factory)
+    url = f"/api/v1/records/tasks/{task.id}/retained-audio"
+
+    assert client.delete(url, headers=auth_headers(user)).status_code == 403
+    assert client.delete(url, headers=auth_headers(admin)).status_code == 409
+    assert (
+        client.delete(
+            "/api/v1/records/tasks/999/retained-audio", headers=auth_headers(admin)
+        ).status_code
+        == 404
+    )
+
+
+def test_deleting_the_record_also_removes_its_retained_audio(
+    client, create_user, auth_headers, session_factory, tmp_path
+):
+    owner = create_user("dr.mueller")
+    audio = tmp_path / "task_2.wav"
+    audio.write_bytes(b"RIFF")
+    task = _create_error_task(session_factory, retry_audio_path=str(audio))
+    record = _link_record_to_task(session_factory, owner.id, task.id)
+
+    response = client.delete(
+        f"/api/v1/records/record/{record.id}", headers=auth_headers(owner)
+    )
+
+    assert response.status_code == 200
+    assert not audio.exists()
+    with session_factory() as session:
+        assert session.get(Task, task.id).retry_audio_path is None

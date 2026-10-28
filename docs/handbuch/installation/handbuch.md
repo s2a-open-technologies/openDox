@@ -413,6 +413,7 @@ Jede Variable kann statt direkt auch aus einer Datei gelesen werden: Endung
 | `CORS_ALLOWED_ORIGINS` | Erlaubte Ursprünge, durch Kommas getrennt | alle (mit Warnung im Log) |
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
 | `FAILED_AUDIO_RETENTION_DAYS` | Tage, bis fehlgeschlagene Aufnahmen in den Objektspeicher ausgelagert werden | 3 |
+| `AUDIT_RETENTION_DAYS` | Tage, die Einträge im Audit-Log aufbewahrt werden (`0` = unbegrenzt) | 365 |
 | `SETTINGS_CACHE_TTL_S` | Sekunden, bis Einstellungsänderungen andere Instanzen erreichen | 30 |
 | `CLIENT_SERVER_URL` | Server-Adresse für die `settings.json` des Desktop-Clients | aus der Anfrage abgeleitet |
 | `CLIENT_DOWNLOAD_BASE_URL` | Quelle der Client-Installer | neuestes GitHub-Release |

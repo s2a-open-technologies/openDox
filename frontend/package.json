@@ -97,5 +97,8 @@
     "@tailwindcss/typography": {
       "postcss-selector-parser": "^7.1.6"
     }
+  },
+  "allowScripts": {
+    "@swc/core@1.16.13": true
   }
 }

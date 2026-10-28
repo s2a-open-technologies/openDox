@@ -29,6 +29,12 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Statuses of a task whose pipeline is still running.
+ACTIVE_TASK_STATUSES = frozenset(
+    {"pending", "running", "transcribing", "processing_llm"}
+)
+
+
 class Task(SQLModel, table=True):
     """Background transcription task model."""
 

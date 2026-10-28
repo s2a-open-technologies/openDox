@@ -172,4 +172,47 @@ describe("FailedTranscriptions", () => {
     await screen.findByText("Gesperrt");
     expect(screen.getByRole("button", { name: /Erneut versuchen/ })).toBeDisabled();
   });
+  const NEURO = [
+    {
+      task_id: 3,
+      record_id: 30,
+      title: "Neuro Aufnahme",
+      error: "Verbindungsfehler",
+      updated_at: "2024-05-03T10:00:00Z",
+    },
+  ];
+
+  it("discards a task's audio after confirmation and removes it from the list", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const authFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(NEURO))
+      .mockResolvedValueOnce(jsonResponse({ discarded: true }));
+    const user = userEvent.setup();
+    renderWithAuthFetch(authFetch);
+
+    await screen.findByText("Neuro Aufnahme");
+    await user.click(screen.getByRole("button", { name: /Verwerfen/ }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Audio verworfen"));
+    const [url, options] = authFetch.mock.calls[1];
+    expect(url).toBe("/api/v1/records/tasks/3/retained-audio");
+    expect(options.method).toBe("DELETE");
+    await waitFor(() => expect(screen.queryByText("Neuro Aufnahme")).not.toBeInTheDocument());
+    confirmSpy.mockRestore();
+  });
+
+  it("does nothing when the discard confirmation is cancelled", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const authFetch = vi.fn().mockResolvedValueOnce(jsonResponse(NEURO));
+    const user = userEvent.setup();
+    renderWithAuthFetch(authFetch);
+
+    await screen.findByText("Neuro Aufnahme");
+    await user.click(screen.getByRole("button", { name: /Verwerfen/ }));
+
+    expect(authFetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Neuro Aufnahme")).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
 });

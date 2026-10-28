@@ -1,0 +1,92 @@
+{
+  "title": "Audit log",
+  "description": "Record of administrative actions and security events: settings, users, backups, retries, failed logins and denied requests. Users working with their own recordings are not logged; content and credentials never are.",
+  "filter": {
+    "since": "From",
+    "until": "To",
+    "actor": "User",
+    "action": "Area",
+    "outcome": "Outcome",
+    "all": "All",
+    "apply": "Filter",
+    "reset": "Reset"
+  },
+  "groups": {
+    "auth": "Login",
+    "access": "Access",
+    "user": "Users",
+    "settings": "Settings",
+    "category": "Categories",
+    "dictionary": "Dictionaries",
+    "language": "Languages",
+    "backup": "Backup",
+    "task": "Transcriptions",
+    "audit": "Audit log"
+  },
+  "outcomes": {
+    "success": "Success",
+    "failure": "Failed",
+    "denied": "Denied"
+  },
+  "columns": {
+    "time": "Time",
+    "actor": "User",
+    "action": "Action",
+    "outcome": "Outcome",
+    "details": "Details",
+    "ip": "IP address"
+  },
+  "actions": {
+    "auth_login": "Login",
+    "access_denied": "Access denied",
+    "user_create": "User created",
+    "user_update": "User changed",
+    "user_delete": "User deleted",
+    "user_role_sync": "Role changed by group",
+    "settings_whisper_update": "Whisper/ASR settings changed",
+    "settings_llm_update": "LLM settings changed",
+    "settings_ldap_update": "LDAP settings changed",
+    "settings_ldap_certificate_upload": "LDAP certificate uploaded",
+    "settings_oidc_update": "OIDC settings changed",
+    "settings_audio_update": "Audio settings changed",
+    "settings_client_update": "Client policy changed",
+    "settings_session_update": "Session policy changed",
+    "category_create": "Category created",
+    "category_update": "Category changed",
+    "category_delete": "Category deleted",
+    "dictionary_create": "Dictionary created",
+    "dictionary_update": "Dictionary changed",
+    "dictionary_upload": "Dictionary uploaded",
+    "dictionary_delete": "Dictionary deleted",
+    "language_create": "Language created",
+    "language_update": "Language changed",
+    "language_delete": "Language deleted",
+    "backup_export": "Backup exported",
+    "backup_restore": "Backup restored",
+    "task_retry": "Transcription retried",
+    "audit_export": "Audit log exported",
+    "records_auto_delete": "Old recordings deleted automatically",
+    "task_discard": "Retained audio discarded"
+  },
+  "reasons": {
+    "invalid_credentials": "Wrong user name or password",
+    "account_locked": "Account locked",
+    "rate_limited": "Too many attempts",
+    "group_not_allowed": "No permitted group",
+    "error": "Error"
+  },
+  "detail": {
+    "fields": "Fields: {{fields}}"
+  },
+  "pagination": {
+    "range": "{{from}}–{{to}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "system": "System",
+  "empty": "No entries",
+  "refresh": "Refresh",
+  "export": "Export CSV",
+  "loadFailed": "Could not load the audit log",
+  "exportFailed": "Export failed"
+}

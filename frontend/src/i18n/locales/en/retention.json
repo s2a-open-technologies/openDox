@@ -1,0 +1,9 @@
+{
+  "label": "Delete my recordings after (days)",
+  "placeholder": "no personal period",
+  "globalLimit": "Your organisation deletes recordings after at most {{days}} days. You can choose a shorter period for your own recordings.",
+  "noGlobalLimit": "Your organisation has not set a deletion period. You can choose one for your own recordings.",
+  "invalid": "Please enter a whole number between 1 and {{max}}.",
+  "hint": "Leave empty to use only your organisation's period. Deleted recordings, audio included, cannot be recovered.",
+  "saved": "Retention saved"
+}

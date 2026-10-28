@@ -57,6 +57,10 @@ vi.mock("@/components/settings/AutoArchiveConfig", () => ({
 vi.mock("@/components/settings/FailedTranscriptions", () => ({
   FailedTranscriptions: stub("failed-transcriptions"),
 }));
+vi.mock("@/components/settings/AuditLog", () => ({ AuditLog: stub("audit-log") }));
+vi.mock("@/components/settings/AutoDeleteConfig", () => ({
+  AutoDeleteConfig: stub("auto-delete-config"),
+}));
 
 const mockedUseAuth = vi.mocked(useAuth);
 
@@ -109,6 +113,19 @@ describe("AdminModal", () => {
     expect(screen.getByRole("button", { name: /Dienste/ })).toBeInTheDocument();
     expect(screen.getByText(/Nur-Lese-Modus \(Demo\)/)).toBeInTheDocument();
     expect(screen.getByTestId("whisper-config")).toHaveTextContent("readOnly");
+  });
+
+  it("shows the Audit tab to admins only, not to demo viewers or moderators", async () => {
+    const { unmount } = renderAdminModal("admin");
+    await userEvent.click(screen.getByRole("button", { name: /Audit/ }));
+    expect(screen.getByTestId("audit-log")).toBeInTheDocument();
+    unmount();
+
+    for (const role of ["demo_viewer", "moderator"] as const) {
+      const view = renderAdminModal(role);
+      expect(screen.queryByRole("button", { name: /Audit/ })).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it("hides admin-only nav items for a moderator and defaults to Kategorien", () => {
@@ -166,6 +183,17 @@ describe("AdminModal", () => {
     await user.click(screen.getByRole("button", { name: /System/ }));
 
     expect(screen.getByTestId("system-settings")).toBeInTheDocument();
+    // Only service status lives here; the idle logout is under Authentifizierung.
+    expect(screen.queryByTestId("session-settings")).not.toBeInTheDocument();
+  });
+
+  it("shows the idle-logout settings in the Sitzung sub-tab of Authentifizierung", async () => {
+    const user = userEvent.setup();
+    renderAdminModal("admin");
+
+    await user.click(screen.getByRole("button", { name: /Authentifizierung/ }));
+    await user.click(screen.getByRole("tab", { name: "Sitzung" }));
+
     expect(screen.getByTestId("session-settings")).toHaveTextContent("editable");
   });
 

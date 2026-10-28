@@ -31,5 +31,7 @@
   "dictionary_too_large": "A dictionary may contain at most {{max}} terms",
   "dictionary_term_too_long": "A term may be at most {{max}} characters long",
   "dictionary_name_required": "Please enter a name",
-  "account_locked": "Your account is locked. Please contact your administrator."
+  "account_locked": "Your account is locked. Please contact your administrator.",
+  "auto_delete_days_invalid": "The deletion period must be between 1 and 3650 days.",
+  "retention_exceeds_global": "At most {{max}} days allowed (your organisation's period)."
 }

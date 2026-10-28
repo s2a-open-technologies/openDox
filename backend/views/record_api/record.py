@@ -27,7 +27,16 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
-from fastapi import Depends, File, Form, HTTPException, Response, UploadFile, WebSocket
+from fastapi import (
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    WebSocket,
+)
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
@@ -40,7 +49,7 @@ from backend.components.models.record_model import (
     RecordRead,
     RecordUpdate,
 )
-from backend.components.models.task_model import Task
+from backend.components.models.task_model import ACTIVE_TASK_STATUSES, Task
 from backend.components.models.user_model import User
 from backend.components.modules.api_errors import api_error
 from backend.components.modules.audio import normalize_quiet_pcm
@@ -55,9 +64,15 @@ from backend.components.services.asr_factory import (
     get_final_backend,
     get_live_backend,
 )
+from backend.components.services.audit_service import audit
+from backend.components.services.auto_delete_service import delete_record_with_audio
 from backend.components.services.background_transcription_service import (
     background_transcription_task,
     resolve_failed_task,
+)
+from backend.components.services.retained_audio import (
+    detach_retained_audio,
+    remove_retained_audio,
 )
 from backend.components.services.sanitizing_service import (
     _PRESERVE_TOKENS_INSTRUCTION,
@@ -885,7 +900,7 @@ async def get_record_by_session(
 
 
 STALE_TASK_THRESHOLD_MINUTES = 7
-_NON_TERMINAL_TASK_STATUSES = {"pending", "running", "transcribing", "processing_llm"}
+_NON_TERMINAL_TASK_STATUSES = ACTIVE_TASK_STATUSES
 
 
 # Route to get the status of an actual task
@@ -963,7 +978,10 @@ async def list_failed_tasks(
 
 @record_bp.post("/tasks/{task_id}/retry")
 async def retry_failed_task(
-    task_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
+    task_id: int,
+    request: Request,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
 ):
     """Re-run the transcription pipeline on a failed task's retained audio.
 
@@ -1020,6 +1038,16 @@ async def retry_failed_task(
     task.retry_audio_path = None
     task.retry_audio_in_s3 = False
     db.add(task)
+    # The one place an admin touches patient audio: logged with the ids only.
+    audit(
+        db,
+        "task.retry",
+        request=request,
+        actor=current_user,
+        target_type="task",
+        target_id=task_id,
+        details={"record_id": record.id, "archived": archived_key is not None},
+    )
     db.commit()
 
     # Only drop the S3 copy once the retry is durably queued (task.status
@@ -1039,6 +1067,46 @@ async def retry_failed_task(
     )
 
     return {"task_id": task_id, "status": "pending"}
+
+
+@record_bp.delete("/tasks/{task_id}/retained-audio")
+async def discard_failed_task_audio(
+    task_id: int,
+    request: Request,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a failed task's retained audio instead of retrying it.
+
+    Admin-only. The record itself stays with its owner (admins never delete
+    patient recordings); it just leaves the retry list for good.
+    """
+    _require_admin(current_user)
+
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    retained = detach_retained_audio(task)
+    if retained is None:
+        raise api_error(
+            409,
+            "task_no_retry_audio",
+            "Task hat keine zum Wiederholen vorgemerkte Audiodatei",
+        )
+    record = db.exec(select(Record).where(Record.task_id == task_id)).one_or_none()
+    db.add(task)
+    audit(
+        db,
+        "task.discard",
+        request=request,
+        actor=current_user,
+        target_type="task",
+        target_id=task_id,
+        details={"record_id": record.id if record else None},
+    )
+    db.commit()
+    remove_retained_audio(retained)
+    return {"task_id": task_id, "discarded": True}
 
 
 # CRUD Records
@@ -1072,21 +1140,12 @@ async def delete_record(
     record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
 ):
     """Delete a record permanently"""
-    from backend.components.services import audio_storage
-
     record = db.get(Record, record_id)
     if not record:
         return {"error": "Record not found"}
     _require_owner(current_user, record.user_id)
 
-    audio_key = record.file if record.file else None
-
-    db.delete(record)
-    db.commit()
-
-    if audio_key:
-        audio_storage.delete(audio_key)
-        logger.info(f"[DELETE] Audio object removed: {audio_key}")
+    delete_record_with_audio(db, record)
 
     return {"status": "success", "message": "Record deleted"}
 

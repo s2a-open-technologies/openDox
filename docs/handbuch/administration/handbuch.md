@@ -64,7 +64,7 @@ verschlüsselt in Datenbank und Objektspeicher.
 |:-----------|:-------------------------------|
 | **Benutzer** | Diktieren, eigene Aufnahmen, eigene Kategorien und Wörterbücher. Kein Zugang zur Administration. |
 | **Moderator** | Wie Benutzer, zusätzlich globale **Kategorien**, globale **Wörterbücher** und **System**-Status. |
-| **Administrator** | Alle Bereiche der Administration. |
+| **Administrator** | Alle Bereiche der Administration, als Einzige auch das **Audit-Log**. |
 | **Demo-Viewer (nur lesen)** | Sieht alle Bereiche wie ein Administrator, kann aber nichts speichern. Nur Kategorien und Wörterbücher bleiben bearbeitbar. Gedacht für Vorführungen. |
 
 Die Rolle wird bei lokalen Konten in der **Benutzerverwaltung** gesetzt, bei
@@ -91,9 +91,9 @@ Die Navigation links (auf dem Smartphone oben) enthält:
 | Bereich | Inhalt | Sichtbar für |
 |:-----------|:-------------------------------|:-----------|
 | **Dienste** | Spracherkennung (Whisper / ASR) und Sprachmodell (LLM), PII-Sanitizer | Administrator |
-| **Archivierung** | Audio-Download, Auto-Archivierung, fehlgeschlagene Transkriptionen | Administrator |
+| **Archivierung** | Audio-Download, Auto-Archivierung, automatisches Löschen, fehlgeschlagene Transkriptionen | Administrator |
 | **Benutzer** | Lokale Benutzerkonten | Administrator |
-| **Authentifizierung** | LDAP und OIDC / SSO | Administrator |
+| **Authentifizierung** | LDAP, OIDC / SSO und automatische Abmeldung | Administrator |
 | **Backup** | Einstellungen sichern und wiederherstellen | Administrator |
 | **Clients** | Desktop-Client verteilen und konfigurieren | Administrator |
 | **Kategorien** | Globale Kategorien | Moderator, Administrator |
@@ -193,7 +193,7 @@ Installation passen die Voreinstellungen; ändern Sie sie nur gezielt.
 |:-----------|:-----|:-------------------------------|
 | **VAD min. Stille (ms)** | 500 | Ab dieser Pausenlänge schneidet openDox Stille aus der Aufnahme, bevor sie an Whisper geht. |
 | **VAD-Filter des Servers (zusätzlich)** | an | Zusätzliche Stille-Erkennung im Whisper-Dienst. |
-| **Auf vorherigen Text bedingen** | aus | Whisper berücksichtigt den vorherigen Abschnitt. Kann Wiederholungsschleifen auslösen. |
+| **Vorherigen Text als Kontext nutzen** | aus | Whisper bekommt den bereits erkannten Text des vorigen Abschnitts mit. Kann Schreibweisen vereinheitlichen, führt aber manchmal zu wiederholten oder erfundenen Sätzen. |
 | **Temperatur (0 = deterministisch)** | 0 | Höhere Werte machen das Ergebnis zufälliger. |
 | **No-Speech-Schwelle** | 0,6 | Ab wann ein Abschnitt als „keine Sprache“ gilt. |
 | **Compression-Ratio-Schwelle** | 2,4 | Erkennt sich wiederholenden Text. |
@@ -393,6 +393,27 @@ wirkt wie **Archivieren** im Zeilenmenü: Die Aufnahme verschwindet aus
 
 Die Prüfung läuft alle sechs Stunden; Änderungen gelten ohne Neustart.
 
+## Automatisches Löschen
+
+Mit **Automatisch löschen** entfernt openDox Aufnahmen endgültig, sobald sie
+älter als **Aufbewahrung höchstens (Tage)** sind (1 bis 3650, gerechnet ab der
+Aufnahme). Gelöscht werden Transkript, Zusammenfassung und gespeichertes
+Audio, egal ob die Aufnahme archiviert ist. Aufnahmen, deren Transkription
+noch läuft, bleiben bis zum nächsten Lauf stehen.
+
+Die Frist ist die **Obergrenze für alle**. Jeder Benutzer kann im Profil unter
+**Aufbewahrung** für seine eigenen Aufnahmen eine kürzere Frist wählen, aber
+keine längere. Senken Sie die Obergrenze später, gilt für alle sofort die
+kürzere der beiden Fristen.
+
+Die Prüfung läuft alle sechs Stunden, zusammen mit der Auto-Archivierung.
+Jeder Lauf, der etwas löscht, erscheint im **Audit-Log** mit der Anzahl der
+gelöschten Aufnahmen (ohne Titel oder Inhalte).
+
+> Gelöschte Aufnahmen lassen sich nicht wiederherstellen. Legen Sie die Frist
+> nach dem Löschkonzept Ihrer Einrichtung fest und so, dass Texte vorher in
+> die Patientendokumentation übernommen sind.
+
 ## Fehlgeschlagene Transkriptionen
 
 Schlägt die Verarbeitung einer Aufnahme fehl (z. B. weil Whisper oder das
@@ -412,6 +433,14 @@ bleiben dort wiederholbar.
 Erstellt ein Benutzer die Zusammenfassung selbst erfolgreich neu (z. B. weil
 nur das Sprachmodell kurz ausgefallen war), verschwindet die Aufnahme von
 selbst aus der Liste.
+
+Wird eine Aufnahme nicht mehr gebraucht, klicken Sie auf **Verwerfen**. Nach
+einer Rückfrage löscht openDox das aufbewahrte Audio endgültig, und der
+Eintrag verschwindet aus der Liste; erneut versuchen geht danach nicht mehr.
+Die Aufnahme selbst (mit Status Fehler) bleibt beim Benutzer, denn
+Administratoren löschen keine Aufnahmen anderer. Der Benutzer kann sie wie
+jede andere löschen; dabei wird auch das aufbewahrte Audio entfernt.
+Jedes Verwerfen erscheint im Audit-Log.
 
 # Benutzer
 
@@ -563,6 +592,24 @@ Weboberfläche wie im Desktop-Client.
 > bleibt die Sitzung bestehen. Ein Ausfall soll niemanden mitten im Diktat
 > abmelden. Abgemeldet wird nur, wenn der Dienst eindeutig ablehnt.
 
+## Automatische Abmeldung
+
+Unter **Authentifizierung → Sitzung** legen Sie fest, nach wie vielen Minuten ohne Eingabe
+die Weboberfläche abmeldet (**Abmelden nach Inaktivität**, Standard 30,
+0 = nie). Das gilt für alle Benutzer und schützt Arbeitsplätze, an denen
+mehrere Personen arbeiten.
+
+- Als Eingabe zählen Klicks, Tastatur, Scrollen und Touch, in jedem
+  geöffneten Tab von openDox.
+- Während einer Aufnahme und solange ihre Transkription läuft, wird nie
+  abgemeldet.
+- Wer zurückkommt, sieht die Anmeldeseite mit dem Hinweis, dass wegen
+  Inaktivität abgemeldet wurde.
+
+Der Desktop-Client ist davon ausgenommen. Er bleibt angemeldet, solange er
+läuft, und erneuert seine Sitzung selbst. Nach sieben Tagen ohne laufenden
+Client ist eine neue Anmeldung nötig.
+
 # Desktop-Client
 
 Unter **Clients** verteilen und steuern Sie den optionalen Desktop-Client
@@ -648,23 +695,43 @@ Jeder Dienst steht auf **Online**, **Nicht erreichbar** oder **Deaktiviert**.
 *Deaktiviert* bedeutet, dass die Funktion bewusst nicht eingerichtet ist, und
 ist kein Fehler.
 
-## Automatische Abmeldung
+# Audit-Log
 
-Unter dem Systemstatus legen Sie fest, nach wie vielen Minuten ohne Eingabe
-die Weboberfläche abmeldet (**Abmelden nach Inaktivität**, Standard 30,
-0 = nie). Das gilt für alle Benutzer und schützt Arbeitsplätze, an denen
-mehrere Personen arbeiten.
+Unter **Audit** (nur für Administratoren, auch nicht für Demo-Viewer) sehen
+Sie, wer wann was in der Administration geändert hat und welche
+sicherheitsrelevanten Ereignisse es gab. Die neuesten Einträge stehen oben.
 
-- Als Eingabe zählen Klicks, Tastatur, Scrollen und Touch, in jedem
-  geöffneten Tab von openDox.
-- Während einer Aufnahme und solange ihre Transkription läuft, wird nie
-  abgemeldet.
-- Wer zurückkommt, sieht die Anmeldeseite mit dem Hinweis, dass wegen
-  Inaktivität abgemeldet wurde.
+Protokolliert werden:
 
-Der Desktop-Client ist davon ausgenommen. Er bleibt angemeldet, solange er
-läuft, und erneuert seine Sitzung selbst. Nach sieben Tagen ohne laufenden
-Client ist eine neue Anmeldung nötig.
+- **Benutzer** angelegt, geändert (Rolle, Sperre, Name, Passwort) und gelöscht.
+  Ein neues Passwort erscheint nur als Feldname, nie im Klartext.
+- **Einstellungen**: jedes Speichern, das etwas ändert, mit den Namen der
+  geänderten Felder. Werte und Zugangsdaten werden nicht gespeichert.
+- Globale **Kategorien**, **Wörterbücher** und **Sprachen**, das
+  LDAP-Zertifikat, **Backup** herunterladen und einspielen.
+- **Wiederholung** fehlgeschlagener Transkriptionen.
+- **Fehlgeschlagene Anmeldungen** mit Grund (falsches Passwort, Konto
+  gesperrt, zu viele Versuche, keine berechtigte Gruppe).
+- **Abgelehnte Zugriffe**: jeder Versuch, etwas ohne Berechtigung aufzurufen,
+  etwa eine fremde Aufnahme.
+- **Rollenänderungen** durch LDAP- oder SSO-Gruppen.
+- Das Exportieren des Audit-Logs.
+
+Nicht protokolliert werden erfolgreiche Anmeldungen und alles, was Benutzer
+mit ihren eigenen Aufnahmen tun. Inhalte von Aufnahmen stehen nie im Log.
+
+Mit den Filtern grenzen Sie nach Zeitraum, Benutzer, Bereich und Ergebnis ein.
+**CSV exportieren** lädt die gefilterten Einträge als Datei herunter, die sich
+in Excel öffnen lässt.
+
+Einträge werden nach 365 Tagen automatisch gelöscht. Die Frist legt der
+IT-Betrieb über `AUDIT_RETENTION_DAYS` fest (siehe *Installations- und
+Betriebshandbuch*).
+
+> Das Audit-Log protokolliert das Handeln von Beschäftigten. Klären Sie vor
+> dem Produktivbetrieb mit Betriebs- oder Personalrat und
+> Datenschutzbeauftragten, wer es einsehen darf und wie lange es aufbewahrt
+> wird.
 
 # Fehlersuche
 

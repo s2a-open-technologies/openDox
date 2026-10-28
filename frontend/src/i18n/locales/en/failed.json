@@ -6,5 +6,9 @@
   "recording": "Recording #{{id}}",
   "unknownError": "Unknown error",
   "retry": "Retry",
-  "empty": "No failed transcriptions"
+  "empty": "No failed transcriptions",
+  "discard": "Discard",
+  "discardConfirm": "Permanently delete the retained audio? The transcription can no longer be retried. The recording stays visible to its user, who can delete it.",
+  "discarded": "Audio discarded",
+  "discardFailed": "Discarding failed"
 }

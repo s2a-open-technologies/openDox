@@ -21,7 +21,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { BookMarked, BookOpenCheck, Languages, Palette } from 'lucide-react';
+import { BookMarked, BookOpenCheck, Languages, Palette, Trash2 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SUPPORTED_LANGUAGES, isSupportedLanguage } from '@/i18n';
 import CategorySettings from './settings/CategorySettings';
 import DictionarySettings from './settings/DictionarySettings';
+import { MyRetention } from './settings/MyRetention';
 import { ThemeToggle } from './settings/ThemeToggle';
 
 interface ProfileModalProps {
@@ -46,6 +47,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
     { id: 'language', label: t('tabs.language'), icon: Languages },
     { id: 'dictionary', label: t('tabs.dictionary'), icon: BookMarked },
     { id: 'categories', label: t('tabs.categories'), icon: BookOpenCheck },
+    { id: 'retention', label: t('tabs.retention'), icon: Trash2 },
     { id: 'appearance', label: t('tabs.appearance'), icon: Palette },
   ];
 
@@ -104,6 +106,16 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               <p className="text-sm text-muted-foreground">{t('categories.description')}</p>
             </div>
             <CategorySettings scope="personal" />
+          </div>
+        );
+      case 'retention':
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-medium">{t('retention.heading')}</h3>
+              <p className="text-sm text-muted-foreground">{t('retention.description')}</p>
+            </div>
+            <MyRetention />
           </div>
         );
       case 'appearance':

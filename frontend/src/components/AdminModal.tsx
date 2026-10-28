@@ -24,7 +24,7 @@ import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  GlobeLock, BookOpenCheck, BookMarked, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor
+  GlobeLock, BookOpenCheck, BookMarked, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor, ScrollText
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,10 +40,12 @@ import DictionarySettings from './settings/DictionarySettings';
 import BackupSettings from './settings/BackupSettings';
 import { AudioConfig } from './settings/AudioConfig';
 import { AutoArchiveConfig } from './settings/AutoArchiveConfig';
+import { AutoDeleteConfig } from './settings/AutoDeleteConfig';
 import { FailedTranscriptions } from './settings/FailedTranscriptions';
 import { ClientConfig } from './settings/ClientConfig';
 import { SessionSettings } from './settings/SessionSettings';
 import { ClientDistribution } from './settings/ClientDistribution';
+import { AuditLog } from './settings/AuditLog';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -71,6 +73,8 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
       { id: 'backup', label: t('nav.backup'), icon: HardDrive },
       { id: 'clients', label: t('nav.clients'), icon: Monitor },
     ] : []),
+    // Nur Admins: das Audit-Log ist auch für Demo-Viewer gesperrt.
+    ...(isAdmin ? [{ id: 'audit', label: t('nav.audit'), icon: ScrollText }] : []),
     { id: 'categories', label: t('nav.categories'), icon: BookOpenCheck },
     { id: 'dictionaries', label: t('nav.dictionaries'), icon: BookMarked },
     { id: 'system', label: t('nav.system'), icon: Settings },
@@ -121,6 +125,7 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             </div>
             <AudioConfig readOnly={readOnly} />
             <AutoArchiveConfig readOnly={readOnly} />
+            <AutoDeleteConfig readOnly={readOnly} />
             <FailedTranscriptions readOnly={readOnly} />
           </fieldset>
         );
@@ -139,15 +144,19 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
               <h3 className="text-lg font-medium">{t('auth.heading')}</h3>
             </div>
             <Tabs defaultValue="ldap" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="ldap">LDAP</TabsTrigger>
                 <TabsTrigger value="oidc">OIDC / SSO</TabsTrigger>
+                <TabsTrigger value="session">{t('auth.session')}</TabsTrigger>
               </TabsList>
               <TabsContent value="ldap">
                 <LdapSettings readOnly={readOnly} />
               </TabsContent>
               <TabsContent value="oidc">
                 <OidcSettings readOnly={readOnly} />
+              </TabsContent>
+              <TabsContent value="session">
+                <SessionSettings readOnly={readOnly} />
               </TabsContent>
             </Tabs>
           </fieldset>
@@ -157,9 +166,6 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">{t('system.heading')}</h3>
             <SystemSettings />
-            <fieldset>
-              <SessionSettings readOnly={readOnly} />
-            </fieldset>
           </div>
         );
       case 'backup':
@@ -180,6 +186,8 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             <ClientConfig readOnly={readOnly} />
           </fieldset>
         );
+      case 'audit':
+        return <AuditLog />;
       case 'categories':
         return (
           <div className="space-y-4">

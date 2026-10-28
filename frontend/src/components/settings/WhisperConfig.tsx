@@ -398,6 +398,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     onCheckedChange={(checked) => updateField('condition_on_previous_text', checked)}
                                 />
                             </div>
+                            <p className="text-xs text-muted-foreground">{t('quality.condPrevHint')}</p>
                             <div className="space-y-2">
                                 <Label>{t('quality.vadMinSilence')}</Label>
                                 <Input

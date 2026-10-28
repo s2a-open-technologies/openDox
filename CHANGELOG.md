@@ -14,16 +14,35 @@ section as the GitHub Release notes.
 
 ### Added
 - **Automatic logout after inactivity** — the web UI logs out after a configurable time without input
-  (Administration → System → *Automatische Abmeldung*, default 30 min, 0 = never). Never during a recording
+  (Administration → Authentifizierung → *Sitzung*, default 30 min, 0 = never). Never during a recording
   or while its transcription runs; activity in any open tab counts.
 - **Directory re-check on session renewal** — every token refresh re-checks LDAP users with the service
   account (account gone, AD account disabled, removed from every permitted group) and renews OIDC users at
   the identity provider. A revoked account loses access within one access-token lifetime (30 min); the
   role follows the current groups. If the directory cannot be reached the session is kept. New columns
   `user.auth_source` and `user.idp_refresh_token` (encrypted), table `sessionsettingsmodel`.
+- **Audit log** (Administration → *Audit*, admins only) — records administrative actions and security
+  events: user management, every settings change (names of the changed fields, never values or
+  credentials), global categories/dictionaries, languages, LDAP certificate upload, backup export/restore,
+  retries of failed transcriptions, refused logins, denied requests (every HTTP 403) and role changes by
+  the LDAP/OIDC group sync. Users working with their own recordings and successful logins are not logged,
+  content never is. Filter by period, user, area and outcome, CSV export. Entries are deleted after
+  `AUDIT_RETENTION_DAYS` (default 365). New table `auditevent`.
+- **Automatic deletion of recordings** (Administration → Archivierung → *Automatisches Löschen*) — permanently
+  deletes recordings older than a maximum retention set by the admin (transcript, summary and stored audio,
+  archived or not; off by default). Users can choose a shorter period for their own recordings in their
+  profile (*Aufbewahrung*), never a longer one. Recordings still being transcribed are skipped; every run that
+  deletes something is recorded in the audit log. New columns `audiosettingsmodel.auto_delete_enabled`/
+  `auto_delete_days` and `user.auto_delete_days`.
+- **Discard failed transcriptions** — the admin list *Fehlgeschlagene Transkriptionen* has a *Verwerfen* button
+  next to *Erneut versuchen*: it permanently deletes the retained audio and removes the entry (logged in the
+  audit log). The recording itself stays with its user.
 
 ### Changed
 
+- `.env.example` only lists deployment settings now: the Whisper/Parakeet endpoints (set in the admin UI) are gone, `SECRET_KEY` is empty instead of a working placeholder, and `FAILED_AUDIO_RETENTION_DAYS`, `ENCRYPTION_KEY_PREVIOUS`, `APP_PORT`, `WHISPER_COMPUTE_TYPE` and the private-CA variables are documented.
+- The startup log no longer lists the trusted reverse-proxy addresses, only how many there are.
+- Whisper quality settings: "Auf vorherigen Text bedingen" is now called "Vorherigen Text als Kontext nutzen" (EN: "Use previous text as context") and explains what it does and why it is off by default.
 - Repository links (README, CONTRIBUTING, installation manual, CHANGELOG compare links, `bump_version.py`) point to `github.com/s2a-open-technologies/openDox`. The default desktop-client download URL now uses `github.com/s2a-open-technologies/openDox-client` directly instead of relying on the GitHub redirect from the old repository.
 - Ruff import sorting treats `backend` as first-party (`known-first-party` was still a template placeholder).
 - LDAP/OIDC settings: "Allowed groups" is now labelled "User groups", and its hint says that admin/moderator groups need not be repeated there. The LDAP search filter hint now explains what the filter is for (attributes such as object class or OU) instead of suggesting it for groups.
@@ -33,6 +52,8 @@ section as the GitHub Release notes.
 - The unused `backend/views/root_view` router (`/health`, a second `/api/endpoint`). It was never mounted; liveness stays at `/api/endpoint`, version at `/api/version`.
 
 ### Fixed
+- Deleting a recording whose transcription had failed left the audio retained for the retry behind
+  (in `chunks/failed/` or the object-storage archive); it is now deleted with the recording.
 - **Web UI no longer breaks silently after 30 minutes** — it now stores the refresh token (password and SSO
   login), renews the access token on 401 and retries, and shows the login page with a notice once the
   session really ends, instead of staying "logged in" with every request failing.

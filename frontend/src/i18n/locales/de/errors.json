@@ -31,5 +31,7 @@
   "dictionary_too_large": "Ein Wörterbuch darf höchstens {{max}} Begriffe enthalten",
   "dictionary_term_too_long": "Ein Begriff darf höchstens {{max}} Zeichen lang sein",
   "dictionary_name_required": "Bitte einen Namen angeben",
-  "account_locked": "Ihr Konto ist gesperrt. Wenden Sie sich an Ihre Administration."
+  "account_locked": "Ihr Konto ist gesperrt. Wenden Sie sich an Ihre Administration.",
+  "auto_delete_days_invalid": "Die Löschfrist muss zwischen 1 und 3650 Tagen liegen.",
+  "retention_exceeds_global": "Höchstens {{max}} Tage erlaubt (Frist Ihrer Einrichtung)."
 }

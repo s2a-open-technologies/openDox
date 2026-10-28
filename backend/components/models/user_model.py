@@ -53,6 +53,10 @@ class User(SQLModel, table=True):
     # Preferred UI language (one of UI_LANGUAGES); None = not chosen yet, the
     # frontend then falls back to the browser language.
     ui_language: Optional[str] = Field(default=None)
+    # Personal retention in days: own records older than this are deleted
+    # automatically. None = only the global limit applies; never longer than
+    # that limit (AudioSettingsModel.auto_delete_days).
+    auto_delete_days: Optional[int] = Field(default=None)
     # One of AUTH_SOURCES, set on every login; None = not logged in since the
     # column was added, treated like "local".
     auth_source: Optional[str] = Field(default=None)
@@ -105,6 +109,20 @@ class UserUpdate(SQLModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
+
+
+class RetentionRead(SQLModel):
+    """The caller's own retention plus the global limit it must stay within."""
+
+    personal_days: Optional[int] = None
+    global_enabled: bool
+    global_days: int
+
+
+class RetentionUpdate(SQLModel):
+    """Payload of ``PUT /my-retention/``; ``None`` = no personal period."""
+
+    personal_days: Optional[int] = Field(default=None, ge=1, le=3650)
 
 
 class UiLanguageRead(SQLModel):

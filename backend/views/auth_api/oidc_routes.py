@@ -36,6 +36,7 @@ from backend.components.security.hashing import (
     create_access_token,
     create_refresh_token,
 )
+from backend.components.services.audit_service import audit
 from backend.components.services.oidc import OidcDiscoveryError, OidcService
 from backend.components.sql.sql_engine import SessionDep
 
@@ -207,6 +208,15 @@ async def oidc_callback(request: Request, db: SessionDep):
         raise HTTPException(status_code=502, detail="Kein Benutzername im Claim")
 
     if not service.is_authorized(claims):
+        audit(
+            db,
+            "auth.login",
+            request=request,
+            actor_name=username,
+            outcome="denied",
+            details={"reason": "group_not_allowed", "source": "oidc"},
+            commit=True,
+        )
         raise HTTPException(
             status_code=403, detail="Nicht berechtigt (Gruppenbeschränkung)"
         )
@@ -225,7 +235,26 @@ async def oidc_callback(request: Request, db: SessionDep):
     else:
         # A lock set by an admin in openDox outlives the SSO login.
         if not user.is_active:
+            audit(
+                db,
+                "auth.login",
+                request=request,
+                actor_name=username,
+                outcome="denied",
+                details={"reason": "account_locked", "source": "oidc"},
+                commit=True,
+            )
             raise HTTPException(status_code=403, detail="Konto gesperrt")
+        if user.role != role:
+            audit(
+                db,
+                "user.role_sync",
+                request=request,
+                actor=user,
+                target_type="user",
+                target_id=user.id,
+                details={"from": user.role, "to": role, "source": "oidc"},
+            )
         user.role = role
     user.auth_source = "oidc"
     # Kept to re-check the account at the provider on every session renewal.

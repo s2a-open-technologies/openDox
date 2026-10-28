@@ -1,0 +1,92 @@
+{
+  "title": "Audit-Log",
+  "description": "Protokoll der Administrationsaktionen und Sicherheitsereignisse: Einstellungen, Benutzer, Backups, Wiederholungen, fehlgeschlagene Anmeldungen und abgelehnte Zugriffe. Die Arbeit von Benutzern mit ihren eigenen Aufnahmen wird nicht protokolliert, Inhalte und Zugangsdaten nie.",
+  "filter": {
+    "since": "Von",
+    "until": "Bis",
+    "actor": "Benutzer",
+    "action": "Bereich",
+    "outcome": "Ergebnis",
+    "all": "Alle",
+    "apply": "Filtern",
+    "reset": "Zurücksetzen"
+  },
+  "groups": {
+    "auth": "Anmeldung",
+    "access": "Zugriff",
+    "user": "Benutzer",
+    "settings": "Einstellungen",
+    "category": "Kategorien",
+    "dictionary": "Wörterbücher",
+    "language": "Sprachen",
+    "backup": "Backup",
+    "task": "Transkriptionen",
+    "audit": "Audit-Log"
+  },
+  "outcomes": {
+    "success": "Erfolg",
+    "failure": "Fehlgeschlagen",
+    "denied": "Abgelehnt"
+  },
+  "columns": {
+    "time": "Zeitpunkt",
+    "actor": "Benutzer",
+    "action": "Aktion",
+    "outcome": "Ergebnis",
+    "details": "Details",
+    "ip": "IP-Adresse"
+  },
+  "actions": {
+    "auth_login": "Anmeldung",
+    "access_denied": "Zugriff verweigert",
+    "user_create": "Benutzer angelegt",
+    "user_update": "Benutzer geändert",
+    "user_delete": "Benutzer gelöscht",
+    "user_role_sync": "Rolle per Gruppe geändert",
+    "settings_whisper_update": "Whisper/ASR-Einstellungen geändert",
+    "settings_llm_update": "LLM-Einstellungen geändert",
+    "settings_ldap_update": "LDAP-Einstellungen geändert",
+    "settings_ldap_certificate_upload": "LDAP-Zertifikat hochgeladen",
+    "settings_oidc_update": "OIDC-Einstellungen geändert",
+    "settings_audio_update": "Audio-Einstellungen geändert",
+    "settings_client_update": "Client-Richtlinie geändert",
+    "settings_session_update": "Sitzungsrichtlinie geändert",
+    "category_create": "Kategorie angelegt",
+    "category_update": "Kategorie geändert",
+    "category_delete": "Kategorie gelöscht",
+    "dictionary_create": "Wörterbuch angelegt",
+    "dictionary_update": "Wörterbuch geändert",
+    "dictionary_upload": "Wörterbuch hochgeladen",
+    "dictionary_delete": "Wörterbuch gelöscht",
+    "language_create": "Sprache angelegt",
+    "language_update": "Sprache geändert",
+    "language_delete": "Sprache gelöscht",
+    "backup_export": "Backup exportiert",
+    "backup_restore": "Backup wiederhergestellt",
+    "task_retry": "Transkription wiederholt",
+    "audit_export": "Audit-Log exportiert",
+    "records_auto_delete": "Alte Aufnahmen automatisch gelöscht",
+    "task_discard": "Aufbewahrtes Audio verworfen"
+  },
+  "reasons": {
+    "invalid_credentials": "Falscher Benutzername oder falsches Passwort",
+    "account_locked": "Konto gesperrt",
+    "rate_limited": "Zu viele Versuche",
+    "group_not_allowed": "Keine berechtigte Gruppe",
+    "error": "Fehler"
+  },
+  "detail": {
+    "fields": "Felder: {{fields}}"
+  },
+  "pagination": {
+    "range": "{{from}}–{{to}} von {{total}}",
+    "previous": "Zurück",
+    "next": "Weiter"
+  },
+  "system": "System",
+  "empty": "Keine Einträge",
+  "refresh": "Aktualisieren",
+  "export": "CSV exportieren",
+  "loadFailed": "Audit-Log konnte nicht geladen werden",
+  "exportFailed": "Export fehlgeschlagen"
+}

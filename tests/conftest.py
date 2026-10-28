@@ -104,3 +104,13 @@ def _reset_settings_service_singleton():
     yield
     settings_service.SettingsService._instance = None
     settings_service._settings_service = None
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_limiter():
+    """Clear the in-memory login rate limit so test order can't cause a 429."""
+    from backend.components.services.rate_limiter import login_limiter
+
+    login_limiter._store.clear()
+    yield
+    login_limiter._store.clear()

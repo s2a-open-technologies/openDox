@@ -6,7 +6,7 @@ onnx-asr[gpu,hub]>=0.12.0
 # image runs on the Ubuntu 24.04 CUDA 13 base (glibc 2.39, Python 3.12). All of these
 # wheels are linked against CUDA 13, so the base must be CUDA 13 as well: on a CUDA 12
 # base onnxruntime fails to load the CUDA provider and silently falls back to the CPU.
-onnxruntime-gpu>=1.29.0
+onnxruntime-gpu>=1.31.0
 fastapi>=0.142.2
 uvicorn[standard]>=0.54.0
 python-multipart>=0.0.32

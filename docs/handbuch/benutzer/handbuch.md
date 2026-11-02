@@ -43,7 +43,8 @@ strukturierte Zusammenfassung:
    zweites Mal und genauer verschriftlicht. Dieser Text ist das *Transkript*.
 3. **Zusammenfassung:** Eine KI formt das Transkript nach den Vorgaben der
    gewählten **Kategorie** um, z. B. in einen Arztbrief-Abschnitt oder einen
-   strukturierten Befund.
+   strukturierten Befund. Kategorien für wörtliche Diktate können ohne KI
+   eingerichtet sein; dann ist das Transkript das Ergebnis.
 
 Die Live-Vorschau ist nicht das endgültige Ergebnis. Maßgeblich sind das
 Transkript und die Zusammenfassung, die nach der Verarbeitung angezeigt
@@ -132,8 +133,9 @@ verlassen.
 ![Dialog „Neue Aufnahme“](bilder/benutzer/04-neue-aufnahme.png)
 
 Erscheint der Hinweis *„Legen Sie zuerst eine Kategorie unter Einstellungen
-an.“*, ist noch keine Kategorie verfügbar. Legen Sie unter **Profil → Meine
-Kategorien** eine eigene an oder bitten Sie Ihre Administration darum.
+an.“*, ist noch keine Kategorie verfügbar. Bitten Sie Ihre Administration,
+eine Kategorie bereitzustellen. Hat sie eigene Kategorien freigegeben, können
+Sie auch unter **Profil → Meine Kategorien** eine anlegen.
 
 ## Diktieren
 
@@ -221,7 +223,9 @@ Eine fertige Aufnahme zeigt zwei Bereiche:
 
 - **Transkript:** der wörtlich verschriftlichte Text Ihres Diktats.
 - **Zusammenfassung:** der von der KI nach den Vorgaben der Kategorie
-  aufbereitete Text.
+  aufbereitete Text. Arbeitet die Kategorie ohne KI, steht hier der Hinweis
+  **LLM für diese Kategorie nicht aktiviert**; maßgeblich ist dann das
+  Transkript, das auch der Desktop-Client einfügt.
 
 Darunter steht der Hinweis **Kein Medizinprodukt**.
 
@@ -319,9 +323,16 @@ Eine Kategorie legt fest, wie openDox Ihr Diktat verarbeitet:
 Es gibt zwei Arten:
 
 - **Global:** von der Administration für alle bereitgestellt.
-- **Eigene Kategorie:** von Ihnen angelegt und nur für Sie sichtbar.
+- **Eigene Kategorie:** von Ihnen angelegt und nur für Sie sichtbar, auch
+  die Administration sieht sie nicht. Nur verfügbar, wenn Ihre
+  Administration eigene Kategorien freigegeben hat; sonst fehlt der Bereich
+  **Meine Kategorien** im Profil.
 
 ## Eigene Kategorie anlegen
+
+> **Optional:** Eigene Kategorien sind nur verfügbar, wenn Ihre
+> Administration sie freigegeben hat. Ohne Freigabe fehlt im Profil der
+> Bereich **Meine Kategorien**; nutzen Sie dann die globalen Kategorien.
 
 Öffnen Sie **Profil → Meine Kategorien**.
 
@@ -331,12 +342,21 @@ Es gibt zwei Arten:
 |:-----------|:-------------------------------|
 | **Kategorie Name** | Name in der Auswahlliste, z. B. *Entlassbrief Innere*. |
 | **Beschreibung** | Kurze Erklärung für Sie selbst. |
-| **System Prompt (LLM)** | Anweisung an die KI, wie die Zusammenfassung aussehen soll. |
+| **Zusammenfassung per LLM** | Aus: Ihre Aufnahmen in dieser Kategorie werden nur transkribiert, das Transkript ist das Ergebnis. |
+| **System Prompt (LLM)** | Anweisung an die KI, wie die Zusammenfassung aussehen soll. Nur bei eingeschalteter Zusammenfassung. |
 | **Transkriptions-Hint (Whisper)** | Wenige typische Fachbegriffe und Namen als Hilfe für die Spracherkennung. Nur die letzten rund 224 Tokens werden berücksichtigt, also kurz halten. Optional. |
-| **Wörterbücher** | Haken Sie die globalen Wörterbücher an, deren Begriffe nach der Transkription automatisch korrigiert werden. Ihre eigenen Wörterbücher erscheinen hier nicht, weil sie ohnehin für alle Ihre Aufnahmen gelten (siehe *Meine Wörterbücher*). |
+| **Wörterbücher** | Haken Sie die globalen Wörterbücher an, deren Begriffe nach der Transkription automatisch korrigiert werden. Ihre eigenen Wörterbücher stehen fest angehakt mit „Eigen · automatisch“ dabei, weil sie ohnehin für alle Ihre Aufnahmen gelten (siehe *Meine Wörterbücher*). |
 
 Klicken Sie auf **Erstellen**. Bestehende Kategorien ändern Sie mit
 **Bearbeiten** und **Aktualisieren**.
+
+Nimmt Ihre Administration die Freigabe zurück, bleiben Ihre Kategorien
+gespeichert, verschwinden aber aus der Auswahl. Neue Aufnahmen starten dann
+mit der Kategorie *Allgemein*, auch im Desktop-Client. Bereits vorhandene
+Aufnahmen behalten ihre Zuordnung, erscheinen aber als *Unkategorisiert* und
+werden mit dem allgemeinen Standard-Prompt verarbeitet. Sie können sie
+jederzeit auf eine globale Kategorie umstellen. Nach einer erneuten Freigabe
+greifen Ihre Kategorien wieder.
 
 Ob die Wörterbücher tatsächlich angewendet werden, hängt davon ab, ob Ihre
 Administration die Fachbegriff-Korrektur eingeschaltet hat.
@@ -411,8 +431,10 @@ Hypertonie, essentiell
 ## Meine Kategorien
 
 Hier verwalten Sie Ihre eigenen Kategorien, unabhängig von Ihrer Rolle (auch
-Administratoren legen hier persönliche Kategorien an; globale Kategorien
-verwalten sie unter **Administration**). Siehe Kapitel *Kategorien*.
+Administratoren legen hier persönliche Kategorien an, sofern freigegeben;
+globale Kategorien verwalten sie unter **Administration**). Der Bereich
+erscheint nur, wenn Ihre Administration eigene Kategorien freigegeben hat.
+Siehe Kapitel *Kategorien*.
 
 ## Aufbewahrung
 

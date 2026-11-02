@@ -9,7 +9,9 @@ Alle Bilder, die die Handbücher referenzieren. Fehlende Dateien ersetzt
 - Nur Demo-Daten: keine echten Patienten-, Personen- oder Servernamen,
   keine echten IP-Adressen, API-Keys oder Passwörter.
 - Dateiname exakt wie unten, Ablage unter `docs/handbuch/<Pfad>`.
-- Ausschnitt statt Vollbild, wenn nur ein Dialog gemeint ist.
+- Ausschnitt statt Vollbild, wenn nur ein Dialog gemeint ist. Lange Einstellungsseiten
+  nicht als Ganzes, sondern als Ausschnitt der jeweiligen Karte(n), damit die Schrift im
+  PDF lesbar bleibt (Abbildungen werden auf höchstens 20 cm Höhe verkleinert).
 
 ## Benutzerhandbuch
 
@@ -24,7 +26,7 @@ Alle Bilder, die die Handbücher referenzieren. Fehlende Dateien ersetzt
 | `bilder/benutzer/06-audio-hochladen.png` | Dialog „Audio hochladen“ | Benutzer |
 | `bilder/benutzer/07-transkript.png` | Fertige Aufnahme: Transkript, Zusammenfassung, Hinweis, Bestätigungshaken | Benutzer |
 | `bilder/benutzer/08-zeilenmenue.png` | Geöffnetes Zeilenmenü einer Aufnahme (Archivieren/Löschen) | Benutzer |
-| `bilder/benutzer/09-meine-kategorien.png` | Profil → Meine Kategorien mit ausgefülltem Formular, ein globales Wörterbuch angehakt | Benutzer |
+| `bilder/benutzer/09-meine-kategorien.png` | Ausschnitt: Formular „Neue Kategorie erstellen“ (Profil → Meine Kategorien), ein globales Wörterbuch angehakt, ein eigenes als „Eigen · automatisch“ (vorher unter Kategorien *Benutzerkategorien erlauben* einschalten) | Benutzer |
 | `bilder/benutzer/10-profil.png` | Profil-Dialog, Tab „Meine Wörterbücher“ mit einem geöffneten Wörterbuch und Beispielbegriffen | Benutzer |
 
 ## Administrationshandbuch
@@ -35,14 +37,20 @@ Alle Bilder, die die Handbücher referenzieren. Fehlende Dateien ersetzt
 | `bilder/administration/02-whisper-allgemein.png` | Dienste → Whisper / ASR → Allgemein, Sprache „Deutsch“ | Administrator |
 | `bilder/administration/03-whisper-live.png` | Dienste → Whisper / ASR → Live mit Parakeet, Endpoint, Testergebnis „Erreichbar“ | Administrator |
 | `bilder/administration/04-whisper-final.png` | Dienste → Whisper / ASR → Final mit Fachbegriff-Korrektur an, Schwellenwert 85 | Administrator |
-| `bilder/administration/05-llm.png` | Dienste → LLM mit Testergebnis „Verbunden“, darunter PII-Sanitizer | Administrator |
-| `bilder/administration/06-kategorien.png` | Kategorien: Liste und Formular einer globalen Kategorie mit angehaktem Wörterbuch | Administrator |
-| `bilder/administration/07-woerterbuecher.png` | Wörterbücher: Liste mit Begriffs-/Kategorienzahl, ein Wörterbuch geöffnet, Upload-Bereich | Administrator |
-| `bilder/administration/08-archivierung.png` | Archivierung: Audio-Download, Auto-Archivierung, Liste fehlgeschlagener Transkriptionen mit einem Eintrag | Administrator |
+| `bilder/administration/05-llm.png` | Ausschnitt: Dienste → LLM, Karten „LLM-Verarbeitung“ und „LLM / Ollama Konfiguration“ | Administrator |
+| `bilder/administration/05b-pii-sanitizer.png` | Ausschnitt: Karte „PII-Sanitizer“ mit Buttons und Testergebnis „Verbunden“ | Administrator |
+| `bilder/administration/06-kategorien.png` | Ausschnitt: Kategorien, Schalter *Benutzerkategorien erlauben* und Kategorienliste | Administrator |
+| `bilder/administration/06b-kategorie-formular.png` | Ausschnitt: Formular „Kategorie bearbeiten“ einer globalen Kategorie mit angehaktem Wörterbuch | Administrator |
+| `bilder/administration/07-woerterbuecher.png` | Ausschnitt: Wörterbücher, Liste mit Begriffs-/Kategorienzahl, ein Wörterbuch geöffnet bis „Speichern“ (ohne Upload-Bereich) | Administrator |
+| `bilder/administration/08-archivierung.png` | Ausschnitt: Archivierung, Karte „Audio-Download“ | Administrator |
+| `bilder/administration/08b-auto-archivierung.png` | Ausschnitt: Karte „Auto-Archivierung“ | Administrator |
+| `bilder/administration/08c-automatisches-loeschen.png` | Ausschnitt: Karte „Automatisches Löschen“ mit Warnhinweis | Administrator |
 | `bilder/administration/09-benutzer.png` | Benutzerliste mit mehreren Rollen, Dialog „Benutzer bearbeiten“ | Administrator |
-| `bilder/administration/10-ldap.png` | Authentifizierung → LDAP mit Beispielwerten (Demo-Domain), ohne echtes Passwort | Administrator |
+| `bilder/administration/10-ldap.png` | Ausschnitt: LDAP-Karte von „LDAP Konfiguration“ bis Suchfilter, Beispielwerte (Demo-Domain), SSL an | Administrator |
+| `bilder/administration/10b-ldap-gruppen.png` | Ausschnitt: LDAP-Karte von „Verschachtelte Gruppen“ bis zu den Buttons, ohne echtes Passwort | Administrator |
 | `bilder/administration/11-oidc.png` | Authentifizierung → OIDC / SSO mit Beispielwerten, Client Secret leer/maskiert | Administrator |
-| `bilder/administration/12-clients.png` | Clients: Installer-Links, settings.json, Intune/SCCM-Befehle, Client-Einstellungen | Administrator |
+| `bilder/administration/12-clients.png` | Ausschnitt: Karte „Client verteilen“ (Installer-Links, settings.json, Intune/SCCM-Befehle), Demo-Serveradresse | Administrator |
+| `bilder/administration/12b-client-einstellungen.png` | Ausschnitt: Karte „Client-Einstellungen“ | Administrator |
 | `bilder/administration/13-backup.png` | Backup: Export und Wiederherstellung | Administrator |
 | `bilder/administration/14-system.png` | System: alle Dienste mit Status | Administrator |
 
@@ -50,5 +58,5 @@ Alle Bilder, die die Handbücher referenzieren. Fehlende Dateien ersetzt
 
 | Datei | Was zu sehen ist | Rolle |
 |---|---|---|
-| `bilder/installation/01-architektur.png` | Diagramm: Browser/Client → Reverse Proxy → app → postgres/redis/whisper/parakeet/garage, extern LLM und PII-Sanitizer | – (Grafik) |
-| `bilder/installation/02-systemstatus.png` | Administration → System direkt nach der Installation, alle Dienste online | Administrator |
+| `bilder/installation/01-architektur.png` | Diagramm: Browser/Client → Reverse Proxy → app → postgres/redis/whisper/parakeet/garage, extern LLM und PII-Sanitizer. Quelle: `01-architektur.dot` daneben (Graphviz, Befehl im Dateikopf) | – (Grafik) |
+| `bilder/installation/02-systemstatus.png` | Ausschnitt: Karte „Systemstatus“ direkt nach der Installation, Pflichtdienste online (optionale dürfen „Deaktiviert“ sein) | Administrator |

@@ -62,7 +62,7 @@ verschlüsselt in Datenbank und Objektspeicher.
 
 | Rolle | Rechte |
 |:-----------|:-------------------------------|
-| **Benutzer** | Diktieren, eigene Aufnahmen, eigene Kategorien und Wörterbücher. Kein Zugang zur Administration. |
+| **Benutzer** | Diktieren, eigene Aufnahmen, eigene Wörterbücher, eigene Kategorien (falls unter *Kategorien* freigegeben). Kein Zugang zur Administration. |
 | **Moderator** | Wie Benutzer, zusätzlich globale **Kategorien**, globale **Wörterbücher** und **System**-Status. |
 | **Administrator** | Alle Bereiche der Administration, als Einzige auch das **Audit-Log**. |
 | **Demo-Viewer (nur lesen)** | Sieht alle Bereiche wie ein Administrator, kann aber nichts speichern. Nur Kategorien und Wörterbücher bleiben bearbeitbar. Gedacht für Vorführungen. |
@@ -75,9 +75,8 @@ abgeleitet (siehe Kapitel *Authentifizierung*).
 
 Auch Administratoren können **keine** Aufnahmen, Transkripte,
 Zusammenfassungen oder Audiodateien anderer Benutzer öffnen. Ebenso bleiben
-die persönlichen Wörterbücher der Benutzer für Administratoren unsichtbar.
-Persönliche Kategorien der Benutzer sehen Administratoren dagegen in der
-Kategorienliste und können sie zu Supportzwecken bearbeiten.
+die persönlichen Wörterbücher und persönlichen Kategorien der Benutzer für
+Administratoren unsichtbar.
 
 ## Administration öffnen
 
@@ -209,7 +208,14 @@ Hier verbinden Sie das Sprachmodell, das die Zusammenfassungen schreibt.
 openDox spricht jeden OpenAI-kompatiblen Dienst an, z. B. Ollama, vLLM oder
 einen internen LLM-Proxy.
 
-![Dienste → LLM](bilder/administration/05-llm.png)
+![Dienste → LLM: Hauptschalter und Verbindung](bilder/administration/05-llm.png)
+
+Das Sprachmodell ist optional. Mit **LLM-Verarbeitung aktiv** schalten Sie es
+für alle Kategorien ab: openDox transkribiert dann nur, der PII-Sanitizer
+läuft nicht, und als Ergebnistext dient das Transkript (auch im
+Desktop-Client). Ein LLM-Dienst muss dann nicht betrieben werden. Einzelne
+Kategorien lassen sich auch bei aktivem Schalter ohne LLM betreiben (siehe
+*Kategorien*).
 
 | Feld | Bedeutung |
 |:-----------|:-------------------------------|
@@ -239,6 +245,8 @@ Sprachmodell geht. Nach der Antwort setzt openDox die echten Angaben wieder
 ein. Das ist vor allem sinnvoll, wenn das Sprachmodell außerhalb Ihres
 eigenen Rechenzentrums läuft.
 
+![PII-Sanitizer mit Verbindungstest](bilder/administration/05b-pii-sanitizer.png)
+
 | Feld | Bedeutung |
 |:-----------|:-------------------------------|
 | **Sanitizer aktivieren** | Schaltet die Anonymisierung ein. |
@@ -258,17 +266,39 @@ Aufnahme und können sie danach ändern.
 
 Unter **Kategorien** verwalten Moderatoren und Administratoren die
 **globalen** Kategorien, die allen Benutzern zur Verfügung stehen.
-Benutzer können sich zusätzlich eigene Kategorien anlegen.
 
-![Kategorien mit Liste und Formular](bilder/administration/06-kategorien.png)
+## Benutzerkategorien erlauben
+
+Der Schalter **Benutzerkategorien erlauben** oben im Tab *Kategorien* (nur
+Administratoren) ist standardmäßig **aus**. Ist er an, können Benutzer im
+Profil eigene Kategorien mit eigenem LLM-Prompt anlegen.
+
+Beachten Sie die *Zweckbestimmung*, Abschnitt 6: Ein Prompt, der Diagnosen,
+Therapievorschläge oder Risikobewertungen verlangt, gibt openDox einen
+medizinischen Zweck. Mit der Freigabe übernehmen Sie als Betreiber die
+Verantwortung auch für die Prompts Ihrer Benutzer, ohne sie einsehen zu
+können.
+
+Schalten Sie ihn wieder aus, bleiben vorhandene Benutzerkategorien
+gespeichert, verschwinden aber aus der Auswahl und wirken nicht mehr:
+Aufnahmen damit laufen wie ohne Kategorie (Standard-Prompt). Neue Aufnahmen
+starten in Web und Desktop-Client mit der globalen Kategorie *Allgemein*,
+fehlt diese, mit der ersten Kategorie der Liste. Legen Sie daher eine globale
+Kategorie *Allgemein* an. Nach einer erneuten Freigabe greifen die
+Benutzerkategorien wieder.
+
+![Kategorien: Freigabe für Benutzerkategorien und Liste](bilder/administration/06-kategorien.png)
 
 ## Kategorie anlegen oder bearbeiten
+
+![Formular „Kategorie bearbeiten“ mit angehängtem Wörterbuch](bilder/administration/06b-kategorie-formular.png)
 
 | Feld | Bedeutung |
 |:-----------|:-------------------------------|
 | **Kategorie Name** | Name in der Auswahlliste. |
 | **Beschreibung** | Kurze Erläuterung für die Benutzer. |
-| **System Prompt (LLM)** | Anweisung an das Sprachmodell, wie die Zusammenfassung aussehen soll. |
+| **Zusammenfassung per LLM** | Aus: Aufnahmen dieser Kategorie werden nur transkribiert; das Transkript ist der Ergebnistext, Desktop-Client eingeschlossen. Sinnvoll für wörtliche Diktate. Wirkt nur, solange das LLM unter *Dienste → LLM* aktiv ist. |
+| **System Prompt (LLM)** | Anweisung an das Sprachmodell, wie die Zusammenfassung aussehen soll. Nur sichtbar, wenn *Zusammenfassung per LLM* an ist. |
 | **Transkriptions-Hint (Whisper)** | Kurzer Hinweis auf Stil und Schreibweisen für die Spracherkennung. Whisper berücksichtigt nur die letzten rund 224 Tokens; lange Begriffslisten gehören in ein Wörterbuch. |
 | **Wörterbücher** | Globale Wörterbücher, deren Begriffe in dieser Kategorie korrigiert werden. Eine globale Kategorie kann nur globale Wörterbücher verwenden. |
 | **Eigenes LLM verwenden** | Überschreibt die globalen LLM-Einstellungen für diese Kategorie (siehe unten). |
@@ -360,9 +390,9 @@ Löschen eines angehängten Wörterbuchs wird es aus allen Kategorien entfernt.
 Der Bereich **Archivierung** fasst alles zusammen, was mit der Aufbewahrung
 von Aufnahmen zu tun hat.
 
-![Archivierung](bilder/administration/08-archivierung.png)
-
 ## Audio-Download
+
+![Archivierung → Audio-Download](bilder/administration/08-archivierung.png)
 
 Ist **Audio speichern** eingeschaltet, bewahrt openDox nach erfolgreicher
 Transkription eine Kopie der Aufnahme auf, die der Benutzer über
@@ -386,6 +416,8 @@ Mono gespeichert.
 
 ## Auto-Archivierung
 
+![Archivierung → Auto-Archivierung](bilder/administration/08b-auto-archivierung.png)
+
 Mit **Automatisch archivieren** verschiebt openDox Aufnahmen nach Ablauf der
 **Frist in Tagen** (1 bis 3650, gerechnet ab der Aufnahme) ins Archiv. Das
 wirkt wie **Archivieren** im Zeilenmenü: Die Aufnahme verschwindet aus
@@ -394,6 +426,8 @@ wirkt wie **Archivieren** im Zeilenmenü: Die Aufnahme verschwindet aus
 Die Prüfung läuft alle sechs Stunden; Änderungen gelten ohne Neustart.
 
 ## Automatisches Löschen
+
+![Archivierung → Automatisches Löschen](bilder/administration/08c-automatisches-loeschen.png)
 
 Mit **Automatisch löschen** entfernt openDox Aufnahmen endgültig, sobald sie
 älter als **Aufbewahrung höchstens (Tage)** sind (1 bis 3650, gerechnet ab der
@@ -501,7 +535,7 @@ sich gleichzeitig nutzen. In beiden Fällen gilt:
 
 ## LDAP / Active Directory
 
-![Authentifizierung → LDAP](bilder/administration/10-ldap.png)
+![Authentifizierung → LDAP: Verbindung](bilder/administration/10-ldap.png)
 
 | Feld | Bedeutung | Beispiel |
 |:-----------|:-------------------------------|:-----------|
@@ -517,6 +551,8 @@ sich gleichzeitig nutzen. In beiden Fällen gilt:
 | **Admin-Gruppen** | Mitglieder werden Administratoren | `openDox-Admins` |
 | **Moderator-Gruppen** | Mitglieder werden Moderatoren | `openDox-Moderatoren` |
 | **Bind User DN** / **Bind User Password** | Dienstkonto für die Suche | |
+
+![Authentifizierung → LDAP: Gruppen und Dienstkonto](bilder/administration/10b-ldap-gruppen.png)
 
 Tragen Sie bei den Gruppen nur den **Namen** ein, keinen vollständigen DN.
 openDox bildet den DN selbst als `cn=<Name>,<Base DN>`. Liegen Ihre Gruppen in
@@ -616,9 +652,9 @@ Unter **Clients** verteilen und steuern Sie den optionalen Desktop-Client
 für Windows und macOS. Er diktiert direkt in andere Programme und fügt den
 fertigen Text dort ein.
 
-![Clients](bilder/administration/12-clients.png)
-
 ## Client verteilen
+
+![Clients → Client verteilen](bilder/administration/12-clients.png)
 
 1. **Installer herunterladen:** **Windows (MSI, für Softwareverteilung)**,
    **Windows (Setup.exe, Einzelplatz)** oder **macOS**.
@@ -631,6 +667,8 @@ fertigen Text dort ein.
    in das angegebene Programmverzeichnis kopieren.
 
 ## Client-Einstellungen
+
+![Clients → Client-Einstellungen](bilder/administration/12b-client-einstellungen.png)
 
 Diese Werte gelten für alle Clients dieses Servers und haben Vorrang vor
 lokalen Einstellungen. Die Clients übernehmen sie beim Start und danach

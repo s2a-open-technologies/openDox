@@ -229,6 +229,8 @@ Auf Servern ohne NVIDIA-Grafikkarte:
 4. Unter **Dienste → LLM** Adresse, Modell und ggf. Schlüssel des
    Sprachmodells eintragen und **Verbindung testen**.
 5. Unter **System** prüfen, dass alle benötigten Dienste **Online** sind.
+   Optionale Dienste, die nicht eingerichtet sind (z. B. Live-Vorschau oder
+   PII-Sanitizer), stehen auf **Deaktiviert**; das ist kein Fehler.
 6. Ein Probediktat aufnehmen.
 
 Alles Weitere (Anmeldung über LDAP/SSO, Kategorien, Wörterbücher) beschreibt

@@ -1,0 +1,65 @@
+// Quelle für 01-architektur.png (Installationshandbuch, Systemüberblick).
+// Neu erzeugen:
+//   dot -Tpng -Gdpi=200 01-architektur.dot -o 01-architektur.png
+// Schrift: Lato aus docs/handbuch/vorlage/fonts (per FONTCONFIG_FILE einbinden,
+// falls nicht systemweit installiert). Farben = S2A-Vorlage (navy/cyan).
+digraph opendox {
+  graph [rankdir=TB, ordering=out, bgcolor="white", fontname="Lato", fontsize=14, pad=0.25,
+         nodesep=0.3, ranksep=0.45, newrank=true, compound=true];
+  node  [shape=box, style="rounded,filled", fontname="Lato", fontsize=15,
+         color="#1A2B6D", fillcolor="white", fontcolor="#1f2937", penwidth=1.2,
+         margin="0.16,0.07"];
+  edge  [color="#6b7280", fontname="Lato", fontsize=12, fontcolor="#6b7280",
+         arrowsize=0.7];
+
+  subgraph cluster_clients {
+    label="Arbeitsplätze"; style="rounded,dashed"; color="#d1d5db"; fontcolor="#6b7280";
+    browser [label="Browser\n(Weboberfläche)"];
+    client  [label="Desktop-Client\n(Windows / macOS)"];
+  }
+
+  proxy [label="Reverse Proxy (Apache / nginx)\nTLS-Zertifikat", fillcolor="#f3f6f9"];
+
+  subgraph cluster_stack {
+    label="openDox-Server (Docker)"; labeljust=l; style="rounded,filled"; color="#1A2B6D";
+    fillcolor="#f3f6f9"; fontcolor="#1A2B6D"; fontsize=15;
+    app [label="app  :5000\nWeboberfläche, API, Verarbeitung",
+         fillcolor="#1A2B6D", fontcolor="white", color="#1A2B6D"];
+    { rank=same;
+      parakeet [label="parakeet  :5001\nLive-Vorschau (GPU)"];
+      whisper  [label="whisper  :5002\nFinale Transkription (GPU)"];
+      chunks   [label="Volume app-chunks\nRohaudio der Aufnahme",
+                shape=cylinder, style="filled", fillcolor="white", color="#6b7280"];
+    }
+    { rank=same;
+      postgres [label="postgres  :5432\nDatenbank (verschlüsselte Texte)"];
+      redis    [label="redis  :6379\nSitzungen, Sperren"];
+      garage   [label="garage  :3900\nObjektspeicher S3 (verschlüsselt)"];
+    }
+  }
+
+  subgraph cluster_external {
+    label="Extern, nicht enthalten"; style="rounded,dashed"; color="#00CED1"; fontcolor="#008B8D";
+    llm [label="Sprachmodell (LLM)\nOllama, vLLM, LLM-Proxy", color="#00CED1"];
+    pii [label="PII-Sanitizer (optional)\nz. B. EntityGuard", color="#00CED1"];
+    llm -> pii [style=invis];
+  }
+
+  browser -> proxy [label=" HTTPS / WSS"];
+  client  -> proxy [label=" HTTPS / WSS"];
+  proxy   -> app   [label=" HTTP / WS, Port 20000"];
+
+  app -> parakeet;
+  app -> whisper;
+  app -> chunks [arrowhead=none, style=dashed];
+  parakeet -> postgres [style=invis];
+  whisper  -> redis    [style=invis];
+  chunks   -> garage   [style=invis];
+  app -> postgres;
+  app -> redis;
+  app -> garage;
+
+  app -> llm [label=" Zusammenfassung"];
+  app -> pii [style=dashed, constraint=false];
+  { rank=same; app; llm; }
+}

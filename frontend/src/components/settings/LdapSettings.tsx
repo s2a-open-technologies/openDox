@@ -23,6 +23,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -207,14 +208,15 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
 
                     {settings.use_ssl && (
                         <div className="space-y-2 p-4 border rounded-md bg-muted/30">
-                            <Label>{t('uploadCert')}</Label>
                             <div className="flex items-center gap-2">
-                                <input
-                                    type="file"
+                                <FileDropzone
+                                    compact
+                                    className="flex-1"
                                     accept=".pem,.crt,.cer"
+                                    label={t('uploadCert')}
+                                    file={certFile}
+                                    onFile={setCertFile}
                                     disabled={readOnly}
-                                    onChange={(e) => setCertFile(e.target.files?.[0] || null)}
-                                    className="flex-1 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                                 />
                                 <Button
                                     type="button"

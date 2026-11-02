@@ -22,6 +22,7 @@ import { apiErrorMessage } from '@/lib/apiError';
 import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import Recorder, { RecorderHandle, RecordingStartData } from "@/components/Recorder";
 import TranscriptView from "@/components/TranscriptView";
 import ArchiveDayList from "@/components/ArchiveDayList";
@@ -60,6 +61,8 @@ export interface Recording {
   timestamp: string;
   content: string;
   summarize: string;
+  // false → no LLM for this record; summarize then carries the transcript.
+  summaryEnabled?: boolean;
   userid: string;
   taskId?: string | number;
   hasAudio?: boolean;
@@ -78,6 +81,7 @@ interface RecordData {
   title: string;
   content: string | null;
   summarize: string | null;
+  summary_enabled?: boolean;
   timestamp: string;
   task_id?: number | null;
   has_audio?: boolean;
@@ -135,6 +139,7 @@ const Dashboard = () => {
           timestamp: d.timestamp,
           content: d.content || "",
           summarize: d.summarize || "",
+          summaryEnabled: d.summary_enabled ?? true,
           userid: d.user_id.toString(),
           taskId: d.task_id || undefined,
           hasAudio: d.has_audio || false,
@@ -274,6 +279,7 @@ const Dashboard = () => {
         timestamp: data.timestamp,
         content: data.content || "",
         summarize: data.summarize || "",
+        summaryEnabled: data.summary_enabled ?? true,
         userid: data.user_id.toString(),
         taskId: effectiveTaskId,
       };
@@ -315,6 +321,7 @@ const Dashboard = () => {
         timestamp: data.timestamp,
         content: data.content || "",
         summarize: data.summarize || "",
+        summaryEnabled: data.summary_enabled ?? true,
         userid: data.user_id.toString(),
         taskId: data.task_id || recording.taskId,
       });
@@ -334,10 +341,13 @@ const Dashboard = () => {
         body: JSON.stringify({ content, summarize }),
       });
       if (!res.ok) throw new Error("Failed to save");
+      // The server decides what summarize holds (the transcript without an LLM).
+      const saved: RecordData = await res.json();
+      const update = { content, summarize: saved.summarize || "", summaryEnabled: saved.summary_enabled ?? true };
       toast.success(t("saved"));
-      setRecordings(prev => prev.map(r => r.id === id ? { ...r, content, summarize } : r));
+      setRecordings(prev => prev.map(r => r.id === id ? { ...r, ...update } : r));
       if (selectedRecording?.id === id) {
-        setSelectedRecording(prev => prev ? { ...prev, content, summarize } : null);
+        setSelectedRecording(prev => prev ? { ...prev, ...update } : null);
       }
     } catch (err) {
       console.error(err);
@@ -355,11 +365,18 @@ const Dashboard = () => {
         body: JSON.stringify({ category_id: newCategoryId }),
       });
       if (!res.ok) throw new Error("Failed to change category");
+      const saved: RecordData = await res.json();
       const categoryName = categories.find(c => c.id === newCategoryId)?.name || t("uncategorized");
+      const update = {
+        categoryId: newCategoryId,
+        categoryName,
+        summarize: saved.summarize || "",
+        summaryEnabled: saved.summary_enabled ?? true,
+      };
       toast.success(t("categoryChanged"));
-      setRecordings(prev => prev.map(r => r.id === id ? { ...r, categoryId: newCategoryId, categoryName } : r));
+      setRecordings(prev => prev.map(r => r.id === id ? { ...r, ...update } : r));
       if (selectedRecording?.id === id) {
-        setSelectedRecording(prev => prev ? { ...prev, categoryId: newCategoryId, categoryName } : null);
+        setSelectedRecording(prev => prev ? { ...prev, ...update } : null);
       }
     } catch (err) {
       console.error(err);
@@ -442,7 +459,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="relative min-h-dvh bg-background flex">
+    <div className="relative h-dvh overflow-hidden bg-background flex">
       <Sidebar
         recordings={recordings}
         onSelectRecording={handleSelectRecording}
@@ -729,19 +746,13 @@ const Dashboard = () => {
                 )}
               </div>
               <div className="grid gap-2">
-                <label htmlFor="upload-file" className="text-sm font-medium">{t("upload.file")}</label>
-                <Input
-                  id="upload-file"
-                  type="file"
+                <FileDropzone
                   accept="audio/*"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  label={t("upload.file")}
+                  file={uploadFile}
+                  onFile={setUploadFile}
                   disabled={uploading}
                 />
-                {uploadFile && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {t("upload.selected", { name: uploadFile.name })}
-                  </p>
-                )}
               </div>
 
               <Alert variant="destructive" className="mt-2">

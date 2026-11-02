@@ -57,6 +57,10 @@ interface TranscriptViewProps {
   onCategoryChange: (id: string, categoryId: number) => Promise<void>;
 }
 
+// No LLM for the record: the server sends the transcript as summarize.
+const isTranscriptOnly = (enabled?: boolean, summarize?: string | null, content?: string | null) =>
+  enabled === false && (summarize || "") === (content || "");
+
 const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCategoryChange }: TranscriptViewProps) => {
   const { t } = useTranslation(["transcript", "disclaimer"]);
   const { authFetch } = useAuth();
@@ -72,6 +76,9 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [hasAudio, setHasAudio] = useState<boolean>(!!transcript?.hasAudio);
   const [isChangingCategory, setIsChangingCategory] = useState(false);
+  const [summaryIsTranscript, setSummaryIsTranscript] = useState(
+    isTranscriptOnly(transcript?.summaryEnabled, transcript?.summarize, transcript?.content)
+  );
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
@@ -96,11 +103,17 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
     }
   }, [transcript?.id, transcript?.content, transcript?.summarize, transcript?.hasAudio]);
 
+  // Category change or save on the same record: the server decided anew.
+  useEffect(() => {
+    setSummaryIsTranscript(isTranscriptOnly(transcript?.summaryEnabled, transcript?.summarize, transcript?.content));
+    setEditedSummary(transcript?.summarize || "");
+  }, [transcript?.summaryEnabled, transcript?.summarize]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const contentDiff = (transcript?.content || "") !== editedContent;
-    const summaryDiff = (transcript?.summarize || "") !== editedSummary;
+    const summaryDiff = !summaryIsTranscript && (transcript?.summarize || "") !== editedSummary;
     setHasUnsavedChanges(contentDiff || summaryDiff);
-  }, [editedContent, editedSummary, transcript?.content, transcript?.summarize]);
+  }, [editedContent, editedSummary, transcript?.content, transcript?.summarize, summaryIsTranscript]);
 
   useEffect(() => {
     if (!transcript?.taskId) {
@@ -135,6 +148,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
               if (typeof recData.has_audio === "boolean") {
                 setHasAudio(recData.has_audio);
               }
+              setSummaryIsTranscript(isTranscriptOnly(recData.summary_enabled, recData.summarize, recData.content));
             }
           }
         }
@@ -196,7 +210,8 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave(transcript.id, editedContent, editedSummary);
+      // Echoing the transcript back is ignored by the server, so it stays linked.
+      await onSave(transcript.id, editedContent, summaryIsTranscript ? editedContent : editedSummary);
       setHasUnsavedChanges(false);
     } finally {
       setIsSaving(false);
@@ -240,6 +255,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       const data = await res.json();
       if (currentDbIdRef.current === targetId) {
         setEditedSummary(data.summarize || "");
+        setSummaryIsTranscript(data.summary_enabled === false);
         // A failed pipeline is resolved by a successful regeneration.
         if (data.task_status) {
           setTaskStatus(data.task_status);
@@ -348,7 +364,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
         </div>
       )}
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(18rem,1fr)_minmax(18rem,1fr)] lg:grid-cols-2 lg:grid-rows-1 gap-6">
         <div className="flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xl font-semibold text-foreground">{t("title")}</h3>
@@ -380,6 +396,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
           <Card className="p-6 flex flex-col flex-1 min-h-0 shadow-md">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
               <h3 className="text-xl font-semibold text-foreground">{t("summary.title")}</h3>
+              {!summaryIsTranscript && (
               <div className="flex items-center gap-2 ml-auto">
                 <Button
                   variant="ghost"
@@ -413,8 +430,11 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
                   <span className="hidden sm:inline">{isEditingSummary ? t("preview") : t("edit")}</span>
                 </Button>
               </div>
+              )}
             </div>
-            {isEditingSummary ? (
+            {summaryIsTranscript ? (
+              <p className="text-muted-foreground italic">{t("summary.llmDisabled")}</p>
+            ) : isEditingSummary ? (
               <Textarea
                 value={editedSummary}
                 onChange={(e) => setEditedSummary(e.target.value)}

@@ -180,7 +180,11 @@ describe("BackupSettings", () => {
     expect(
       container.querySelector('input[type="file"]') as HTMLInputElement
     ).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Datei auswählen/ })).toBeDisabled();
+    // The dropzone is a div with role="button", so it is disabled via aria.
+    expect(screen.getByRole("button", { name: /Datei auswählen/ })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
   });
 
   it("renders in English when the UI language is English", async () => {

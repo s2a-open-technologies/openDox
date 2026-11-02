@@ -40,6 +40,7 @@ interface CategorySettingsData {
     system_prompt: string;
     whisper_prompt: string | null;
     dictionary_ids: number[];
+    llm_enabled: boolean;
     llm_override_enabled: boolean;
     llm_model: string | null;
     llm_api_endpoint: string | null;
@@ -58,6 +59,7 @@ const emptyForm = (): CategorySettingsData => ({
     system_prompt: '',
     whisper_prompt: null,
     dictionary_ids: [],
+    llm_enabled: true,
     llm_override_enabled: false,
     llm_model: null,
     llm_api_endpoint: null,
@@ -84,8 +86,11 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [dictionaries, setDictionaries] = useState<DictionarySummary[]>([]);
 
+    // Operator switch "Benutzerkategorien erlauben", shown in the admin view only.
+    const [personalAllowed, setPersonalAllowed] = useState(false);
+
     const canManage = (category: CategorySettingsData) =>
-        category.user_id != null ? category.user_id === user?.id || user?.role === 'admin' : isPrivileged;
+        category.user_id != null ? category.user_id === user?.id : isPrivileged;
 
     const fetchCategories = async () => {
         try {
@@ -93,9 +98,9 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
             if (res.ok) {
                 const data = await res.json();
                 setCategories(
-                    scope === 'personal'
-                        ? data.filter((c: CategorySettingsData) => c.user_id === user?.id)
-                        : data
+                    data.filter((c: CategorySettingsData) =>
+                        scope === 'personal' ? c.user_id === user?.id : c.user_id == null
+                    )
                 );
             }
         } catch (error) {
@@ -114,9 +119,34 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
         }
     };
 
+    const fetchPolicy = async () => {
+        try {
+            const res = await authFetch('/api/v1/settings/category-policy/');
+            if (res.ok) setPersonalAllowed((await res.json()).personal_categories_allowed);
+        } catch (error) {
+            console.error('Failed to fetch category policy:', error);
+        }
+    };
+
+    const updatePolicy = async (allowed: boolean) => {
+        try {
+            const res = await authFetch('/api/v1/settings/category-policy/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ personal_categories_allowed: allowed }),
+            });
+            if (!res.ok) throw new Error();
+            setPersonalAllowed(allowed);
+            toast.success(t('policy.saved'));
+        } catch {
+            toast.error(t('common:saveFailed'));
+        }
+    };
+
     useEffect(() => {
         fetchCategories();
         fetchDictionaries();
+        if (scope === 'global') fetchPolicy();
     }, []);
 
     // New categories are global for privileged roles in the admin view and
@@ -125,6 +155,8 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
     // Already attached personal ones stay in dictionary_ids untouched.
     const formIsGlobal = isEditing ? settings.user_id == null : isPrivileged && scope === 'global';
     const selectableDictionaries = dictionaries.filter(d => d.user_id == null);
+    // Shown read-only in personal categories, so the user sees they apply.
+    const automaticDictionaries = formIsGlobal ? [] : dictionaries.filter(d => d.user_id != null);
     const toggleDictionary = (id: number, checked: boolean) => {
         setSettings({
             ...settings,
@@ -218,6 +250,26 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
 
     return (
         <div className="space-y-6">
+            {scope === 'global' && (
+                <Card>
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <Label htmlFor="personal-categories-allowed" className="text-base">
+                                    {t('policy.label')}
+                                </Label>
+                                <p className="text-sm text-muted-foreground">{t('policy.hint')}</p>
+                            </div>
+                            <Switch
+                                id="personal-categories-allowed"
+                                checked={personalAllowed}
+                                disabled={user?.role !== 'admin'}
+                                onCheckedChange={updatePolicy}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
             <Card>
                 <CardHeader>
                     <CardTitle>{t('listTitle')}</CardTitle>
@@ -238,7 +290,10 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                         </span>
                                     </div>
                                     <div className="text-sm text-muted-foreground">{category.description}</div>
-                                    {category.llm_override_enabled && category.llm_model && (
+                                    {category.llm_enabled === false && (
+                                        <div className="text-xs text-muted-foreground">{t('transcriptOnly')}</div>
+                                    )}
+                                    {category.llm_enabled !== false && category.llm_override_enabled && category.llm_model && (
                                         <div className="text-xs text-blue-500">
                                             {t('llmLabel', { model: category.llm_model })}
                                         </div>
@@ -302,6 +357,20 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                 />
                             </div>
                         </div>
+                        <div className="flex items-center justify-between gap-4 border rounded-lg p-4">
+                            <div>
+                                <Label htmlFor={`cat-llm-enabled-${settings.id ?? 'new'}`} className="text-base">
+                                    {t('form.llmEnabled')}
+                                </Label>
+                                <p className="text-sm text-muted-foreground">{t('form.llmEnabledHint')}</p>
+                            </div>
+                            <Switch
+                                id={`cat-llm-enabled-${settings.id ?? 'new'}`}
+                                checked={settings.llm_enabled}
+                                onCheckedChange={(checked) => setSettings({ ...settings, llm_enabled: checked })}
+                            />
+                        </div>
+                        {settings.llm_enabled && (
                         <div className="space-y-2">
                             <Label>{t('form.systemPrompt')}</Label>
                             <Textarea
@@ -312,6 +381,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                 required
                             />
                         </div>
+                        )}
                         <div className="space-y-2">
                             <Label>{t('form.whisperPrompt')}</Label>
                             <Textarea
@@ -326,8 +396,25 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                         </div>
                         <div className="space-y-2">
                             <Label>{t('form.dictionaries')}</Label>
-                            {selectableDictionaries.length > 0 ? (
+                            {selectableDictionaries.length + automaticDictionaries.length > 0 ? (
                                 <div className="border rounded-lg divide-y max-h-56 overflow-y-auto">
+                                    {automaticDictionaries.map(dictionary => {
+                                        const checkboxId = `cat-dict-${dictionary.id}`;
+                                        return (
+                                            <div key={dictionary.id} className="flex items-center gap-3 px-3 py-2">
+                                                <Checkbox id={checkboxId} checked disabled />
+                                                <Label htmlFor={checkboxId} className="font-normal flex-1">
+                                                    {dictionary.name}
+                                                    <span className="text-xs text-muted-foreground ml-2">
+                                                        {t('form.dictionaryTerms', { count: dictionary.term_count })}
+                                                    </span>
+                                                </Label>
+                                                <span className="text-[10px] uppercase tracking-wide rounded-full border px-2 py-0.5 text-muted-foreground">
+                                                    {t('form.dictionaryAutomatic')}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
                                     {selectableDictionaries.map(dictionary => {
                                         const checkboxId = `cat-dict-${dictionary.id}`;
                                         return (
@@ -358,7 +445,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                             </p>
                         </div>
 
-                        {isPrivileged && formIsGlobal && (
+                        {isPrivileged && formIsGlobal && settings.llm_enabled && (
                         <div className="border rounded-lg p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>

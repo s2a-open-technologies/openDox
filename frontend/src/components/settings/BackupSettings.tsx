@@ -19,9 +19,10 @@
 */
 
 import { apiErrorMessage } from '@/lib/apiError';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Download, Upload, Loader2, FileJson } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -30,7 +31,6 @@ import { useTranslation } from 'react-i18next';
 const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { t } = useTranslation('backup');
     const { authFetch } = useAuth();
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -62,11 +62,6 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
         }
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] ?? null;
-        setSelectedFile(file);
-    };
-
     const handleImport = async () => {
         if (!selectedFile) {
             toast.error(t('restore.noFile'));
@@ -87,9 +82,6 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
             const data = await res.json();
             toast.success(t('restore.success', { items: (data.restored || []).join(', ') }));
             setSelectedFile(null);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
         } catch (err) {
             toast.error(err instanceof Error ? err.message : t('restore.failed'));
         } finally {
@@ -122,14 +114,6 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="application/json,.json"
-                        disabled={readOnly}
-                        onChange={handleFileSelect}
-                        className="hidden"
-                    />
                     {selectedFile ? (
                         <div className="flex items-center justify-between gap-2 p-3 border rounded-md bg-muted/30">
                             <div className="flex items-center gap-2 text-sm">
@@ -144,25 +128,18 @@ const BackupSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 variant="ghost"
                                 size="sm"
                                 disabled={readOnly}
-                                onClick={() => {
-                                    setSelectedFile(null);
-                                    if (fileInputRef.current) fileInputRef.current.value = '';
-                                }}
+                                onClick={() => setSelectedFile(null)}
                             >
                                 {t('restore.remove')}
                             </Button>
                         </div>
                     ) : (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full gap-2"
+                        <FileDropzone
+                            accept="application/json,.json"
+                            label={t('restore.chooseFile')}
+                            onFile={setSelectedFile}
                             disabled={readOnly}
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <Upload className="w-4 h-4" />
-                            {t('restore.chooseFile')}
-                        </Button>
+                        />
                     )}
                     <Button
                         onClick={handleImport}

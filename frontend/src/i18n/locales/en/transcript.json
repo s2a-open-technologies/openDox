@@ -24,7 +24,8 @@
     "regenerate": "Regenerate summary",
     "copyLabel": "Copy summary",
     "none": "No summary available yet",
-    "title": "Summary"
+    "title": "Summary",
+    "llmDisabled": "LLM not enabled for this category. The transcript is used as result text."
   },
   "download": {
     "failed": "Download failed"

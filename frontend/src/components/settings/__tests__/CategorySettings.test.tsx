@@ -40,6 +40,7 @@ function jsonResponse(body: unknown, ok = true) {
 }
 
 const DICTIONARIES_URL = "/api/v1/settings/dictionaries/";
+const POLICY_URL = "/api/v1/settings/category-policy/";
 
 // The dictionary list is answered separately so the per-test authFetch mocks
 // keep describing only the category calls, in order.
@@ -48,13 +49,16 @@ function renderWithAuth(
   role: "admin" | "moderator" | "demo_viewer" | "user" = "admin",
   id = 1,
   dictionaries: unknown[] = [],
-  scope: "global" | "personal" = "global"
+  scope: "global" | "personal" = "global",
+  policyFetch: ReturnType<typeof vi.fn> = vi
+    .fn()
+    .mockResolvedValue(jsonResponse({ personal_categories_allowed: false }))
 ) {
-  const routedFetch = vi.fn((url: string, options?: RequestInit) =>
-    url === DICTIONARIES_URL
-      ? Promise.resolve(jsonResponse(dictionaries))
-      : authFetch(url, options)
-  );
+  const routedFetch = vi.fn((url: string, options?: RequestInit) => {
+    if (url === DICTIONARIES_URL) return Promise.resolve(jsonResponse(dictionaries));
+    if (url === POLICY_URL) return policyFetch(url, options);
+    return authFetch(url, options);
+  });
   mockedUseAuth.mockReturnValue({
     user: { id, name: "tester", is_active: true, authenticated: true, role },
     isLoading: false,
@@ -88,7 +92,7 @@ describe("CategorySettings", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the category list with global/own badges and LLM override info", async () => {
+  it("lists only global categories in the admin view, never personal ones", async () => {
     const authFetch = vi.fn().mockResolvedValue(
       jsonResponse([
         {
@@ -131,8 +135,32 @@ describe("CategorySettings", () => {
 
     expect(await screen.findByText("Kardiologie")).toBeInTheDocument();
     expect(screen.getByText("Global")).toBeInTheDocument();
-    expect(screen.getByText("Eigene Kategorie")).toBeInTheDocument();
-    expect(screen.getByText("LLM: gpt-4o")).toBeInTheDocument();
+    expect(screen.queryByText("Meine Kategorie")).not.toBeInTheDocument();
+    expect(screen.queryByText("LLM: gpt-4o")).not.toBeInTheDocument();
+  });
+
+  it("lets an admin allow user categories", async () => {
+    const policyFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ personal_categories_allowed: false }))
+      .mockResolvedValueOnce(jsonResponse({ personal_categories_allowed: true }));
+    renderWithAuth(vi.fn().mockResolvedValue(jsonResponse([])), "admin", 1, [], "global", policyFetch);
+    const user = userEvent.setup();
+
+    const toggle = await screen.findByRole("switch", { name: "Benutzerkategorien erlauben" });
+    await user.click(toggle);
+
+    await waitFor(() =>
+      expect(policyFetch).toHaveBeenCalledWith(POLICY_URL, expect.objectContaining({ method: "PUT" }))
+    );
+    const body = JSON.parse(policyFetch.mock.calls[1][1].body);
+    expect(body).toEqual({ personal_categories_allowed: true });
+  });
+
+  it("does not let a moderator change the user-category policy", async () => {
+    renderWithAuth(vi.fn().mockResolvedValue(jsonResponse([])), "moderator");
+
+    expect(await screen.findByRole("switch", { name: "Benutzerkategorien erlauben" })).toBeDisabled();
   });
 
   it("shows the empty state when there are no categories", async () => {
@@ -240,15 +268,32 @@ describe("CategorySettings", () => {
     expect(screen.queryByRole("checkbox", { name: /Mein Test/ })).not.toBeInTheDocument();
   });
 
-  it("offers no personal dictionaries for a user's own category (they always apply)", async () => {
+  it("shows personal dictionaries in a user's own category as always applied, not selectable", async () => {
     const authFetch = vi.fn().mockResolvedValue(jsonResponse([]));
     renderWithAuth(authFetch, "user", 7, [
       { id: 3, name: "ICD", user_id: null, term_count: 2, category_ids: [] },
       { id: 4, name: "Mein Test", user_id: 7, term_count: 1, category_ids: [] },
     ]);
 
-    expect(await screen.findByRole("checkbox", { name: /ICD/ })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: /Mein Test/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: /ICD/ })).toBeEnabled();
+    const own = screen.getByRole("checkbox", { name: /Mein Test/ });
+    expect(own).toBeChecked();
+    expect(own).toBeDisabled();
+    expect(screen.getByText("Eigen · automatisch")).toBeInTheDocument();
+  });
+
+  it("does not claim there are no dictionaries when only personal ones exist", async () => {
+    const authFetch = vi.fn().mockResolvedValue(jsonResponse([]));
+    renderWithAuth(
+      authFetch,
+      "user",
+      7,
+      [{ id: 4, name: "Mein Test", user_id: 7, term_count: 1, category_ids: [] }],
+      "personal"
+    );
+
+    expect(await screen.findByRole("checkbox", { name: /Mein Test/ })).toBeChecked();
+    expect(screen.queryByText(/Noch keine Wörterbücher vorhanden/)).not.toBeInTheDocument();
   });
 
   it("lists only own categories and creates personal ones in the personal scope", async () => {

@@ -18,7 +18,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { BookMarked, BookOpenCheck, Languages, Palette, Trash2 } from 'lucide-react';
@@ -40,13 +40,25 @@ interface ProfileModalProps {
 
 const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
   const { t, i18n } = useTranslation('profile');
-  const { user, updateUiLanguage } = useAuth();
+  const { user, updateUiLanguage, authFetch } = useAuth();
   const [activeTab, setActiveTab] = useState('language');
+  // Own categories only exist when the operator allows them (off by default).
+  const [personalCategoriesAllowed, setPersonalCategoriesAllowed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    authFetch('/api/v1/settings/category-policy/')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => setPersonalCategoriesAllowed(!!data?.personal_categories_allowed))
+      .catch(() => setPersonalCategoriesAllowed(false));
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navItems = [
     { id: 'language', label: t('tabs.language'), icon: Languages },
     { id: 'dictionary', label: t('tabs.dictionary'), icon: BookMarked },
-    { id: 'categories', label: t('tabs.categories'), icon: BookOpenCheck },
+    ...(personalCategoriesAllowed
+      ? [{ id: 'categories', label: t('tabs.categories'), icon: BookOpenCheck }]
+      : []),
     { id: 'retention', label: t('tabs.retention'), icon: Trash2 },
     { id: 'appearance', label: t('tabs.appearance'), icon: Palette },
   ];
@@ -99,6 +111,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
           </div>
         );
       case 'categories':
+        if (!personalCategoriesAllowed) return null;
         return (
           <div className="space-y-4">
             <div>

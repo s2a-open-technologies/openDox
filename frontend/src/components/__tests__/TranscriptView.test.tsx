@@ -267,4 +267,23 @@ describe("TranscriptView", () => {
     expect(await screen.findByText("Neue Zusammenfassung.")).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Zusammenfassung neu generiert");
   });
+  it("shows the no-LLM hint instead of the transcript copy when the category runs no LLM", () => {
+    const content = "Der Patient berichtet über Kopfschmerzen.";
+    renderView({
+      transcript: makeTranscript({ taskId: undefined, summarize: content, summaryEnabled: false }),
+    });
+
+    expect(
+      screen.getByText("LLM für diese Kategorie nicht aktiviert. Als Ergebnistext wird das Transkript verwendet.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Zusammenfassung neu generieren")).not.toBeInTheDocument();
+  });
+
+  it("keeps a stored summary visible even without LLM for the category", () => {
+    renderView({
+      transcript: makeTranscript({ taskId: undefined, summaryEnabled: false }),
+    });
+
+    expect(screen.getByText("Kopfschmerzen seit drei Tagen.")).toBeInTheDocument();
+  });
 });

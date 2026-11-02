@@ -26,7 +26,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { FileDropzone } from '@/components/ui/file-dropzone';
 import { toast } from 'sonner';
 
 export interface DictionarySummary {
@@ -61,7 +62,6 @@ const DictionarySettings = ({ scope }: DictionarySettingsProps) => {
     const [newTerm, setNewTerm] = useState('');
     const [uploadMode, setUploadMode] = useState<'replace' | 'append'>('append');
     const [busy, setBusy] = useState(false);
-    const fileInput = useRef<HTMLInputElement>(null);
 
     const inScope = (d: DictionarySummary) =>
         scope === 'global' ? d.user_id == null : d.user_id === user?.id;
@@ -206,7 +206,6 @@ const DictionarySettings = ({ scope }: DictionarySettingsProps) => {
             toast.error(t('common:connectionError'));
         } finally {
             setBusy(false);
-            if (fileInput.current) fileInput.current.value = '';
         }
     };
 
@@ -385,28 +384,14 @@ const DictionarySettings = ({ scope }: DictionarySettingsProps) => {
                                 >
                                     {t('modeReplace')}
                                 </Button>
-                                <input
-                                    ref={fileInput}
-                                    type="file"
-                                    accept=".txt,.csv,text/plain,text/csv"
-                                    className="hidden"
-                                    data-testid="dictionary-upload"
-                                    onChange={e => {
-                                        const file = e.target.files?.[0];
-                                        if (file) upload(file);
-                                    }}
-                                />
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={busy}
-                                    onClick={() => fileInput.current?.click()}
-                                >
-                                    <Upload className="h-4 w-4 mr-2" />
-                                    {t('chooseFile')}
-                                </Button>
                             </div>
+                            <FileDropzone
+                                accept=".txt,.csv,text/plain,text/csv"
+                                label={t('chooseFile')}
+                                onFile={upload}
+                                disabled={busy}
+                                inputTestId="dictionary-upload"
+                            />
                         </div>
                     </CardContent>
                 </Card>

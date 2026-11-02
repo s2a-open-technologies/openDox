@@ -22,7 +22,10 @@
     "dictionaryTerms_other": "{{count}} terms",
     "noDictionaries": "No dictionaries yet. Create one under Dictionaries.",
     "dictionariesHintGlobal": "Terms from these dictionaries are corrected phonetically after the final transcription. A global category can only use global dictionaries.",
-    "dictionariesHintOwn": "Terms from these dictionaries are corrected phonetically after the final transcription. Your own dictionaries already apply automatically to all your recordings; choose additional global ones here."
+    "dictionariesHintOwn": "Terms from these dictionaries are corrected phonetically after the final transcription. Your own dictionaries already apply automatically to all your recordings; choose additional global ones here.",
+    "llmEnabled": "LLM summary",
+    "llmEnabledHint": "Off: transcription only, the transcript is the result text. No LLM prompt and no PII sanitizer. Only applies while the LLM is enabled globally.",
+    "dictionaryAutomatic": "Own · automatic"
   },
   "llm": {
     "useOwn": "Use own LLM",
@@ -47,5 +50,11 @@
   "submit": {
     "update": "Update",
     "create": "Create"
+  },
+  "transcriptOnly": "Transcript only, no LLM",
+  "policy": {
+    "label": "Allow user categories",
+    "hint": "Users can create their own categories with their own LLM prompt in their profile. Such prompts can give openDox a medical purpose (intended purpose §6); the operator is then responsible. When off, existing user categories have no effect. Administrators never see user categories.",
+    "saved": "Setting saved"
   }
 }

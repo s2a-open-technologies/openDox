@@ -1,4 +1,10 @@
 {
+  "enabled": {
+    "title": "LLM-Verarbeitung",
+    "description": "Zusammenfassen und Strukturieren der Transkripte per Sprachmodell",
+    "label": "LLM-Verarbeitung aktiv",
+    "offHint": "Es wird nur transkribiert: kein LLM und kein PII-Sanitizer. Als Ergebnistext dient das Transkript (auch im Desktop-Client). Kategorien können das LLM einzeln abschalten, aber nicht gegen diesen Schalter einschalten."
+  },
   "title": "LLM / Ollama Konfiguration",
   "description": "Konfiguration für Textgenerierung und Zusammenfassung",
   "apiEndpoint": "API Endpoint",

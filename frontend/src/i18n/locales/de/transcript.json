@@ -24,7 +24,8 @@
     "regenerate": "Zusammenfassung neu generieren",
     "copyLabel": "Zusammenfassung kopieren",
     "none": "Noch keine Zusammenfassung verfügbar",
-    "title": "Zusammenfassung"
+    "title": "Zusammenfassung",
+    "llmDisabled": "LLM für diese Kategorie nicht aktiviert. Als Ergebnistext wird das Transkript verwendet."
   },
   "download": {
     "failed": "Download fehlgeschlagen"

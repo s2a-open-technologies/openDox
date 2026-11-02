@@ -1,4 +1,10 @@
 {
+  "enabled": {
+    "title": "LLM processing",
+    "description": "Summarizing and structuring transcripts with a language model",
+    "label": "LLM processing enabled",
+    "offHint": "Transcription only: no LLM and no PII sanitizer. The transcript is used as result text (desktop client too). Categories can turn the LLM off individually, but not on against this switch."
+  },
   "title": "LLM / Ollama configuration",
   "description": "Configuration for text generation and summarization",
   "apiEndpoint": "API endpoint",

@@ -101,12 +101,26 @@ describe("ProfileModal", () => {
   });
 
   it.each(["user", "admin", "moderator"] as const)(
-    "offers the categories tab to role %s",
-    (role) => {
-      renderModal({ role });
-      expect(screen.getByRole("button", { name: /Meine Kategorien/ })).toBeInTheDocument();
+    "offers the categories tab to role %s once user categories are allowed",
+    async (role) => {
+      renderModal({
+        role,
+        authFetch: vi.fn().mockResolvedValue(jsonResponse({ personal_categories_allowed: true })),
+      });
+      expect(await screen.findByRole("button", { name: /Meine Kategorien/ })).toBeInTheDocument();
     }
   );
+
+  it("hides the categories tab while user categories are not allowed", async () => {
+    const { authFetch } = renderModal({
+      authFetch: vi.fn().mockResolvedValue(jsonResponse({ personal_categories_allowed: false })),
+    });
+
+    await waitFor(() =>
+      expect(authFetch).toHaveBeenCalledWith("/api/v1/settings/category-policy/")
+    );
+    expect(screen.queryByRole("button", { name: /Meine Kategorien/ })).not.toBeInTheDocument();
+  });
 
   it("loads the personal dictionaries when their tab is selected", async () => {
     const user = userEvent.setup();

@@ -24,7 +24,6 @@
     "titleOptional": "Title (optional)",
     "titlePlaceholder": "e.g. Anamnesis patient Miller",
     "file": "Audio file",
-    "selected": "Selected: {{name}}",
     "uploading": "Uploading...",
     "submit": "Upload"
   },

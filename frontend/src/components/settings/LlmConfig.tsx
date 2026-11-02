@@ -31,6 +31,7 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface LlmSettings {
+    llm_enabled: boolean;
     llm_api_endpoint: string;
     llm_api_key: string;
     llm_model: string;
@@ -54,6 +55,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
     const [testing, setTesting] = useState(false);
 
     const [config, setConfig] = useState<LlmSettings>({
+        llm_enabled: true,
         llm_api_endpoint: 'http://localhost:11434/v1',
         llm_api_key: '',
         llm_model: 'medgemma-4b-it:Q4_K_M',
@@ -73,6 +75,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             .then(res => res.json())
             .then((data: LlmSettingsResponse) => {
                 setConfig({
+                    llm_enabled: data.llm_enabled ?? true,
                     llm_api_endpoint: data.llm_api_endpoint || 'http://localhost:11434/v1',
                     llm_api_key: data.llm_api_key || '',
                     llm_model: data.llm_model || 'medgemma-4b-it:Q4_K_M',
@@ -89,6 +92,9 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             })
             .catch(console.error);
     }, []);
+
+    // Master switch off → nothing below is used; keep the values, just lock them.
+    const locked = readOnly || !config.llm_enabled;
 
     const updateField = (key: keyof LlmSettings, value: LlmSettings[keyof LlmSettings]) => {
         setConfig(prev => ({ ...prev, [key]: value }));
@@ -134,6 +140,27 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         <div className="space-y-4">
             <Card>
                 <CardHeader>
+                    <CardTitle>{t('enabled.title')}</CardTitle>
+                    <CardDescription>{t('enabled.description')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="flex items-center gap-3">
+                        <Switch
+                            id="llm-enabled"
+                            checked={config.llm_enabled}
+                            disabled={readOnly}
+                            onCheckedChange={(v) => updateField('llm_enabled', v)}
+                        />
+                        <Label htmlFor="llm-enabled">{t('enabled.label')}</Label>
+                    </div>
+                    {!config.llm_enabled && (
+                        <p className="text-xs text-muted-foreground">{t('enabled.offHint')}</p>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
                     <CardTitle>{t('title')}</CardTitle>
                     <CardDescription>
                         {t('description')}
@@ -144,7 +171,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                         <Label>{t('apiEndpoint')}</Label>
                         <Input 
                             placeholder="http://localhost:11434/v1" 
-                            disabled={readOnly}
+                            disabled={locked}
                             value={config.llm_api_endpoint} 
                             onChange={(e) => updateField('llm_api_endpoint', e.target.value)} 
                         />
@@ -158,7 +185,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                         <Input 
                             type="password" 
                             placeholder="sk-..." 
-                            disabled={readOnly}
+                            disabled={locked}
                             value={config.llm_api_key} 
                             onChange={(e) => updateField('llm_api_key', e.target.value)} 
                         />
@@ -168,7 +195,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                         <Label>{t('model')}</Label>
                         <Input 
                             placeholder="medgemma-4b-it:Q4_K_M" 
-                            disabled={readOnly}
+                            disabled={locked}
                             value={config.llm_model} 
                             onChange={(e) => updateField('llm_model', e.target.value)} 
                         />
@@ -178,7 +205,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                         <Label>{t('correctionModel')}</Label>
                         <Input
                             placeholder={t('correctionModelPlaceholder')}
-                            disabled={readOnly}
+                            disabled={locked}
                             value={config.correction_model}
                             onChange={(e) => updateField('correction_model', e.target.value)}
                         />
@@ -196,7 +223,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 max={1} 
                                 step={0.1}
                                 value={config.llm_temperature} 
-                                disabled={readOnly}
+                                disabled={locked}
                                 onChange={(e) => updateField('llm_temperature', parseFloat(e.target.value))} 
                             />
                         </div>
@@ -208,7 +235,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 max={8192}
                                 step={128}
                                 value={config.llm_max_tokens}
-                                disabled={readOnly}
+                                disabled={locked}
                                 onChange={(e) => updateField('llm_max_tokens', parseInt(e.target.value))}
                             />
                         </div>
@@ -220,7 +247,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 max={1}
                                 step={0.1}
                                 value={config.llm_top_p}
-                                disabled={readOnly}
+                                disabled={locked}
                                 onChange={(e) => updateField('llm_top_p', parseFloat(e.target.value))}
                             />
                         </div>
@@ -232,7 +259,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 max={2}
                                 step={0.1}
                                 value={config.llm_frequency_penalty}
-                                disabled={readOnly}
+                                disabled={locked}
                                 onChange={(e) => updateField('llm_frequency_penalty', parseFloat(e.target.value))}
                             />
                         </div>
@@ -243,7 +270,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                             <Switch
                                 id="llm-enable-thinking"
                                 checked={config.llm_enable_thinking}
-                                disabled={readOnly}
+                                disabled={locked}
                                 onCheckedChange={(v) => updateField('llm_enable_thinking', v)}
                             />
                             <Label htmlFor="llm-enable-thinking">{t('enableThinking')}</Label>
@@ -267,7 +294,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                         <Switch
                             id="sanitizer-enabled"
                             checked={config.sanitizer_enabled}
-                            disabled={readOnly}
+                            disabled={locked}
                             onCheckedChange={(v) => updateField('sanitizer_enabled', v)}
                         />
                         <Label htmlFor="sanitizer-enabled">{t('sanitizer.enable')}</Label>
@@ -279,7 +306,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 <Label>{t('sanitizer.endpoint')}</Label>
                                 <Input
                                     placeholder="http://entityguard:9500/api/v1/sanitize"
-                                    disabled={readOnly}
+                                    disabled={locked}
                                     value={config.sanitizer_endpoint}
                                     onChange={(e) => updateField('sanitizer_endpoint', e.target.value)}
                                 />
@@ -289,7 +316,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 <Input
                                     type="password"
                                     placeholder={t('sanitizer.apiKeyPlaceholder')}
-                                    disabled={readOnly}
+                                    disabled={locked}
                                     value={config.sanitizer_api_key}
                                     onChange={(e) => updateField('sanitizer_api_key', e.target.value)}
                                 />
@@ -301,7 +328,7 @@ const LlmConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
 
             <div className="flex gap-2">
                 <Button onClick={saveConfig} disabled={readOnly} className="flex-1">{t('save')}</Button>
-                <Button onClick={testConnection} variant="outline" disabled={testing || readOnly} className="gap-2">
+                <Button onClick={testConnection} variant="outline" disabled={testing || locked} className="gap-2">
                     {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     {t('testConnection')}
                 </Button>

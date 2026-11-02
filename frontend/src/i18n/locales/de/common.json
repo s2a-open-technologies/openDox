@@ -18,5 +18,10 @@
   "notFound": {
     "title": "Ups! Seite nicht gefunden",
     "home": "Zur Startseite"
+  },
+  "dropzone": {
+    "hint": "Datei hierher ziehen oder klicken",
+    "selected": "{{name}} ({{size}})",
+    "notAccepted": "„{{name}}\" hat ein nicht unterstütztes Format"
   }
 }

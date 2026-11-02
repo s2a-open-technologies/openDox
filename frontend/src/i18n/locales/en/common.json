@@ -18,5 +18,10 @@
   "notFound": {
     "title": "Oops! Page not found",
     "home": "Return to home"
+  },
+  "dropzone": {
+    "hint": "Drag a file here or click",
+    "selected": "{{name}} ({{size}})",
+    "notAccepted": "\"{{name}}\" has an unsupported format"
   }
 }

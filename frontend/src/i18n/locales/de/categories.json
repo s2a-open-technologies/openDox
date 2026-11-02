@@ -22,7 +22,10 @@
     "dictionaryTerms_other": "{{count}} Begriffe",
     "noDictionaries": "Noch keine Wörterbücher vorhanden. Legen Sie eines unter Wörterbücher an.",
     "dictionariesHintGlobal": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Eine globale Kategorie kann nur globale Wörterbücher verwenden.",
-    "dictionariesHintOwn": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Ihre eigenen Wörterbücher gelten ohnehin automatisch für alle Ihre Aufnahmen; hier wählen Sie zusätzliche globale."
+    "dictionariesHintOwn": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Ihre eigenen Wörterbücher gelten ohnehin automatisch für alle Ihre Aufnahmen; hier wählen Sie zusätzliche globale.",
+    "llmEnabled": "Zusammenfassung per LLM",
+    "llmEnabledHint": "Aus: Es wird nur transkribiert, das Transkript ist der Ergebnistext. Ohne LLM-Prompt und ohne PII-Sanitizer. Gilt nur, solange das LLM global aktiv ist.",
+    "dictionaryAutomatic": "Eigen · automatisch"
   },
   "llm": {
     "useOwn": "Eigenes LLM verwenden",
@@ -47,5 +50,11 @@
   "submit": {
     "update": "Aktualisieren",
     "create": "Erstellen"
+  },
+  "transcriptOnly": "Nur Transkript, kein LLM",
+  "policy": {
+    "label": "Benutzerkategorien erlauben",
+    "hint": "Benutzer können im Profil eigene Kategorien mit eigenem LLM-Prompt anlegen. Solche Prompts können openDox einen medizinischen Zweck geben (Zweckbestimmung §6); die Verantwortung liegt dann beim Betreiber. Ausgeschaltet wirken vorhandene Benutzerkategorien nicht. Administratoren sehen Benutzerkategorien nie.",
+    "saved": "Einstellung gespeichert"
   }
 }

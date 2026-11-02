@@ -24,7 +24,6 @@
     "titleOptional": "Titel (optional)",
     "titlePlaceholder": "z.B. Anamnese Patient Müller",
     "file": "Audiodatei",
-    "selected": "Ausgewählt: {{name}}",
     "uploading": "Wird hochgeladen...",
     "submit": "Hochladen"
   },

@@ -156,5 +156,8 @@ jobs:
           image: ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}@${{ steps.build.outputs.digest }}
           format: cyclonedx-json
           artifact-name: sbom-${{ matrix.name }}-${{ matrix.tag_suffix || 'gpu-' }}${{ steps.version.outputs.version }}.cdx.json
+          # On a tag push the action would also attach the SBOM to the GitHub
+          # Release, which needs contents: write; keep it a workflow artifact.
+          upload-release-assets: false
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}

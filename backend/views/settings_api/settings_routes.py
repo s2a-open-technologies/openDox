@@ -55,7 +55,10 @@ from backend.components.models.languages import (
     LanguagesRead,
 )
 from backend.components.models.ldap_model import LdapSettingsModel
-from backend.components.models.llm_settings_model import LlmSettingsModel
+from backend.components.models.llm_settings_model import (
+    CategoryPolicy,
+    LlmSettingsModel,
+)
 from backend.components.models.oidc_model import OidcSettingsModel
 from backend.components.models.session_settings_model import (
     SessionConfig,
@@ -82,6 +85,7 @@ from backend.components.services.asr_factory import (
 )
 from backend.components.services.audit_service import audit, changed_fields, snapshot
 from backend.components.services.ldap import LdapService
+from backend.components.services.llm_gate import personal_categories_allowed
 from backend.components.services.session_store import (
     reconnect_session_store,
     session_store,
@@ -266,6 +270,7 @@ async def update_llm_settings(
     if not settings:
         settings = LlmSettingsModel()
 
+    settings.llm_enabled = settings_in.llm_enabled
     settings.llm_api_endpoint = settings_in.llm_api_endpoint
     settings.llm_api_key = settings_in.llm_api_key
     settings.llm_model = settings_in.llm_model
@@ -453,8 +458,10 @@ async def get_services_health(db: SessionDep):
         return {"name": "Live", "status": "online" if ok else "offline"}
 
     async def check_entityguard():
+        # EntityGuard only ever runs in front of the LLM.
         sanitizer_configured = (
             llm_settings
+            and llm_settings.llm_enabled
             and llm_settings.sanitizer_enabled
             and llm_settings.sanitizer_endpoint
         )
@@ -632,6 +639,20 @@ _LLM_OVERRIDE_DEFAULTS = {
 _PRIVILEGED_CATEGORY_ROLES = ("admin", "moderator", "demo_viewer")
 
 
+def _require_personal_categories(db: SessionDep) -> None:
+    """Refuse creating/editing personal categories unless the operator allows them.
+
+    Raises:
+        HTTPException: 403 ``personal_categories_disabled``.
+    """
+    if not personal_categories_allowed(db):
+        raise api_error(
+            403,
+            "personal_categories_disabled",
+            "Personal categories are disabled by the administration",
+        )
+
+
 def _validate_dictionary_ids(
     db: SessionDep, dictionary_ids: list[int], category_user_id: int | None
 ) -> None:
@@ -681,6 +702,7 @@ async def create_category(
     if current_user.role in _PRIVILEGED_CATEGORY_ROLES and scope != "personal":
         data["user_id"] = None
     else:
+        _require_personal_categories(db)
         data["user_id"] = current_user.id
         data.update(_LLM_OVERRIDE_DEFAULTS)
     _validate_dictionary_ids(db, dictionary_ids, data["user_id"])
@@ -710,12 +732,17 @@ async def read_categories(
     offset: int = 0,
     limit: int = 100,
 ):
-    """List categories visible to the current user with pagination."""
-    query = select(Categories)
-    if current_user.role != "admin":
-        query = query.where(
-            (Categories.user_id.is_(None)) | (Categories.user_id == current_user.id)
+    """List the global categories plus the caller's own, if those are allowed.
+
+    Nobody sees another user's personal categories, admins included.
+    """
+    if personal_categories_allowed(db):
+        visible = (Categories.user_id.is_(None)) | (
+            Categories.user_id == current_user.id
         )
+    else:
+        visible = Categories.user_id.is_(None)
+    query = select(Categories).where(visible)
     categories = db.exec(query.offset(offset).limit(limit)).all()
     ids = dictionary_service.dictionary_ids_by_category(db, [c.id for c in categories])
     return [
@@ -734,11 +761,7 @@ async def read_category(
     category = db.get(Categories, category_id)
     if not category:
         raise api_error(404, "category_not_found", "Category not found")
-    if (
-        current_user.role != "admin"
-        and category.user_id is not None
-        and category.user_id != current_user.id
-    ):
+    if category.user_id is not None and category.user_id != current_user.id:
         raise api_error(404, "category_not_found", "Category not found")
     return _category_out(db, category, CategoriesListRead)
 
@@ -764,10 +787,11 @@ async def update_category(
             raise api_error(
                 403, "moderator_required", "Moderator or admin role required"
             )
-    elif not is_owner and current_user.role != "admin":
-        raise api_error(
-            403, "category_edit_forbidden", "Not authorized to edit this category"
-        )
+    elif not is_owner:
+        # 404, not 403: another user's category is invisible, admins included.
+        raise api_error(404, "category_not_found", "Category not found")
+    else:
+        _require_personal_categories(db)
 
     category_data = category.model_dump(exclude_unset=True)
     # The scope is fixed at creation time.
@@ -839,10 +863,8 @@ async def delete_category(
             raise api_error(
                 403, "moderator_required", "Moderator or admin role required"
             )
-    elif not is_owner and current_user.role != "admin":
-        raise api_error(
-            403, "category_delete_forbidden", "Not authorized to delete this category"
-        )
+    elif not is_owner:
+        raise api_error(404, "category_not_found", "Category not found")
 
     _delete_links(db, CategoryDictionaryLink.category_id, category_id)
     if category.user_id is None:
@@ -1776,6 +1798,37 @@ async def update_session_config(
     db.commit()
     db.refresh(settings)
     return SessionConfig(idle_timeout_minutes=settings.idle_timeout_minutes)
+
+
+@settings_bp.get("/category-policy/", response_model=CategoryPolicy)
+async def get_category_policy(
+    db: SessionDep,
+    _: User = Depends(get_current_user),
+):
+    """Return whether users may have their own categories (for every user)."""
+    return CategoryPolicy(personal_categories_allowed=personal_categories_allowed(db))
+
+
+@settings_bp.put("/category-policy/", response_model=CategoryPolicy)
+async def update_category_policy(
+    policy_in: CategoryPolicy,
+    request: Request,
+    db: SessionDep,
+    admin: User = Depends(_require_admin),
+):
+    """Allow or forbid personal categories (admin UI → Kategorien)."""
+    settings = db.exec(select(LlmSettingsModel)).first()
+    before = snapshot(settings)
+    if not settings:
+        settings = LlmSettingsModel()
+    settings.personal_categories_allowed = policy_in.personal_categories_allowed
+    _audit_settings(db, request, admin, "category_policy", before, settings)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return CategoryPolicy(
+        personal_categories_allowed=settings.personal_categories_allowed
+    )
 
 
 @settings_bp.get("/client-distribution/")

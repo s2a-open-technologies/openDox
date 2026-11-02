@@ -28,9 +28,6 @@ from datetime import datetime, timezone
 from sqlmodel import select
 
 # Custom imports
-from backend.components.llm.llm_model import SummarizeModel
-from backend.components.models.categories import Categories  # noqa: E402
-from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import Record
 from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
@@ -38,10 +35,11 @@ from backend.components.security.field_encryption import decrypt_bytes, encrypt_
 from backend.components.services import audio_storage
 from backend.components.services.asr_factory import get_final_backend
 from backend.components.services.dictionary_service import glossary_for_category
-from backend.components.services.sanitizing_service import (
-    _PRESERVE_TOKENS_INSTRUCTION,
-    reinject,
-    sanitize,
+from backend.components.services.llm_gate import (
+    category_llm_enabled,
+    effective_category,
+    llm_globally_enabled,
+    run_summary,
 )
 from backend.components.services.settings_service import (
     get_audio_settings,
@@ -302,17 +300,11 @@ def background_transcription_task(
     record = db.exec(smt).one_or_none()
 
     # Get category config if set
-    category_prompt = None  # → LLM system prompt
     category_whisper_prompt = None  # → Whisper initial_prompt (vocabulary hints)
-    category_llm_override = None
-    cat = None
-    if record and record.category_id:
-        cat = db.get(Categories, record.category_id)
-        if cat:
-            category_prompt = cat.system_prompt
-            category_whisper_prompt = cat.whisper_prompt or None
-            if cat.llm_override_enabled and cat.llm_model:
-                category_llm_override = cat
+    # A personal category counts as none unless the operator allows them.
+    cat = effective_category(db, record)
+    if cat:
+        category_whisper_prompt = cat.whisper_prompt or None
 
     try:
         backend = get_final_backend()
@@ -374,64 +366,24 @@ def background_transcription_task(
                     "keeping existing content"
                 )
 
-        update_task_status(db, task_id, "processing_llm")
-
-        # Sanitize PII before LLM if EntityGuard is configured
-        llm_settings = db.exec(select(LlmSettingsModel)).first()
-        text_for_llm = text
-        entity_mapping: dict[str, str] = {}
-
-        if (
-            llm_settings
-            and llm_settings.sanitizer_enabled
-            and llm_settings.sanitizer_endpoint
-        ):
-            logger.info(f"[TASK {task_id}] Running EntityGuard sanitizer")
-            text_for_llm, entity_mapping = sanitize(
-                text=text,
-                endpoint=llm_settings.sanitizer_endpoint,
-                api_key=llm_settings.sanitizer_api_key,
+        if not llm_globally_enabled(db) or not category_llm_enabled(cat):
+            # Transcription only: summarize stays empty, the API serves the
+            # transcript in its place (llm_gate.effective_summary).
+            logger.info(f"[TASK {task_id}] LLM disabled (global/category), skipped")
+        else:
+            update_task_status(db, task_id, "processing_llm")
+            summary, entity_mapping = run_summary(db, cat, text)
+            logger.info(
+                f"[TASK {task_id}] Summarization completed ({len(summary)} chars, "
+                f"{len(entity_mapping)} sanitized entities)"
             )
-            logger.info(f"[TASK {task_id}] Sanitized {len(entity_mapping)} entities")
-            if record and entity_mapping:
-                record.pii_mapping = json.dumps(entity_mapping, ensure_ascii=False)
+            if record:
+                if entity_mapping:
+                    record.pii_mapping = json.dumps(entity_mapping, ensure_ascii=False)
+                record.summarize = summary
                 db.add(record)
                 db.commit()
-
-        # LLM summarization — use category-specific LLM if override is active
-        if category_llm_override:
-            model = SummarizeModel(
-                model_name=category_llm_override.llm_model,
-                base_url=category_llm_override.llm_api_endpoint,
-                api_key=category_llm_override.llm_api_key,
-                temperature=category_llm_override.llm_temperature,
-                max_tokens=category_llm_override.llm_max_tokens,
-                top_p=category_llm_override.llm_top_p,
-                frequency_penalty=category_llm_override.llm_frequency_penalty,
-                enable_thinking=category_llm_override.llm_enable_thinking,
-            )
-        else:
-            model = SummarizeModel()
-
-        effective_prompt = (category_prompt or "") + (
-            _PRESERVE_TOKENS_INSTRUCTION if entity_mapping else ""
-        )
-        summary = model.generate_response(
-            text_for_llm,
-            custom_system_prompt=effective_prompt or None,
-        )
-
-        if entity_mapping:
-            summary = reinject(summary, entity_mapping)
-            logger.info(f"[TASK {task_id}] Re-injected PII into summary")
-
-        logger.info(f"[TASK {task_id}] Summarization completed ({len(summary)} chars)")
-
-        if record:
-            record.summarize = summary
-            db.add(record)
-            db.commit()
-            db.refresh(record)
+                db.refresh(record)
 
         update_task_status(db, task_id, "finished")
 

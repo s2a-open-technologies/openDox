@@ -12,6 +12,26 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+- **"Benutzerkategorien erlauben"** — operator switch in Administration → Kategorien (admins only). Personal
+  categories with their own LLM prompt need it, since such prompts bypass the operator's control over the
+  intended purpose (Zweckbestimmung §6). New column `llmsettingsmodel.personal_categories_allowed`,
+  endpoint `GET/PUT /api/v1/settings/category-policy/`.
+- **Optional LLM step** — a master switch (Administration → Dienste → LLM, *LLM-Verarbeitung aktiv*) and a
+  per-category switch (*Zusammenfassung per LLM*) turn the summary off. Such recordings are only transcribed:
+  no LLM, no PII sanitizer, no `processing_llm` step. The API then serves the transcript as `summarize`, so
+  the desktop client keeps working unchanged and always gets the current transcript; the web UI shows a hint
+  instead. Records carry a new `summary_enabled` flag. New columns `llmsettingsmodel.llm_enabled` and
+  `categories.llm_enabled` (default on, so existing installations behave as before).
+
+### Changed
+- **User categories are off by default, also on existing installations.** Existing personal categories stay
+  stored but disappear from the selection and have no effect (recordings run as uncategorised) until an
+  admin allows user categories.
+- **Admins no longer see other users' personal categories** (list, read, edit and delete answer 404), just like
+  personal dictionaries. The admin category list shows global categories only.
+- Moving a recording into another user's personal category is refused (404).
+
 ## [0.11.0] — 2026-10-28
 
 ### Added

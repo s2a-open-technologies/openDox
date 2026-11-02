@@ -189,7 +189,9 @@ def test_too_long_term_is_rejected(client, create_user, auth_headers):
     assert response.json()["detail"]["code"] == "dictionary_term_too_long"
 
 
-def test_delete_detaches_from_categories(client, create_user, auth_headers):
+def test_delete_detaches_from_categories(
+    client, create_user, auth_headers, allow_personal_categories
+):
     alice = create_user("alice")
     headers = auth_headers(alice)
     created = _create(client, headers)

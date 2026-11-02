@@ -30,6 +30,9 @@ class Categories(SQLModel, table=True):
     description: str
     system_prompt: str
     whisper_prompt: Optional[str] = Field(default=None)
+    # False → no LLM summary: the API serves the transcript as ``summarize``
+    # (see llm_gate.py). Only effective while LlmSettingsModel.llm_enabled is on.
+    llm_enabled: bool = Field(default=True)
     llm_override_enabled: bool = Field(default=False)
     llm_model: Optional[str] = Field(default=None)
     llm_api_endpoint: Optional[str] = Field(default=None)
@@ -50,6 +53,7 @@ class CategoriesCreate(SQLModel):
     system_prompt: str
     whisper_prompt: Optional[str] = None
     dictionary_ids: list[int] = []
+    llm_enabled: bool = True
     llm_override_enabled: bool = False
     llm_model: Optional[str] = None
     llm_api_endpoint: Optional[str] = None
@@ -72,6 +76,7 @@ class CategoriesRead(SQLModel):
     system_prompt: str
     whisper_prompt: Optional[str] = None
     dictionary_ids: list[int] = []
+    llm_enabled: bool = True
     llm_override_enabled: bool
     llm_model: Optional[str]
     llm_api_endpoint: Optional[str]
@@ -100,6 +105,7 @@ class CategoriesListRead(SQLModel):
     system_prompt: str
     whisper_prompt: Optional[str] = None
     dictionary_ids: list[int] = []
+    llm_enabled: bool = True
     llm_override_enabled: bool
     llm_model: Optional[str]
     llm_api_endpoint: Optional[str]

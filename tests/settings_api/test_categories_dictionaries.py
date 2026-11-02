@@ -6,11 +6,18 @@ dictionaries plus every personal dictionary of the recording's owner (see
 dictionary_service.glossary_for_category).
 """
 
+import pytest
+
 from backend.components.models.categories import Categories
 from backend.components.services.dictionary_service import glossary_for_category
 
 CATEGORIES = "/api/v1/settings/categories/"
 DICTIONARIES = "/api/v1/settings/dictionaries/"
+
+
+@pytest.fixture(autouse=True)
+def _personal_categories(allow_personal_categories):
+    """These tests cover personal categories, which need the operator's go."""
 
 
 def _dictionary(client, headers, name, scope, terms):

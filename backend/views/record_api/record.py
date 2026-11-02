@@ -40,9 +40,7 @@ from fastapi import (
 from sqlalchemy import desc as _sql_desc
 from sqlmodel import select
 
-from backend.components.llm.llm_model import SummarizeModel
 from backend.components.models.categories import Categories
-from backend.components.models.llm_settings_model import LlmSettingsModel
 from backend.components.models.record_model import (
     Record,
     RecordCreate,
@@ -70,14 +68,16 @@ from backend.components.services.background_transcription_service import (
     background_transcription_task,
     resolve_failed_task,
 )
+from backend.components.services.llm_gate import (
+    effective_category,
+    effective_summary,
+    personal_categories_allowed,
+    run_summary,
+    summary_enabled,
+)
 from backend.components.services.retained_audio import (
     detach_retained_audio,
     remove_retained_audio,
-)
-from backend.components.services.sanitizing_service import (
-    _PRESERVE_TOKENS_INSTRUCTION,
-    reinject,
-    sanitize,
 )
 from backend.components.services.session_store import session_store
 from backend.components.sql.sql_engine import SessionDep
@@ -109,6 +109,14 @@ def _require_owner(current_user: User, owner_id: int) -> None:
 
 OUTPUT_DIR = "chunks"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def _record_read(db: SessionDep, record: Record) -> RecordRead:
+    """Build the API shape of a record, with the transcript as fallback summary."""
+    enabled = summary_enabled(db, record)
+    data = record.to_dict()
+    data["summarize"] = effective_summary(record, enabled)
+    return RecordRead(**data, summary_enabled=enabled)
 
 
 def _pcm_file_to_wav_file(pcm_path: str, wav_path: str) -> None:
@@ -819,33 +827,37 @@ async def update_record(
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
 
+    old_content = record.content
     if data.title is not None:
         record.title = data.title
     if data.content is not None:
         record.content = data.content
-    if data.summarize is not None:
+    if data.summarize is not None and not (
+        # A client echoing the transcript we served as summary (no LLM for
+        # this record) must not store it, or later transcript edits would no
+        # longer reach the summary.
+        not record.summarize
+        and not summary_enabled(db, record)
+        and data.summarize in (old_content, record.content)
+    ):
         record.summarize = data.summarize
     if data.category_id is not None:
-        if not db.get(Categories, data.category_id):
+        category = db.get(Categories, data.category_id)
+        # Only global categories, or the caller's own while they are allowed.
+        if not category or (
+            category.user_id is not None
+            and (
+                category.user_id != current_user.id
+                or not personal_categories_allowed(db)
+            )
+        ):
             raise api_error(404, "category_not_found", "Kategorie nicht gefunden")
         record.category_id = data.category_id
 
     db.add(record)
     db.commit()
     db.refresh(record)
-    return RecordRead(
-        id=record.id,
-        session_id=record.session_id,
-        user_id=record.user_id,
-        category_id=record.category_id,
-        title=record.title,
-        content=record.content,
-        summarize=record.summarize,
-        timestamp=record.timestamp,
-        has_audio=bool(record.file),
-        archived=record.archived,
-        task_id=record.task_id,
-    )
+    return _record_read(db, record)
 
 
 # Route for showing records in frontend
@@ -868,7 +880,7 @@ async def list_records(
     )
     records = db.exec(smt).all()
 
-    return [record.to_dict() for record in records]
+    return [_record_read(db, record).model_dump() for record in records]
 
 
 # Route to get the status of an actual task
@@ -884,19 +896,7 @@ async def get_record_by_session(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
-    return RecordRead(
-        id=record.id,
-        session_id=record.session_id,
-        user_id=record.user_id,
-        category_id=record.category_id,
-        title=record.title,
-        content=record.content,
-        summarize=record.summarize,
-        timestamp=record.timestamp,
-        has_audio=bool(record.file),
-        archived=record.archived,
-        task_id=record.task_id,
-    )
+    return _record_read(db, record)
 
 
 STALE_TASK_THRESHOLD_MINUTES = 7
@@ -1120,19 +1120,7 @@ async def get_record(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
-    return RecordRead(
-        id=record.id,
-        session_id=record.session_id,
-        user_id=record.user_id,
-        category_id=record.category_id,
-        title=record.title,
-        content=record.content,
-        summarize=record.summarize,
-        timestamp=record.timestamp,
-        has_audio=bool(record.file),
-        archived=record.archived,
-        task_id=record.task_id,
-    )
+    return _record_read(db, record)
 
 
 @record_bp.delete("/record/{record_id}")
@@ -1154,7 +1142,11 @@ async def delete_record(
 async def regenerate_summary(
     record_id: int, db: SessionDep, current_user: User = Depends(get_current_user)
 ):
-    """Re-generate the LLM summary for an existing record using its current content."""
+    """Re-generate the LLM summary for an existing record using its current content.
+
+    Without an LLM for the record (global or category switch off) no LLM runs:
+    the stored summary is cleared and the transcript is returned in its place.
+    """
     record = db.get(Record, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -1164,64 +1156,22 @@ async def regenerate_summary(
             status_code=400, detail="Record has no transcription content"
         )
 
-    category_prompt = None
-    category_llm_override = None
-    if record.category_id:
-        cat = db.get(Categories, record.category_id)
-        if cat:
-            category_prompt = cat.system_prompt
-            if cat.llm_override_enabled and cat.llm_model:
-                category_llm_override = cat
-
-    llm_settings = db.exec(select(LlmSettingsModel)).first()
-
-    def run_llm():
-        text = record.content
-        entity_mapping: dict[str, str] = {}
-
-        if (
-            llm_settings
-            and llm_settings.sanitizer_enabled
-            and llm_settings.sanitizer_endpoint
-        ):
-            text, entity_mapping = sanitize(
-                text=text,
-                endpoint=llm_settings.sanitizer_endpoint,
-                api_key=llm_settings.sanitizer_api_key,
-            )
-
-        effective_prompt = (category_prompt or "") + (
-            _PRESERVE_TOKENS_INSTRUCTION if entity_mapping else ""
-        )
-
-        if category_llm_override:
-            model = SummarizeModel(
-                model_name=category_llm_override.llm_model,
-                base_url=category_llm_override.llm_api_endpoint,
-                api_key=category_llm_override.llm_api_key,
-                temperature=category_llm_override.llm_temperature,
-                max_tokens=category_llm_override.llm_max_tokens,
-                top_p=category_llm_override.llm_top_p,
-                frequency_penalty=category_llm_override.llm_frequency_penalty,
-                enable_thinking=category_llm_override.llm_enable_thinking,
-            )
-        else:
-            model = SummarizeModel()
-
-        result = model.generate_response(
-            text, custom_system_prompt=effective_prompt or None
-        )
-
-        if entity_mapping:
-            result = reinject(result, entity_mapping)
-
-        return result, entity_mapping
+    cat = effective_category(db, record)
+    enabled = summary_enabled(db, record)
 
     try:
-        summary, entity_mapping = await asyncio.to_thread(run_llm)
-        record.summarize = summary
-        if entity_mapping:
-            record.pii_mapping = json.dumps(entity_mapping, ensure_ascii=False)
+        if enabled:
+            summary, entity_mapping = await asyncio.to_thread(
+                run_summary, db, cat, record.content
+            )
+            record.summarize = summary
+            if entity_mapping:
+                record.pii_mapping = json.dumps(entity_mapping, ensure_ascii=False)
+        else:
+            # No LLM for this category (the desktop client calls this after
+            # switching to one): drop an older summary so the transcript is
+            # served as result text, see llm_gate.effective_summary.
+            record.summarize = ""
         db.add(record)
         db.commit()
         db.refresh(record)
@@ -1245,7 +1195,8 @@ async def regenerate_summary(
         db.rollback()
     db.refresh(record)
     return {
-        "summarize": record.summarize,
+        "summarize": effective_summary(record, enabled),
+        "summary_enabled": enabled,
         "task_status": task_status,
         "has_audio": bool(record.file),
     }

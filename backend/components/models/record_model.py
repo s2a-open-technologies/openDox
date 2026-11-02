@@ -97,6 +97,9 @@ class RecordRead(RecordBase):
     title: str
     content: str
     summarize: Optional[str] = ""
+    # False → no LLM summary for this record; summarize then carries the
+    # transcript (see llm_gate.effective_summary).
+    summary_enabled: bool = True
     timestamp: str
     has_audio: bool = False
     archived: bool = False

@@ -109,6 +109,13 @@ rechtlich wie ein Hersteller behandelt und muss die Konformitätsbewertung
 selbst durchführen. Der ursprüngliche Hersteller und alle Mitwirkenden
 übernehmen dafür keine Verantwortung.
 
+Kategorien mit eigenem Prompt dürfen Benutzer nur anlegen, wenn der Betreiber
+das ausdrücklich freigibt (Administration → Kategorien → *Benutzerkategorien
+erlauben*, standardmäßig aus). Ohne Freigabe stammen alle wirksamen
+Kategorie-Vorgaben vom Betreiber. Mit der Freigabe übernimmt der Betreiber
+die Verantwortung auch für die Prompts seiner Benutzer, die er aus
+Datenschutzgründen nicht einsehen kann.
+
 Die Software wird ohne Gewährleistung bereitgestellt (AGPL-3.0-or-later,
 §§ 15–16).
 

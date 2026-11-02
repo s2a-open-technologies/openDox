@@ -27,6 +27,15 @@ class LlmSettingsModel(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
+    # Master switch: off → no LLM and no EntityGuard at all, every recording
+    # is transcription only (see llm_gate.py). Categories can only opt out.
+    llm_enabled: bool = Field(default=True)
+
+    # Whether users may create their own categories (own LLM prompts). Off by
+    # default: such prompts bypass the operator's control over the intended
+    # purpose (docs/zweckbestimmung.md §6). Off also disables existing ones.
+    personal_categories_allowed: bool = Field(default=False)
+
     # LLM / Ollama / OpenAI-compatible API Settings
     llm_api_endpoint: Optional[str] = Field(default="http://localhost:11434/v1")
     llm_api_key: Optional[str] = Field(default=None)
@@ -51,3 +60,9 @@ class LlmSettingsModel(SQLModel, table=True):
     sanitizer_enabled: Optional[bool] = Field(default=False)
     sanitizer_endpoint: Optional[str] = Field(default=None)
     sanitizer_api_key: Optional[str] = Field(default=None)
+
+
+class CategoryPolicy(SQLModel):
+    """Operator policy for personal categories (GET/PUT /category-policy/)."""
+
+    personal_categories_allowed: bool = False

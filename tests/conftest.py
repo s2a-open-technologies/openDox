@@ -96,6 +96,16 @@ def auth_headers():
     return token_for
 
 
+@pytest.fixture
+def allow_personal_categories(session_factory):
+    """Switch on personal categories (off by default, operator decision)."""
+    from backend.components.models.llm_settings_model import LlmSettingsModel
+
+    with session_factory() as session:
+        session.add(LlmSettingsModel(personal_categories_allowed=True))
+        session.commit()
+
+
 @pytest.fixture(autouse=True)
 def _reset_settings_service_singleton():
     """Reset the SettingsService singleton so tests don't leak cached state."""

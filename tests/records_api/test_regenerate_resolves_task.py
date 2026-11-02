@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import backend.components.services.background_transcription_service as bts
-import backend.views.record_api.record as record_module
+import backend.components.services.llm_gate as llm_gate
 from backend.components.models.record_model import Record
 from backend.components.models.task_model import Task
 
@@ -47,7 +47,7 @@ def _failed_recording(session_factory, user_id, *, retry_audio_path=None, in_s3=
 def _mock_llm(monkeypatch, summary="Neue Zusammenfassung"):
     model = MagicMock()
     model.generate_response.return_value = summary
-    monkeypatch.setattr(record_module, "SummarizeModel", lambda *a, **k: model)
+    monkeypatch.setattr(llm_gate, "SummarizeModel", lambda *a, **k: model)
 
 
 def test_regenerate_marks_failed_task_finished_and_deletes_retained_audio(
@@ -153,7 +153,7 @@ def test_failed_regeneration_keeps_the_error(
 ):
     model = MagicMock()
     model.generate_response.side_effect = RuntimeError("LLM down")
-    monkeypatch.setattr(record_module, "SummarizeModel", lambda *a, **k: model)
+    monkeypatch.setattr(llm_gate, "SummarizeModel", lambda *a, **k: model)
     user = create_user("dr.mueller")
     record_id, task_id = _failed_recording(session_factory, user.id)
 

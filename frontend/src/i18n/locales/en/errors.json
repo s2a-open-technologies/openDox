@@ -34,5 +34,15 @@
   "account_locked": "Your account is locked. Please contact your administrator.",
   "auto_delete_days_invalid": "The deletion period must be between 1 and 3650 days.",
   "retention_exceeds_global": "At most {{max}} days allowed (your organisation's period).",
-  "personal_categories_disabled": "Personal categories are disabled by your administration."
+  "personal_categories_disabled": "Personal categories are disabled by your administration.",
+  "llm_timeout": "LLM request timed out",
+  "llm_unreachable": "LLM endpoint not reachable",
+  "llm_auth_failed": "LLM authentication failed (check the API key)",
+  "llm_model_not_found": "Model or path not found at the LLM",
+  "llm_invalid_response": "No valid response (check the endpoint, missing /v1?)",
+  "llm_test_failed": "LLM test failed (details in the server log)",
+  "ldap_unreachable": "LDAP server not reachable",
+  "ldap_tls_failed": "TLS connection failed (check the certificate)",
+  "ldap_bind_failed": "Service account bind failed",
+  "ldap_test_failed": "LDAP test failed (details in the server log)"
 }

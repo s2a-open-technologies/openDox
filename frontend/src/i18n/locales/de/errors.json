@@ -34,5 +34,15 @@
   "account_locked": "Ihr Konto ist gesperrt. Wenden Sie sich an Ihre Administration.",
   "auto_delete_days_invalid": "Die Löschfrist muss zwischen 1 und 3650 Tagen liegen.",
   "retention_exceeds_global": "Höchstens {{max}} Tage erlaubt (Frist Ihrer Einrichtung).",
-  "personal_categories_disabled": "Eigene Kategorien sind von Ihrer Administration deaktiviert."
+  "personal_categories_disabled": "Eigene Kategorien sind von Ihrer Administration deaktiviert.",
+  "llm_timeout": "Zeitüberschreitung beim LLM",
+  "llm_unreachable": "LLM-Endpoint nicht erreichbar",
+  "llm_auth_failed": "Anmeldung am LLM fehlgeschlagen (API-Key prüfen)",
+  "llm_model_not_found": "Modell oder Pfad beim LLM nicht gefunden",
+  "llm_invalid_response": "Keine gültige Antwort (Endpoint prüfen, fehlt /v1?)",
+  "llm_test_failed": "LLM-Test fehlgeschlagen (Details im Server-Log)",
+  "ldap_unreachable": "LDAP-Server nicht erreichbar",
+  "ldap_tls_failed": "TLS-Verbindung fehlgeschlagen (Zertifikat prüfen)",
+  "ldap_bind_failed": "Anmeldung des Dienstkontos fehlgeschlagen",
+  "ldap_test_failed": "LDAP-Test fehlgeschlagen (Details im Server-Log)"
 }

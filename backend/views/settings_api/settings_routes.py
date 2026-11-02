@@ -75,6 +75,7 @@ from backend.components.models.user_model import (
 )
 from backend.components.modules.api_errors import api_error
 from backend.components.modules.env import env_or_file
+from backend.components.modules.logger import get_logger
 from backend.components.modules.public_url import request_base_url
 from backend.components.services import audio_storage, dictionary_service
 from backend.components.services.asr_backends import DisabledBackend
@@ -95,6 +96,22 @@ from backend.components.services.settings_service import get_settings_service
 from backend.components.sql.sql_engine import SessionDep
 from backend.views.auth_api.dependencies import get_current_user
 from backend.views.settings_api import settings_bp
+
+logger = get_logger(__name__)
+
+
+def _probe_error_code(exc: BaseException, codes: dict[str, str], default: str) -> str:
+    """Map a probe exception to a fixed error code by its class name.
+
+    Probe endpoints (LLM/LDAP connection tests) must not echo exception text
+    to the client (it can carry internal hosts, paths or library details);
+    the full exception is logged instead and the UI translates the code.
+    The class hierarchy is walked so subclasses map like their parents.
+    """
+    for cls in type(exc).__mro__:
+        if cls.__name__ in codes:
+            return codes[cls.__name__]
+    return default
 
 
 def _require_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -295,6 +312,29 @@ async def update_llm_settings(
 
 LLM_TEST_TIMEOUT_SECONDS = 15
 
+# Exception class name (openai / httpx / json) -> error code of the LLM probe.
+_LLM_TEST_ERROR_CODES = {
+    "APITimeoutError": "llm_timeout",
+    "TimeoutException": "llm_timeout",
+    "TimeoutError": "llm_timeout",
+    "APIConnectionError": "llm_unreachable",
+    "ConnectError": "llm_unreachable",
+    "AuthenticationError": "llm_auth_failed",
+    "PermissionDeniedError": "llm_auth_failed",
+    "NotFoundError": "llm_model_not_found",
+    "JSONDecodeError": "llm_invalid_response",
+    "APIResponseValidationError": "llm_invalid_response",
+}
+# German fallback messages; the UI shows errors:<code> in the user's language.
+_LLM_TEST_ERRORS = {
+    "llm_timeout": "Zeitüberschreitung beim LLM",
+    "llm_unreachable": "LLM-Endpoint nicht erreichbar",
+    "llm_auth_failed": "Anmeldung am LLM fehlgeschlagen (API-Key prüfen)",
+    "llm_model_not_found": "Modell oder Pfad beim LLM nicht gefunden",
+    "llm_invalid_response": "Keine gültige Antwort (Endpoint prüfen, fehlt /v1?)",
+    "llm_test_failed": "LLM-Test fehlgeschlagen (Details im Server-Log)",
+}
+
 
 @settings_bp.get("/llm-test/")
 async def test_llm_connection(
@@ -350,8 +390,10 @@ async def test_llm_connection(
 
     try:
         reply = await asyncio.to_thread(_probe_chat)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    except Exception as exc:
+        logger.warning("LLM connection test failed", exc_info=True)
+        code = _probe_error_code(exc, _LLM_TEST_ERROR_CODES, "llm_test_failed")
+        return {"ok": False, "code": code, "error": _LLM_TEST_ERRORS[code]}
 
     models = await asyncio.to_thread(_fetch_models)
     return {"ok": True, "reply": reply, "models": models}
@@ -548,6 +590,25 @@ async def update_ldap_settings(
     return settings
 
 
+# ldap3 exception class name -> error code of the LDAP probe.
+_LDAP_TEST_ERROR_CODES = {
+    "LDAPSocketOpenError": "ldap_unreachable",
+    "LDAPSocketReceiveError": "ldap_unreachable",
+    "LDAPSessionTerminatedByServerError": "ldap_unreachable",
+    "LDAPSSLConfigurationError": "ldap_tls_failed",
+    "LDAPStartTLSError": "ldap_tls_failed",
+    "SSLError": "ldap_tls_failed",
+    "LDAPBindError": "ldap_bind_failed",
+    "LDAPInvalidCredentialsResult": "ldap_bind_failed",
+}
+_LDAP_TEST_ERRORS = {
+    "ldap_unreachable": "LDAP-Server nicht erreichbar",
+    "ldap_tls_failed": "TLS-Verbindung fehlgeschlagen (Zertifikat prüfen)",
+    "ldap_bind_failed": "Anmeldung des Dienstkontos fehlgeschlagen",
+    "ldap_test_failed": "LDAP-Test fehlgeschlagen (Details im Server-Log)",
+}
+
+
 @settings_bp.post("/ldap-settings/test")
 async def test_ldap_connection(
     settings_in: LdapSettingsModel,
@@ -561,9 +622,15 @@ async def test_ldap_connection(
             conn.unbind()
             return {"success": True, "message": "Connection successful"}
         else:
-            return {"success": False, "message": "Bind failed"}
-    except Exception as e:
-        return {"success": False, "message": f"Connection error: {str(e)}"}
+            return {
+                "success": False,
+                "code": "ldap_bind_failed",
+                "message": "Bind failed",
+            }
+    except Exception as exc:
+        logger.warning("LDAP connection test failed", exc_info=True)
+        code = _probe_error_code(exc, _LDAP_TEST_ERROR_CODES, "ldap_test_failed")
+        return {"success": False, "code": code, "message": _LDAP_TEST_ERRORS[code]}
 
 
 @settings_bp.post("/ldap-settings/upload-cert/")

@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
 
+# Read-only token: CI only checks out code and runs tests.
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend (pytest + ruff)

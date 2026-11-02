@@ -12,6 +12,18 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Changed
+- **Release tags build the app image** — pushing a `vX.Y.Z` tag now also runs the Docker Publish workflow for the
+  app image (backend + web UI) next to the GitHub Release. Whisper, Parakeet and garage-init stay manual.
+
+### Security
+- **No exception details in API responses** — the LLM and LDAP connection tests return fixed error codes (timeout,
+  unreachable, authentication, TLS, …) shown translated in the UI; the exception itself only goes to the server log.
+  `/api/ready` names the failing dependency without its error text.
+- Retrying an archived failed transcription accepts only a short alphanumeric file extension from the stored key
+  and checks that the local path stays inside `chunks/failed/`.
+- The CI workflow runs with a read-only token (`permissions: contents: read`).
+
 ## [0.11.1] — 2026-11-02
 
 ### Added

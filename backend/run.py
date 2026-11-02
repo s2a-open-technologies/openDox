@@ -396,8 +396,10 @@ def create_app():
 
             db.exec(select(1))
             db.close()
-        except Exception as exc:
-            errors.append(f"database: {exc}")
+        except Exception:
+            # Public endpoint: name the failing dependency, log the details.
+            logger.warning("Readiness: database check failed", exc_info=True)
+            errors.append("database: unavailable")
 
         active_store = session_store.get()
         if env_or_file("REDIS_URL") and not isinstance(active_store, RedisSessionStore):
@@ -408,8 +410,9 @@ def create_app():
         if isinstance(active_store, RedisSessionStore):
             try:
                 active_store.ping()
-            except Exception as exc:
-                errors.append(f"redis: {exc}")
+            except Exception:
+                logger.warning("Readiness: redis check failed", exc_info=True)
+                errors.append("redis: unavailable")
 
         if errors:
             return JSONResponse(

@@ -94,7 +94,33 @@ def test_chat_probe_failure_reports_ok_false_with_error(
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is False
-    assert "Expecting value" in body["error"]
+    assert body["code"] == "llm_test_failed"
+    # The exception text stays in the server log, never in the response.
+    assert "Expecting value" not in response.text
+
+
+def test_chat_probe_maps_known_errors_to_codes(
+    client, create_user, auth_headers, session_factory, monkeypatch
+):
+    admin = create_user("admin1", role="admin")
+    _create_llm_settings(session_factory)
+
+    class APITimeoutError(Exception):
+        pass
+
+    class FakeSummarizeModel:
+        def __init__(self, **kwargs):
+            pass
+
+        def generate_response(self, message, custom_system_prompt=None):
+            raise APITimeoutError("http://10.0.0.5:11434 timed out")
+
+    monkeypatch.setattr(settings_routes, "SummarizeModel", FakeSummarizeModel)
+
+    response = client.get("/api/v1/settings/llm-test/", headers=auth_headers(admin))
+
+    assert response.json()["code"] == "llm_timeout"
+    assert "10.0.0.5" not in response.text
 
 
 def test_bare_domain_endpoint_is_normalized_for_the_models_probe(

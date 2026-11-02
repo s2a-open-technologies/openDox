@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Check, FileBadge } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiErrorMessage } from '@/lib/apiError';
 
 interface LdapSettingsData {
     id?: number;
@@ -127,7 +128,7 @@ const LdapSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 body: JSON.stringify(settings),
             });
             const data = await res.json();
-            alert(data.message);
+            alert(data.success ? data.message : apiErrorMessage(data, data.message));
         } catch (error) {
             console.error(error);
         } finally {

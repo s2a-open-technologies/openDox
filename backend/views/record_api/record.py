@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import json
 import os
+import re
 
 # Third party
 import uuid
@@ -1012,9 +1013,18 @@ async def retry_failed_task(
                 "archived_audio_gone",
                 "Archivierte Audiodatei nicht mehr vorhanden",
             )
-        ext = os.path.basename(task.retry_audio_path).split(".")[-2]
-        os.makedirs("chunks/failed", exist_ok=True)
-        retry_path = os.path.join("chunks", "failed", f"task_{task_id}.{ext}")
+        # The extension comes from the stored S3 key: allow only a short
+        # alphanumeric one so it can never steer the local path.
+        ext = os.path.basename(task.retry_audio_path).split(".")[-2].lower()
+        if not re.fullmatch(r"[a-z0-9]{1,5}", ext):
+            ext = "wav"
+        failed_dir = os.path.abspath(os.path.join("chunks", "failed"))
+        os.makedirs(failed_dir, exist_ok=True)
+        retry_path = os.path.abspath(
+            os.path.join(failed_dir, f"task_{int(task_id)}.{ext}")
+        )
+        if os.path.dirname(retry_path) != failed_dir:
+            raise HTTPException(status_code=400, detail="Invalid retry audio path")
         with open(retry_path, "wb") as f:
             f.write(decrypt_bytes(encrypted))
         archived_key = task.retry_audio_path

@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-11-02
+
 ### Added
 - **"Benutzerkategorien erlauben"** — operator switch in Administration → Kategorien (admins only). Personal
   categories with their own LLM prompt need it, since such prompts bypass the operator's control over the
@@ -489,7 +491,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.7...v0.11.0
 [0.10.6]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.4...v0.10.5

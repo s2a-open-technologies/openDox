@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.11.2] — 2026-11-02
+
 ### Changed
 - **Release tags build the app image** — pushing a `vX.Y.Z` tag now also runs the Docker Publish workflow for the
   app image (backend + web UI) next to the GitHub Release. Whisper, Parakeet and garage-init stay manual.
@@ -503,7 +505,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.7...v0.11.0
 [0.10.6]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.5...v0.10.6

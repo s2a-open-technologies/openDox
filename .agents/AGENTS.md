@@ -67,10 +67,12 @@ CI: `.github/workflows/ci.yml` runs backend (ruff + pytest) and frontend
 (vitest + eslint) on every push/PR to `master`. `.github/workflows/release.yml` (on a `vX.Y.Z` tag)
 also builds the user manuals and attaches the PDFs to the GitHub Release — a
 failing manual build fails the release. `.github/workflows/docker-publish.yml`
-is a separate, manual-only (`workflow_dispatch`) workflow that builds and
-pushes all 4 images (multi-arch, plus Whisper/Parakeet `cpu-*` variants) to
-`ghcr.io/<repo-owner>` using the built-in `GITHUB_TOKEN` — no extra secret
-needed. Each build also emits a CycloneDX SBOM artifact per image variant
+builds and pushes the images (multi-arch, plus Whisper/Parakeet `cpu-*`
+variants) to `ghcr.io/<repo-owner>` using the built-in `GITHUB_TOKEN` — no
+extra secret needed. Pushing a `vX.Y.Z` tag builds the **app** image
+automatically (alongside `release.yml`); Whisper, Parakeet and garage-init are
+built manually via `workflow_dispatch` (input `images`: app/all/whisper/
+parakeet/garage-init). Each build also emits a CycloneDX SBOM artifact per image variant
 (`anchore/sbom-action`, pinned to the pushed manifest digest) plus
 `provenance`/`sbom` attestations — voluntary, since CRA obligations don't
 apply to non-commercial AGPL v3 OSS (see `docs/hospital-audit-frameworks.md`

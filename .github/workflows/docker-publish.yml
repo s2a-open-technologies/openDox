@@ -1,6 +1,11 @@
 name: Docker Publish (GHCR)
 
 on:
+  # A release tag (same trigger as release.yml) builds the app image only;
+  # Whisper, Parakeet and garage-init change rarely and stay manual.
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       images:
@@ -28,7 +33,7 @@ jobs:
       - name: Filter the build matrix
         id: pick
         env:
-          IMAGES: ${{ inputs.images }}
+          IMAGES: ${{ inputs.images || 'app' }}
         run: |
           cat > all.json <<'JSON'
           [

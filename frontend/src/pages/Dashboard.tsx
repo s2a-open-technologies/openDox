@@ -71,6 +71,8 @@ export interface Recording {
 export interface Category {
   id: number;
   name: string;
+  is_builtin?: boolean;
+  is_default?: boolean;
 }
 
 interface RecordData {

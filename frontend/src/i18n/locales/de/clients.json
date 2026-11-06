@@ -3,7 +3,7 @@
   "saved": "Client-Einstellungen gespeichert",
   "config": {
     "title": "Client-Einstellungen",
-    "description": "Gelten für alle openDox-Clients, die mit diesem Server verbunden sind. Die Clients übernehmen Änderungen beim Start und danach spätestens nach 10 Minuten.",
+    "description": "Gelten für alle openDox-Clients, die mit diesem Server verbunden sind. Die Clients laden sie nur beim Start: Änderungen greifen erst, wenn der Client neu gestartet wird.",
     "liveView": "Live-Ansicht standardmäßig an (Nutzer können sie im Client selbst umschalten)",
     "micMode": "Record-Taste am Diktiermikrofon",
     "micModes": {
@@ -15,7 +15,7 @@
     "clipboardClearHint": "Nur wenn sie sich seitdem nicht geändert hat. 0 = nie leeren.",
     "allowlist": "Erlaubte Zielprogramme (ein Programm pro Zeile)",
     "allowlistHint": "Leer = in jedes Programm einfügen. Sonst fragt der Client vor dem Einfügen in ein nicht gelistetes Programm nach. Beispiel: medistar.exe",
-    "note": "Diese Werte haben Vorrang vor einer lokalen settings.json auf den Rechnern."
+    "note": "Das sind Vorgaben: Ein Wert, der in der settings.json am Rechner steht, hat Vorrang. Live-Ansicht und Record-Taste können Benutzer zusätzlich im Client selbst umstellen."
   },
   "distribution": {
     "title": "Client verteilen",

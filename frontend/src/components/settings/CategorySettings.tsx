@@ -29,7 +29,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Lock, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DictionarySummary } from './DictionarySettings';
 
@@ -51,6 +51,10 @@ interface CategorySettingsData {
     llm_frequency_penalty: number | null;
     llm_enable_thinking: boolean | null;
     user_id?: number | null;
+    /** Shipped "Standard" category: name, description and prompt are read-only. */
+    is_builtin?: boolean;
+    /** Preselected for everyone when a recording starts. */
+    is_default?: boolean;
 }
 
 const emptyForm = (): CategorySettingsData => ({
@@ -243,6 +247,29 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
         }
     };
 
+    const handleSetDefault = async (id: number) => {
+        try {
+            const res = await authFetch(`/api/v1/settings/categories/${id}/default`, {
+                method: 'PUT',
+            });
+            if (res.ok) {
+                toast.success(t('defaultSet'));
+                await fetchCategories();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                toast.error(apiErrorMessage(err, t('common:saveFailed')));
+            }
+        } catch (error) {
+            console.error('Failed to set default category:', error);
+            toast.error(t('common:connectionError'));
+        }
+    };
+
+    // The default is whatever an admin chose, else the shipped "Standard".
+    const effectiveDefaultId =
+        categories.find(c => c.is_default)?.id ?? categories.find(c => c.is_builtin)?.id;
+    const lockedBuiltin = isEditing && !!settings.is_builtin;
+
     const resetForm = () => {
         setSettings(emptyForm());
         setIsEditing(false);
@@ -288,6 +315,24 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                         <span className="text-[10px] uppercase tracking-wide rounded-full border px-2 py-0.5 text-muted-foreground">
                                             {category.user_id == null ? t('badgeGlobal') : t('badgeOwn')}
                                         </span>
+                                        {category.is_builtin && (
+                                            <Lock
+                                                className="h-4 w-4 text-muted-foreground"
+                                                role="img"
+                                                aria-label={t('badgeBuiltin')}
+                                            >
+                                                <title>{t('badgeBuiltin')}</title>
+                                            </Lock>
+                                        )}
+                                        {scope === 'global' && category.id === effectiveDefaultId && (
+                                            <Star
+                                                className="h-4 w-4 text-yellow-500 fill-current"
+                                                role="img"
+                                                aria-label={t('badgeDefault')}
+                                            >
+                                                <title>{t('badgeDefault')}</title>
+                                            </Star>
+                                        )}
                                     </div>
                                     <div className="text-sm text-muted-foreground">{category.description}</div>
                                     {category.llm_enabled === false && (
@@ -301,6 +346,17 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                 </div>
                                 {canManage(category) && (
                                     <div className="flex gap-2">
+                                        {scope === 'global' && category.user_id == null && category.id !== effectiveDefaultId && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                title={t('setDefault')}
+                                                aria-label={t('setDefault')}
+                                                onClick={() => category.id && handleSetDefault(category.id)}
+                                            >
+                                                <Star className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                         <Button
                                             variant="ghost"
                                             size="icon"
@@ -308,14 +364,16 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                         >
                                             <Pencil className="h-4 w-4" />
                                         </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="text-destructive hover:text-destructive"
-                                            onClick={() => category.id && handleDelete(category.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        {!category.is_builtin && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-destructive hover:text-destructive"
+                                                onClick={() => category.id && handleDelete(category.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -337,6 +395,12 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {lockedBuiltin && (
+                            <p className="flex items-center gap-2 text-sm text-muted-foreground border rounded-lg p-3">
+                                <Lock className="h-4 w-4 shrink-0" />
+                                {t('form.builtinLocked')}
+                            </p>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>{t('form.name')}</Label>
@@ -344,6 +408,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                     value={settings.name}
                                     onChange={e => setSettings({ ...settings, name: e.target.value })}
                                     placeholder={t('form.name')}
+                                    readOnly={lockedBuiltin}
                                     required
                                 />
                             </div>
@@ -353,6 +418,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                     value={settings.description}
                                     onChange={e => setSettings({ ...settings, description: e.target.value })}
                                     placeholder={t('form.description')}
+                                    readOnly={lockedBuiltin}
                                     required
                                 />
                             </div>
@@ -378,6 +444,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                 onChange={e => setSettings({ ...settings, system_prompt: e.target.value })}
                                 placeholder={t('form.systemPromptPlaceholder')}
                                 className="min-h-[100px]"
+                                readOnly={lockedBuiltin}
                                 required
                             />
                         </div>

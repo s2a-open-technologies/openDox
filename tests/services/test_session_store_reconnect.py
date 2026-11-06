@@ -187,3 +187,18 @@ def test_health_endpoint_reports_disabled_without_redis_url(
     assert response.status_code == 200
     services = {s["name"]: s["status"] for s in response.json()["services"]}
     assert services.get("Cache") == "disabled"
+
+
+def test_health_reports_encryption_key_separately_from_services(
+    client, create_user, auth_headers
+):
+    """The key check is not a service: own field, match/mismatch."""
+    admin = create_user("admin-key", role="admin")
+    response = client.get(
+        "/api/v1/settings/services-health/",
+        headers=auth_headers(admin),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["encryption_key"] in ("match", "mismatch")
+    assert "Verschlüsselung" not in {s["name"] for s in body["services"]}

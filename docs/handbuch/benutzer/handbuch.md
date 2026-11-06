@@ -124,7 +124,8 @@ verlassen.
 2. Geben Sie einen **Titel** ein, z. B. *Anamnese Zimmer 12*. Verwenden Sie
    im Titel möglichst keine vollständigen Patientennamen, wenn Ihre
    Einrichtung das nicht ausdrücklich vorsieht.
-3. Wählen Sie eine **Kategorie**. Vorausgewählt ist **Allgemein**. Die
+3. Wählen Sie eine **Kategorie**. Vorausgewählt ist die Kategorie, die
+   Ihre Administration als Standard festgelegt hat, sonst **Standard**. Die
    Kategorie bestimmt, wie die Zusammenfassung aufgebaut wird und welche
    globalen Wörterbücher gelten (siehe Kapitel *Kategorien*). Ihre eigenen
    Wörterbücher gelten immer.
@@ -352,7 +353,7 @@ Klicken Sie auf **Erstellen**. Bestehende Kategorien ändern Sie mit
 
 Nimmt Ihre Administration die Freigabe zurück, bleiben Ihre Kategorien
 gespeichert, verschwinden aber aus der Auswahl. Neue Aufnahmen starten dann
-mit der Kategorie *Allgemein*, auch im Desktop-Client. Bereits vorhandene
+mit der Standard-Kategorie, auch im Desktop-Client. Bereits vorhandene
 Aufnahmen behalten ihre Zuordnung, erscheinen aber als *Unkategorisiert* und
 werden mit dem allgemeinen Standard-Prompt verarbeitet. Sie können sie
 jederzeit auf eine globale Kategorie umstellen. Nach einer erneuten Freigabe

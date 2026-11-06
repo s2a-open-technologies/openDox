@@ -20,11 +20,12 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Activity } from 'lucide-react';
+import { Activity, KeyRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 
 type ServiceStatus = 'online' | 'offline' | 'disabled';
+type KeyStatus = 'match' | 'mismatch';
 
 interface ServiceHealth {
     name: string;
@@ -47,6 +48,7 @@ const SystemSettings = () => {
     const { t, i18n } = useTranslation('system');
     const { authFetch } = useAuth();
     const [services, setServices] = useState<ServiceHealth[]>([]);
+    const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null);
     const [lastChecked, setLastChecked] = useState<Date | null>(null);
     const [version, setVersion] = useState<string | null>(null);
 
@@ -62,8 +64,10 @@ const SystemSettings = () => {
             const response = await authFetch('/api/v1/settings/services-health/');
             const data = await response.json();
             setServices(data.services || []);
+            setKeyStatus(data.encryption_key ?? null);
         } catch (error) {
             setServices([]);
+            setKeyStatus(null);
         } finally {
             setLastChecked(new Date());
         }
@@ -125,6 +129,33 @@ const SystemSettings = () => {
                     ))}
                 </CardContent>
             </Card>
+            {keyStatus && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>{t('security.title')}</CardTitle>
+                        <CardDescription>{t('security.description')}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between gap-4 p-4 border rounded-md">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2 bg-muted rounded-full">
+                                    <KeyRound className="w-6 h-6 text-foreground" />
+                                </div>
+                                <div>
+                                    <h4 className="font-medium">{t('security.encryptionKey')}</h4>
+                                    {keyStatus === 'mismatch' && (
+                                        <p className="text-sm text-muted-foreground">{t('security.mismatchHint')}</p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className={`w-3 h-3 rounded-full ${keyStatus === 'match' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="font-medium">{t(`security.${keyStatus}`)}</span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 };

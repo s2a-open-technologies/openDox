@@ -68,10 +68,13 @@ function filterParams(filters: Filters): URLSearchParams {
   return params;
 }
 
-const OUTCOME_VARIANT: Record<AuditEvent['outcome'], 'secondary' | 'destructive' | 'outline'> = {
-  success: 'secondary',
-  failure: 'outline',
-  denied: 'destructive',
+const OUTCOME_CLASS: Record<AuditEvent['outcome'], string> = {
+  success:
+    'border-transparent bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-950 dark:text-green-300',
+  failure:
+    'border-transparent bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950 dark:text-red-300',
+  denied:
+    'border-transparent bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300',
 };
 
 export function AuditLog() {
@@ -170,7 +173,7 @@ export function AuditLog() {
         <CardDescription>{t('description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1">
             <Label htmlFor="audit-since">{t('filter.since')}</Label>
             <Input id="audit-since" type="date" value={filters.since} onChange={(e) => setFilter('since')(e.target.value)} />
@@ -218,33 +221,39 @@ export function AuditLog() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left">
               <tr>
-                <th className="px-3 py-2 font-medium">{t('columns.time')}</th>
-                <th className="px-3 py-2 font-medium">{t('columns.actor')}</th>
-                <th className="px-3 py-2 font-medium">{t('columns.action')}</th>
-                <th className="px-3 py-2 font-medium">{t('columns.outcome')}</th>
-                <th className="px-3 py-2 font-medium">{t('columns.details')}</th>
-                <th className="px-3 py-2 font-medium">{t('columns.ip')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('columns.time')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('columns.actor')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('columns.action')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('columns.details')}</th>
               </tr>
             </thead>
             <tbody>
-              {events.map((event) => (
-                <tr key={event.id} className="border-t align-top">
-                  <td className="whitespace-nowrap px-3 py-2">{new Date(event.timestamp).toLocaleString(i18n.language)}</td>
-                  <td className="px-3 py-2">
-                    <div>{event.actor_name ?? t('system')}</div>
-                    {event.actor_role && <div className="text-xs text-muted-foreground">{event.actor_role}</div>}
-                  </td>
-                  <td className="px-3 py-2">{actionLabel(event.action)}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant={OUTCOME_VARIANT[event.outcome] ?? 'outline'}>{t(`outcomes.${event.outcome}`, { defaultValue: event.outcome })}</Badge>
-                  </td>
-                  <td className="px-3 py-2 break-words text-muted-foreground">{describe(event)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{event.ip ?? ''}</td>
-                </tr>
-              ))}
+              {events.map((event) => {
+                const when = new Date(event.timestamp);
+                const meta = [event.actor_role, event.ip].filter(Boolean).join(' · ');
+                return (
+                  <tr key={event.id} className="border-t align-top">
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <div>{when.toLocaleDateString(i18n.language)}</div>
+                      <div className="text-xs text-muted-foreground">{when.toLocaleTimeString(i18n.language)}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{event.actor_name ?? t('system')}</div>
+                      {meta && <div className="text-xs text-muted-foreground" title={t('columns.ip')}>{meta}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>{actionLabel(event.action)}</div>
+                      <Badge variant="outline" className={`mt-1 ${OUTCOME_CLASS[event.outcome] ?? ''}`}>
+                        {t(`outcomes.${event.outcome}`, { defaultValue: event.outcome })}
+                      </Badge>
+                    </td>
+                    <td className="min-w-[12rem] px-4 py-3 break-words text-muted-foreground">{describe(event)}</td>
+                  </tr>
+                );
+              })}
               {events.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-muted-foreground">{t('empty')}</td>
+                  <td colSpan={4} className="py-8 text-center text-muted-foreground">{t('empty')}</td>
                 </tr>
               )}
             </tbody>

@@ -534,15 +534,21 @@ async def get_services_health(db: SessionDep):
         except Exception:
             return {"name": "Objekt-Speicher (S3)", "status": "offline"}
 
-    async def check_encryption():
+    def check_encryption_key() -> str:
+        """Whether ENCRYPTION_KEY matches the fingerprint stored with the data.
+
+        Not a service: "match" = the running key is the one the data is
+        encrypted with (rotation finished), "mismatch" = wrong key or an
+        unfinished rotation, so stored data may not decrypt.
+        """
         from backend.components.models.encryption_key_state import EncryptionKeyState
         from backend.components.security import field_encryption, key_rotation
 
         current_key = field_encryption.get_current_key()
         state = db.exec(select(EncryptionKeyState)).first()
         if state and state.key_fingerprint == key_rotation.fingerprint_key(current_key):
-            return {"name": "Verschlüsselung", "status": "online"}
-        return {"name": "Verschlüsselung", "status": "offline"}
+            return "match"
+        return "mismatch"
 
     services = await asyncio.gather(
         check_postgres(),
@@ -551,9 +557,11 @@ async def get_services_health(db: SessionDep):
         check_parakeet(),
         check_entityguard(),
         check_s3(),
-        check_encryption(),
     )
-    return {"services": [{"name": "Backend", "status": "online"}, *services]}
+    return {
+        "services": [{"name": "Backend", "status": "online"}, *services],
+        "encryption_key": check_encryption_key(),
+    }
 
 
 # LDAP Endpoints
@@ -750,6 +758,18 @@ def _validate_dictionary_ids(
             )
 
 
+_BUILTIN_LOCKED_FIELDS = ("name", "description", "system_prompt")
+
+
+def _builtin_locked() -> HTTPException:
+    """Error for an attempt to change or delete the built-in category."""
+    return api_error(
+        403,
+        "builtin_category_locked",
+        "The built-in category's name, description and prompt are read-only",
+    )
+
+
 def _category_out(db: SessionDep, category: Categories, schema: type) -> Any:
     """Build a category response including its attached dictionary ids."""
     ids = dictionary_service.dictionary_ids_by_category(db, [category.id])
@@ -814,7 +834,17 @@ async def read_categories(
         )
     else:
         visible = Categories.user_id.is_(None)
-    query = select(Categories).where(visible)
+    # Preselected category first: the desktop client falls back to the first
+    # entry once it no longer finds the old "Allgemein" by name.
+    query = (
+        select(Categories)
+        .where(visible)
+        .order_by(
+            Categories.is_default.desc(),
+            Categories.is_builtin.desc(),
+            Categories.id,
+        )
+    )
     categories = db.exec(query.offset(offset).limit(limit)).all()
     ids = dictionary_service.dictionary_ids_by_category(db, [c.id for c in categories])
     return [
@@ -835,6 +865,49 @@ async def read_category(
         raise api_error(404, "category_not_found", "Category not found")
     if category.user_id is not None and category.user_id != current_user.id:
         raise api_error(404, "category_not_found", "Category not found")
+    return _category_out(db, category, CategoriesListRead)
+
+
+@settings_bp.put("/categories/{category_id}/default", response_model=CategoriesListRead)
+async def set_default_category(
+    category_id: int,
+    request: Request,
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Make a global category the one preselected for everyone."""
+    category = db.get(Categories, category_id)
+    if not category or (
+        category.user_id is not None and category.user_id != current_user.id
+    ):
+        raise api_error(404, "category_not_found", "Category not found")
+    if current_user.role not in _PRIVILEGED_CATEGORY_ROLES:
+        raise api_error(403, "moderator_required", "Moderator or admin role required")
+    if category.user_id is not None:
+        raise api_error(
+            400,
+            "default_must_be_global",
+            "Only a global category can be the default",
+        )
+    if not category.is_default:
+        for other in db.exec(
+            select(Categories).where(Categories.is_default.is_(True))
+        ).all():
+            other.is_default = False
+            db.add(other)
+        category.is_default = True
+        db.add(category)
+        audit(
+            db,
+            "category.default",
+            request=request,
+            actor=current_user,
+            target_type="category",
+            target_id=category.id,
+            details={"name": category.name},
+        )
+        db.commit()
+        db.refresh(category)
     return _category_out(db, category, CategoriesListRead)
 
 
@@ -868,6 +941,11 @@ async def update_category(
     category_data = category.model_dump(exclude_unset=True)
     # The scope is fixed at creation time.
     category_data.pop("scope", None)
+    if db_category.is_builtin and any(
+        field in category_data and category_data[field] != getattr(db_category, field)
+        for field in _BUILTIN_LOCKED_FIELDS
+    ):
+        raise _builtin_locked()
     # Omitted = leave the attached dictionaries as they are.
     dictionary_ids = category_data.pop("dictionary_ids", None)
     is_privileged_editor = current_user.role in _PRIVILEGED_CATEGORY_ROLES
@@ -937,6 +1015,8 @@ async def delete_category(
             )
     elif not is_owner:
         raise api_error(404, "category_not_found", "Category not found")
+    if category.is_builtin:
+        raise _builtin_locked()
 
     _delete_links(db, CategoryDictionaryLink.category_id, category_id)
     if category.user_id is None:
@@ -1461,6 +1541,22 @@ def _split_legacy_glossary(text: str | None) -> list[str]:
     return [t for t in re.split(r"[,;\n]+", text) if len(t.strip()) >= 3]
 
 
+def _builtin_backup_entry(categories_data: list[Any]) -> int | None:
+    """Index of the backup entry that belongs to the built-in category.
+
+    Newer backups flag it with ``is_builtin``; older ones only know it as the
+    global "Allgemein" (or "Standard").
+    """
+    entries = [(i, r) for i, r in enumerate(categories_data) if isinstance(r, dict)]
+    for index, row in entries:
+        if row.get("is_builtin"):
+            return index
+    for index, row in entries:
+        if row.get("user_id") is None and row.get("name") in ("Allgemein", "Standard"):
+            return index
+    return None
+
+
 def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
     """Restore settings from a backup dict into the database.
 
@@ -1531,19 +1627,41 @@ def _import_all_settings(db: SessionDep, data: dict[str, Any]) -> None:
         # The backup carries no per-category LLM key; keep the stored one of
         # the category with the same name and owner.
         kept_keys: dict[tuple[str, int | None], str] = {}
-        for row in db.exec(select(Categories)).all():
+        # The built-in category survives (recordings point at it, and its
+        # prompt is read-only); only its editable fields come from the backup.
+        builtin: Categories | None = None
+        for row in db.exec(select(Categories).order_by(Categories.id)).all():
+            _delete_links(db, CategoryDictionaryLink.category_id, row.id)
+            if row.is_builtin and builtin is None:
+                builtin = row
+                continue
             if row.llm_api_key:
                 kept_keys[(row.name, row.user_id)] = row.llm_api_key
-            _delete_links(db, CategoryDictionaryLink.category_id, row.id)
             db.delete(row)
         db.flush()
-        for row_data in categories_data:
+        builtin_entry = _builtin_backup_entry(categories_data)
+        has_default = False
+        for index, row_data in enumerate(categories_data):
             if not isinstance(row_data, dict):
                 continue
-            category = Categories(
-                **_without_secrets(_known_fields(Categories, row_data), "categories")
+            fields = _without_secrets(_known_fields(Categories, row_data), "categories")
+            fields.pop("is_builtin", None)
+            is_default = (
+                bool(fields.pop("is_default", False))
+                and fields.get("user_id") is None
+                and not has_default
             )
-            category.llm_api_key = kept_keys.get((category.name, category.user_id))
+            has_default = has_default or is_default
+            if builtin is not None and index == builtin_entry:
+                for field in _BUILTIN_LOCKED_FIELDS:
+                    fields.pop(field, None)
+                fields.pop("user_id", None)
+                builtin.sqlmodel_update(fields)
+                category = builtin
+            else:
+                category = Categories(**fields)
+                category.llm_api_key = kept_keys.get((category.name, category.user_id))
+            category.is_default = is_default
             db.add(category)
             db.flush()
             dictionary_ids = [

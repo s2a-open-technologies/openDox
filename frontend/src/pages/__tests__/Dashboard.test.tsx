@@ -274,11 +274,12 @@ describe("Dashboard", () => {
     expect(screen.getByRole("button", { name: "Verwerfen" })).toBeInTheDocument();
   });
 
-  it("pre-selects the 'Allgemein' category and passes it into the recorder on session start", async () => {
+  it("pre-selects the default category and passes it into the recorder on session start", async () => {
     const authFetch = buildAuthFetch({
       categories: [
         { id: 1, name: "Sonstiges" },
-        { id: 2, name: "Allgemein" },
+        { id: 3, name: "Standard", is_builtin: true },
+        { id: 2, name: "Kardiologie", is_default: true },
       ],
     });
     const user = userEvent.setup();

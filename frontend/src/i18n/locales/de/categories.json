@@ -3,6 +3,8 @@
   "listDescription": "Verwalten Sie Ihre vorhandenen Kategorien",
   "badgeGlobal": "Global",
   "badgeOwn": "Eigene Kategorie",
+  "badgeBuiltin": "Mitgeliefert · schreibgeschützt",
+  "badgeDefault": "Standard für alle",
   "llmLabel": "LLM: {{model}}",
   "empty": "Keine Kategorien vorhanden",
   "form": {
@@ -25,7 +27,8 @@
     "dictionariesHintOwn": "Begriffe dieser Wörterbücher werden nach der finalen Transkription automatisch phonetisch korrigiert. Ihre eigenen Wörterbücher gelten ohnehin automatisch für alle Ihre Aufnahmen; hier wählen Sie zusätzliche globale.",
     "llmEnabled": "Zusammenfassung per LLM",
     "llmEnabledHint": "Aus: Es wird nur transkribiert, das Transkript ist der Ergebnistext. Ohne LLM-Prompt und ohne PII-Sanitizer. Gilt nur, solange das LLM global aktiv ist.",
-    "dictionaryAutomatic": "Eigen · automatisch"
+    "dictionaryAutomatic": "Eigen · automatisch",
+    "builtinLocked": "Diese Kategorie wird mit openDox ausgeliefert. Name, Beschreibung und Prompt sind laut Zweckbestimmung schreibgeschützt; Whisper-Prompt, Wörterbücher und LLM-Einstellungen lassen sich anpassen."
   },
   "llm": {
     "useOwn": "Eigenes LLM verwenden",
@@ -46,6 +49,8 @@
   "created": "Kategorie erstellt",
   "confirmDelete": "Möchten Sie diese Kategorie wirklich löschen?",
   "deleted": "Kategorie gelöscht",
+  "setDefault": "Als Standard für alle setzen",
+  "defaultSet": "Standard-Kategorie gesetzt",
   "deleteFailed": "Löschen fehlgeschlagen",
   "submit": {
     "update": "Aktualisieren",

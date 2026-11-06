@@ -18,11 +18,20 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// "Allgemein" is the preselected category wherever a recording starts, so the
-// user never lands on an empty dropdown; falls back to the first category if
-// it was renamed/deleted — a recording always needs one.
-export function defaultCategoryId(categories: { id: number; name: string }[]): string | null {
-  const allgemein = categories.find((c) => c.name === "Allgemein");
-  if (allgemein) return allgemein.id.toString();
-  return categories.length > 0 ? categories[0].id.toString() : null;
+// Preselected category wherever a recording starts, so the user never lands
+// on an empty dropdown: the one an admin set as default for everyone, else
+// the shipped "Standard" (is_builtin), else the first one — a recording
+// always needs one.
+export interface PreselectableCategory {
+  id: number;
+  is_default?: boolean;
+  is_builtin?: boolean;
+}
+
+export function defaultCategoryId(categories: PreselectableCategory[]): string | null {
+  const chosen =
+    categories.find((c) => c.is_default) ??
+    categories.find((c) => c.is_builtin) ??
+    categories[0];
+  return chosen ? chosen.id.toString() : null;
 }

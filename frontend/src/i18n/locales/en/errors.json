@@ -10,6 +10,8 @@
   "audio_bitrate_invalid": "Invalid bitrate. Allowed: {{allowed}}",
   "auto_archive_days_invalid": "The period must be between 1 and 3650 days",
   "category_not_found": "Category not found",
+  "builtin_category_locked": "The built-in category's name, description and prompt are read-only; it cannot be deleted",
+  "default_must_be_global": "Only a global category can be the default for everyone",
   "category_edit_forbidden": "Not authorized to edit this category",
   "category_delete_forbidden": "Not authorized to delete this category",
   "admin_required": "Administrator role required",

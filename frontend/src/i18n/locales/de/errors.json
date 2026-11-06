@@ -10,6 +10,8 @@
   "audio_bitrate_invalid": "Ungültige Bitrate. Erlaubt: {{allowed}}",
   "auto_archive_days_invalid": "Die Frist muss zwischen 1 und 3650 Tagen liegen",
   "category_not_found": "Kategorie nicht gefunden",
+  "builtin_category_locked": "Name, Beschreibung und Prompt der mitgelieferten Kategorie sind schreibgeschützt; sie kann nicht gelöscht werden",
+  "default_must_be_global": "Nur eine globale Kategorie kann Standard für alle sein",
   "category_edit_forbidden": "Keine Berechtigung, diese Kategorie zu bearbeiten",
   "category_delete_forbidden": "Keine Berechtigung, diese Kategorie zu löschen",
   "admin_required": "Administrator-Rechte erforderlich",

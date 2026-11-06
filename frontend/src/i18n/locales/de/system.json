@@ -11,8 +11,15 @@
   },
   "serviceNames": {
     "Datenbank": "Datenbank",
-    "Transkription": "Transkription",
-    "Verschlüsselung": "Verschlüsselung"
+    "Transkription": "Transkription"
+  },
+  "security": {
+    "title": "Sicherheit",
+    "description": "Kein Dienst, sondern eine Prüfung der Konfiguration.",
+    "encryptionKey": "Verschlüsselungsschlüssel",
+    "match": "Passt zum Datenbestand",
+    "mismatch": "Passt nicht zum Datenbestand",
+    "mismatchHint": "ENCRYPTION_KEY ist nicht der Schlüssel, mit dem die gespeicherten Daten verschlüsselt sind, oder eine Schlüssel-Rotation ist nicht abgeschlossen. Gespeicherte Daten lassen sich dann womöglich nicht entschlüsseln."
   },
   "session": {
     "title": "Automatische Abmeldung",

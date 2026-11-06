@@ -54,6 +54,7 @@
     "category_create": "Category created",
     "category_update": "Category changed",
     "category_delete": "Category deleted",
+    "category_default": "Default category set",
     "dictionary_create": "Dictionary created",
     "dictionary_update": "Dictionary changed",
     "dictionary_upload": "Dictionary uploaded",

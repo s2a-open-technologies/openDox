@@ -3,7 +3,7 @@
   "saved": "Client settings saved",
   "config": {
     "title": "Client settings",
-    "description": "Apply to every openDox client connected to this server. Clients pick up changes at startup and after at most 10 minutes.",
+    "description": "Apply to every openDox client connected to this server. Clients only load them at startup: changes take effect once the client is restarted.",
     "liveView": "Live view on by default (users can toggle it in the client)",
     "micMode": "Record button on dictation microphones",
     "micModes": {
@@ -15,7 +15,7 @@
     "clipboardClearHint": "Only if it hasn't changed since. 0 = never clear.",
     "allowlist": "Allowed target programs (one per line)",
     "allowlistHint": "Empty = insert into any program. Otherwise the client asks before inserting into an unlisted program. Example: medistar.exe",
-    "note": "These values take precedence over a local settings.json on the machines."
+    "note": "These are defaults: a value set in the settings.json on the machine takes precedence. Users can also change the live view and the record button in the client themselves."
   },
   "distribution": {
     "title": "Distribute the client",

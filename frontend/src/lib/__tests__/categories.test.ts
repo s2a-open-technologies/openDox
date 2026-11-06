@@ -22,17 +22,26 @@ import { describe, it, expect } from "vitest";
 import { defaultCategoryId } from "@/lib/categories";
 
 describe("defaultCategoryId", () => {
-  it("prefers Allgemein", () => {
+  it("prefers the category set as default for everyone", () => {
     expect(
       defaultCategoryId([
-        { id: 4, name: "Meine" },
-        { id: 1, name: "Allgemein" },
+        { id: 1, is_builtin: true },
+        { id: 4, is_default: true },
+      ])
+    ).toBe("4");
+  });
+
+  it("falls back to the built-in Standard category", () => {
+    expect(
+      defaultCategoryId([
+        { id: 4 },
+        { id: 1, is_builtin: true },
       ])
     ).toBe("1");
   });
 
-  it("falls back to the first category without Allgemein", () => {
-    expect(defaultCategoryId([{ id: 4, name: "Meine" }])).toBe("4");
+  it("falls back to the first category otherwise", () => {
+    expect(defaultCategoryId([{ id: 4 }])).toBe("4");
   });
 
   it("is null without categories", () => {

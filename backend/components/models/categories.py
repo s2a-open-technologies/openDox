@@ -43,6 +43,12 @@ class Categories(SQLModel, table=True):
     llm_frequency_penalty: Optional[float] = Field(default=None)
     llm_enable_thinking: Optional[bool] = Field(default=None)
     user_id: Optional[int] = Field(default=None)
+    # Shipped with openDox ("Standard"): name, description and system_prompt
+    # are read-only and the row cannot be deleted (docs/zweckbestimmung.md §6).
+    is_builtin: bool = Field(default=False)
+    # Global category preselected for everyone, set by an admin/moderator via
+    # PUT /categories/{id}/default. None set → the built-in one is preselected.
+    is_default: bool = Field(default=False)
 
 
 class CategoriesCreate(SQLModel):
@@ -87,6 +93,8 @@ class CategoriesRead(SQLModel):
     llm_frequency_penalty: Optional[float] = None
     llm_enable_thinking: Optional[bool] = None
     user_id: Optional[int] = None
+    is_builtin: bool = False
+    is_default: bool = False
 
 
 class CategoriesListRead(SQLModel):
@@ -115,3 +123,5 @@ class CategoriesListRead(SQLModel):
     llm_frequency_penalty: Optional[float] = None
     llm_enable_thinking: Optional[bool] = None
     user_id: Optional[int] = None
+    is_builtin: bool = False
+    is_default: bool = False

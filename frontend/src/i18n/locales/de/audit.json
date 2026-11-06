@@ -54,6 +54,7 @@
     "category_create": "Kategorie angelegt",
     "category_update": "Kategorie geändert",
     "category_delete": "Kategorie gelöscht",
+    "category_default": "Standard-Kategorie gesetzt",
     "dictionary_create": "Wörterbuch angelegt",
     "dictionary_update": "Wörterbuch geändert",
     "dictionary_upload": "Wörterbuch hochgeladen",

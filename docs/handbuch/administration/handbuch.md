@@ -267,6 +267,26 @@ Aufnahme und können sie danach ändern.
 Unter **Kategorien** verwalten Moderatoren und Administratoren die
 **globalen** Kategorien, die allen Benutzern zur Verfügung stehen.
 
+## Mitgelieferte Kategorie „Standard“
+
+openDox bringt die Kategorie **Standard** mit (Kennzeichen *Mitgeliefert ·
+schreibgeschützt*). Ihr Prompt korrigiert nur die Zeichensetzung. Name,
+Beschreibung und Prompt lassen sich laut *Zweckbestimmung* nicht ändern, und
+die Kategorie lässt sich nicht löschen. Auch ein Backup-Restore überschreibt
+sie nicht. Whisper-Prompt, Wörterbücher, den Schalter *Zusammenfassung per
+LLM* und den LLM-Override können Sie anpassen.
+
+## Standard für alle festlegen
+
+Mit dem Stern-Symbol **Als Standard für alle setzen** machen Sie eine globale
+Kategorie zur Vorauswahl beim Start einer Aufnahme, in Web und
+Desktop-Client. Sie trägt dann das Kennzeichen *Standard für alle*. Es gibt
+immer genau eine solche Kategorie. Haben Sie keine gewählt oder die gewählte
+gelöscht, ist die mitgelieferte Kategorie *Standard* vorausgewählt.
+
+Setzen Sie eine eigene Kategorie als Standard, verantworten Sie deren Prompt
+als Betreiber (*Zweckbestimmung*, Abschnitt 6).
+
 ## Benutzerkategorien erlauben
 
 Der Schalter **Benutzerkategorien erlauben** oben im Tab *Kategorien* (nur
@@ -282,9 +302,9 @@ können.
 Schalten Sie ihn wieder aus, bleiben vorhandene Benutzerkategorien
 gespeichert, verschwinden aber aus der Auswahl und wirken nicht mehr:
 Aufnahmen damit laufen wie ohne Kategorie (Standard-Prompt). Neue Aufnahmen
-starten in Web und Desktop-Client mit der globalen Kategorie *Allgemein*,
-fehlt diese, mit der ersten Kategorie der Liste. Legen Sie daher eine globale
-Kategorie *Allgemein* an. Nach einer erneuten Freigabe greifen die
+starten in Web und Desktop-Client mit der Kategorie, die als *Standard für
+alle* gesetzt ist, sonst mit der mitgelieferten Kategorie *Standard*. Nach
+einer erneuten Freigabe greifen die
 Benutzerkategorien wieder.
 
 ![Kategorien: Freigabe für Benutzerkategorien und Liste](bilder/administration/06-kategorien.png)
@@ -670,9 +690,11 @@ fertigen Text dort ein.
 
 ![Clients → Client-Einstellungen](bilder/administration/12b-client-einstellungen.png)
 
-Diese Werte gelten für alle Clients dieses Servers und haben Vorrang vor
-lokalen Einstellungen. Die Clients übernehmen sie beim Start und danach
-spätestens nach zehn Minuten.
+Diese Werte sind Vorgaben für alle Clients dieses Servers. Ein Wert, der in
+der `settings.json` am Rechner steht, hat Vorrang. *Live-Ansicht* und
+*Record-Taste* können Benutzer zusätzlich im Client selbst umstellen. Die
+Clients laden die Vorgaben nur beim Start: Änderungen greifen erst, wenn der
+Client neu gestartet wird.
 
 | Feld | Bedeutung | Standard |
 |:-----------|:-------------------------------|:-----------|
@@ -727,11 +749,19 @@ alle zehn Sekunden.
 | **Live** | Parakeet-Dienst für die Live-Vorschau. |
 | **PII** | PII-Sanitizer. |
 | **Objekt-Speicher (S3)** | Speicher für Audio-Download und ausgelagerte Fehlaufnahmen. |
-| **Verschlüsselung** | Zustand des Verschlüsselungsschlüssels. |
 
 Jeder Dienst steht auf **Online**, **Nicht erreichbar** oder **Deaktiviert**.
 *Deaktiviert* bedeutet, dass die Funktion bewusst nicht eingerichtet ist, und
 ist kein Fehler.
+
+Darunter prüft der Bereich **Sicherheit** den **Verschlüsselungsschlüssel**.
+Das ist kein Dienst: openDox vergleicht den konfigurierten `ENCRYPTION_KEY`
+mit dem Fingerabdruck, der beim Verschlüsseln der Daten gespeichert wurde.
+*Passt zum Datenbestand* ist der Normalzustand. *Passt nicht zum Datenbestand*
+heißt: Der Server läuft mit einem anderen Schlüssel, oder eine
+Schlüssel-Rotation ist nicht abgeschlossen. Gespeicherte Transkripte und
+Zusammenfassungen lassen sich dann womöglich nicht entschlüsseln. Prüfen Sie
+die Server-Konfiguration.
 
 # Audit-Log
 

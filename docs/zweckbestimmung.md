@@ -86,9 +86,12 @@ Die Abgrenzung wird in der Software nachvollziehbar abgebildet:
 - Der Desktop-Client fügt Text nur auf eine Handlung des Anwenders hin ein
   (Button, Hotkey oder Mikrofontaste), nie von selbst. Beim Tastenmikrofon im
   Standardmodus „hold“ ist diese Handlung das Loslassen der Aufnahmetaste; der
-  Text landet dann ohne weiteren Klick im Zielprogramm. Der Betreiber kann auf
-  „toggle“ umstellen und Zielprogramme auf eine Allow-Liste beschränken
-  (Admin → Clients).
+  Text landet dann ohne weiteren Klick im Zielprogramm. Der Betreiber kann
+  „toggle“ als Vorgabe setzen (Admin → Clients); Benutzer können den Modus im
+  Client aber selbst wieder umstellen. Zusätzlich kann er eine Allow-Liste
+  der Zielprogramme festlegen (Admin → Clients oder `settings.json` am
+  Rechner), die Benutzer nicht selbst ändern können: In nicht gelistete
+  Programme fügt der Client erst nach einer Rückfrage ein.
 - Pflicht-Bestätigung beim ersten Login (`DisclaimerGate.tsx`, in Web-Frontend und Desktop-Client), serverseitig
   mit Zeitstempel in `User.disclaimer_accepted_at` gespeichert; alle Routen
   bleiben bis zur Bestätigung gesperrt.
@@ -96,6 +99,10 @@ Die Abgrenzung wird in der Software nachvollziehbar abgebildet:
   in allen Oberflächensprachen.
 - Das Sprachmodell wird angewiesen, nichts zu ergänzen und keine Platzhalter
   für fehlende Angaben zu erfinden.
+- Der mitgelieferte Standardprompt (Kategorie „Standard“, nur
+  Zeichensetzung) ist schreibgeschützt: Name, Beschreibung und Prompt lassen
+  sich weder über die Oberfläche noch über die API oder ein Backup-Restore
+  ändern, und die Kategorie lässt sich nicht löschen.
 
 ## 6. Änderung des Zwecks und Verantwortung des Betreibers
 
@@ -108,6 +115,11 @@ medizinischen Zweck. In diesem Fall wird der Betreiber nach MDR Art. 16
 rechtlich wie ein Hersteller behandelt und muss die Konformitätsbewertung
 selbst durchführen. Der ursprüngliche Hersteller und alle Mitwirkenden
 übernehmen dafür keine Verantwortung.
+
+Jede andere Kategorie ist ein eigener Prompt des Betreibers oder seiner
+Benutzer. Das gilt auch, wenn der Betreiber sie als *Standard für alle*
+vorauswählt (Administration → Kategorien). Für solche Prompts trägt der
+Betreiber die Verantwortung.
 
 Kategorien mit eigenem Prompt dürfen Benutzer nur anlegen, wenn der Betreiber
 das ausdrücklich freigibt (Administration → Kategorien → *Benutzerkategorien

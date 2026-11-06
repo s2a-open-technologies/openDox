@@ -3,6 +3,8 @@
   "listDescription": "Manage your existing categories",
   "badgeGlobal": "Global",
   "badgeOwn": "Own category",
+  "badgeBuiltin": "Built-in · read-only",
+  "badgeDefault": "Default for everyone",
   "llmLabel": "LLM: {{model}}",
   "empty": "No categories",
   "form": {
@@ -25,7 +27,8 @@
     "dictionariesHintOwn": "Terms from these dictionaries are corrected phonetically after the final transcription. Your own dictionaries already apply automatically to all your recordings; choose additional global ones here.",
     "llmEnabled": "LLM summary",
     "llmEnabledHint": "Off: transcription only, the transcript is the result text. No LLM prompt and no PII sanitizer. Only applies while the LLM is enabled globally.",
-    "dictionaryAutomatic": "Own · automatic"
+    "dictionaryAutomatic": "Own · automatic",
+    "builtinLocked": "This category ships with openDox. Per the intended purpose, its name, description and prompt are read-only; the Whisper prompt, dictionaries and LLM settings can be adjusted."
   },
   "llm": {
     "useOwn": "Use own LLM",
@@ -46,6 +49,8 @@
   "created": "Category created",
   "confirmDelete": "Do you really want to delete this category?",
   "deleted": "Category deleted",
+  "setDefault": "Set as default for everyone",
+  "defaultSet": "Default category set",
   "deleteFailed": "Deletion failed",
   "submit": {
     "update": "Update",

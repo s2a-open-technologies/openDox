@@ -11,8 +11,15 @@
   },
   "serviceNames": {
     "Datenbank": "Database",
-    "Transkription": "Transcription",
-    "Verschlüsselung": "Encryption"
+    "Transkription": "Transcription"
+  },
+  "security": {
+    "title": "Security",
+    "description": "Not a service, but a check of the configuration.",
+    "encryptionKey": "Encryption key",
+    "match": "Matches the stored data",
+    "mismatch": "Does not match the stored data",
+    "mismatchHint": "ENCRYPTION_KEY is not the key the stored data is encrypted with, or a key rotation has not finished. Stored data may then fail to decrypt."
   },
   "session": {
     "title": "Automatic logout",

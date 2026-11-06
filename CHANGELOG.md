@@ -12,11 +12,27 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.11.3] — 2026-11-06
+
 ### Added
 - **Client update hint** — `GET /settings/client-config/` now also returns `latest_client_version`, the newest
   openDox client release (asked from GitHub by the server, cached 6 h, failures 15 min). The desktop client only shows
   it as a note in its settings dialog; rollout stays with the customer's IT. `CLIENT_LATEST_RELEASE_URL=""` turns the
   lookup off (e.g. networks without internet access).
+- **Default category for everyone** — admins and moderators can mark a global category as *Standard für alle*
+  (star button in Admin → Kategorien). It is preselected when a recording starts, in the web UI and the desktop
+  client.
+
+### Changed
+- **Built-in prompt is read-only** — the shipped category "Allgemein" is renamed to **"Standard"** and marked as
+  built-in. Its name, description and prompt can no longer be changed via UI, API or backup restore, and it cannot be
+  deleted (intended purpose, `docs/zweckbestimmung.md`). Whisper prompt, dictionaries and LLM settings stay editable.
+- **Audit log easier to read** — four columns instead of six (outcome under the action, role and IP under the user),
+  more spacing, and colored outcomes (success green, failure red, denied amber).
+- **Encryption key no longer listed as a service** — the System tab shows the `ENCRYPTION_KEY` check in its own
+  "Sicherheit" card ("passt zum Datenbestand" / "passt nicht"); `/services-health/` returns it as `encryption_key`.
+- **Client settings text corrected** — clients load the server defaults only at startup, and a value in the
+  machine's `settings.json` (and the user's own choice for live view and record button) takes precedence.
 
 ## [0.11.2] — 2026-11-02
 
@@ -511,7 +527,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.3...HEAD
+[0.11.3]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.10.7...v0.11.0

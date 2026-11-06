@@ -19,7 +19,7 @@ flowchart LR
     C -- "REST + WebSocket (raw PCM)" --> S[openDox Server]
     S -- "Live-Text, Status" --> C
     C -- "Akzeptieren: Strg+V" --> T[Zielprogramm]
-    S -. "GET /settings/client-config/ alle 10 min" .-> C
+    S -. "GET /settings/client-config/ beim Start" .-> C
 ```
 
 Der Client enthält keine Spracherkennung und kein Sprachmodell. Transkription,
@@ -161,17 +161,27 @@ Servers verhalten. Gespeichert ist das in der Tabelle `clientsettingsmodel`.
 | `clipboard_clear_after_seconds` | `30` | Zwischenablage leeren, `0` = nie (Windows) |
 | `insert_allowlist` | leer | Zielprogramme ohne Rückfrage (Windows) |
 
-Der Client ruft `GET /api/v1/settings/client-config/` beim Start und danach alle
-10 Minuten ab. Der Endpunkt braucht **bewusst keinen Login**, weil der Client
+Der Client ruft `GET /api/v1/settings/client-config/` einmal beim Start ab. Der Endpunkt braucht **bewusst keinen Login**, weil der Client
 die Werte schon vor der Anmeldung braucht; der Inhalt ist nicht geheim.
 `PUT` ist Admin-only. Der letzte Stand wird pro Server-URL im Cache-Ordner des
 Benutzers gespeichert (`client-policy-cache.json`) und gilt, wenn der Server
 beim Start nicht erreichbar ist.
 
-**Vorrang:** Server-Werte schlagen die lokale `settings.json`. Eine bewusst
-leere Server-Allow-Liste schaltet auch eine lokale ab. Die lokalen Schlüssel
-gelten nur, solange der Client noch nie einen Serverstand hatte, oder bei einem
-Server ohne diesen Endpunkt.
+Zusätzlich liefert der `GET` das nur lesbare Feld `latest_client_version`: die
+neueste veröffentlichte Client-Version, die der **Server** bei GitHub erfragt
+(`CLIENT_LATEST_RELEASE_URL`, leer = aus; Cache 6 h, nach Fehler 15 min). Der
+Client zeigt damit im Einstellungsdialog nur einen Hinweis „Version x
+verfügbar“ — installiert wird weiterhin über die Softwareverteilung der IT.
+
+**Vorrang** (der erste gesetzte Wert gewinnt): Der Server liefert nur die
+Vorgaben.
+
+- `theme`, `live_view`, `dictation_mic_mode`: die eigenen Einstellungen des
+  Nutzers im Client (`preferences.json`) → `settings.json` am Rechner → Server →
+  eingebauter Standard.
+- `clipboard_*`, `insert_allowlist`: `settings.json` → Server → Standard. Diese
+  Schlüssel kann der Nutzer bewusst nicht selbst ändern. Eine ausdrücklich leere
+  Allow-Liste in der `settings.json` schaltet eine Server-Liste ab.
 
 ## 8. Verteilung
 

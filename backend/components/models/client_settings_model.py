@@ -86,3 +86,14 @@ class ClientConfig(SQLModel):
         row.insert_allowlist = "\n".join(self.insert_allowlist)
         row.dictation_mic_mode = self.dictation_mic_mode
         row.live_view = self.live_view
+
+
+class ClientConfigResponse(ClientConfig):
+    """``GET`` shape: the policy plus read-only info that is not part of the PUT body.
+
+    ``latest_client_version`` is the newest published client release (asked from
+    GitHub by the server, ``None`` if unknown/disabled). The client only shows it
+    as a hint in its settings dialog; rollout stays with the customer's IT.
+    """
+
+    latest_client_version: Optional[str] = None

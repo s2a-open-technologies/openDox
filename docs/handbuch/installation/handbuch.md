@@ -419,6 +419,7 @@ Jede Variable kann statt direkt auch aus einer Datei gelesen werden: Endung
 | `SETTINGS_CACHE_TTL_S` | Sekunden, bis Einstellungsänderungen andere Instanzen erreichen | 30 |
 | `CLIENT_SERVER_URL` | Server-Adresse für die `settings.json` des Desktop-Clients | aus der Anfrage abgeleitet |
 | `CLIENT_DOWNLOAD_BASE_URL` | Quelle der Client-Installer | neuestes GitHub-Release |
+| `CLIENT_LATEST_RELEASE_URL` | Quelle der neuesten Client-Version (Hinweis im Client), leer = aus | GitHub-API |
 
 ## Datenbank und Redis
 

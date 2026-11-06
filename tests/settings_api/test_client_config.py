@@ -1,5 +1,10 @@
 """Tests for the desktop-client endpoints (client-config, client-distribution)."""
 
+import httpx
+import pytest
+
+from backend.components.services import client_release
+
 DEFAULT_CONFIG = {
     "clipboard_exclude_from_history": True,
     "clipboard_clear_after_seconds": 30,
@@ -9,11 +14,58 @@ DEFAULT_CONFIG = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _no_github(monkeypatch):
+    """Keep tests offline: the release lookup is disabled unless a test enables it."""
+    client_release.reset_cache()
+    monkeypatch.setenv("CLIENT_LATEST_RELEASE_URL", "")
+    yield
+    client_release.reset_cache()
+
+
+def _mock_github(monkeypatch, handler):
+    monkeypatch.setenv("CLIENT_LATEST_RELEASE_URL", "https://github.test/latest")
+    transport = httpx.MockTransport(handler)
+    real_client = httpx.AsyncClient
+
+    def fake_client(*args, **kwargs):
+        kwargs["transport"] = transport
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(client_release.httpx, "AsyncClient", fake_client)
+
+
 def test_get_client_config_is_public_and_returns_defaults(client):
     response = client.get("/api/v1/settings/client-config/")
 
     assert response.status_code == 200
-    assert response.json() == DEFAULT_CONFIG
+    assert response.json() == {**DEFAULT_CONFIG, "latest_client_version": None}
+
+
+def test_get_client_config_reports_latest_client_version(client, monkeypatch):
+    calls = []
+
+    def handler(request):
+        calls.append(request.url)
+        return httpx.Response(200, json={"tag_name": "v0.9.1"})
+
+    _mock_github(monkeypatch, handler)
+
+    first = client.get("/api/v1/settings/client-config/").json()
+    second = client.get("/api/v1/settings/client-config/").json()
+
+    assert first["latest_client_version"] == "0.9.1"
+    assert second["latest_client_version"] == "0.9.1"
+    assert len(calls) == 1  # cached
+
+
+def test_get_client_config_survives_github_failure(client, monkeypatch):
+    _mock_github(monkeypatch, lambda request: httpx.Response(503))
+
+    response = client.get("/api/v1/settings/client-config/")
+
+    assert response.status_code == 200
+    assert response.json() == {**DEFAULT_CONFIG, "latest_client_version": None}
 
 
 def test_put_client_config_saves_and_normalizes(client, create_user, auth_headers):
@@ -40,7 +92,10 @@ def test_put_client_config_saves_and_normalizes(client, create_user, auth_header
         "live_view": False,
     }
     assert response.json() == expected
-    assert client.get("/api/v1/settings/client-config/").json() == expected
+    assert client.get("/api/v1/settings/client-config/").json() == {
+        **expected,
+        "latest_client_version": None,
+    }
 
 
 def test_put_client_config_requires_admin(client, create_user, auth_headers):

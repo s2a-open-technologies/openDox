@@ -82,6 +82,7 @@ PII-Sanitizer aktiv ist).
 | 7 | Audio-Download (optional) | Komprimiertes Audio | Objektspeicher (S3-kompatibel), verschlüsselt vor Upload | `audio_storage.py`, `background_transcription_service.py` |
 | 8 | Client-Richtlinie abrufen | Keine personenbezogenen Daten (Programmnamen, Schalter) | Desktop-Client, `GET /api/v1/settings/client-config/` bewusst ohne Login | `settings_routes.py` (`get_client_config`) |
 | 9 | Login | Zugangsdaten | Lokale DB, oder externer LDAP-/OIDC-Server | `auth_routes.py`, `ldap.py`, `oidc_routes.py` |
+| 8a | Neueste Client-Version ermitteln | Keine (nur öffentliche Release-Info, keine Nutzerdaten im Request) | GitHub-API (`api.github.com`, Releases des Client-Repos); abschaltbar mit `CLIENT_LATEST_RELEASE_URL=""` | `client_release.py` |
 | 10 | Audit-Log | Admin-Aktionen, abgelehnte Logins/Zugriffe (Benutzername, Rolle, IP, Aktion) | PostgreSQL (`auditevent`), Lesen und CSV-Export nur durch Admins | `audit_service.py`, `audit_routes.py` |
 
 ## Verschlüsselung im Detail

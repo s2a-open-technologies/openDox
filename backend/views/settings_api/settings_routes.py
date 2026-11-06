@@ -39,6 +39,7 @@ from backend.components.models.categories import (
 )
 from backend.components.models.client_settings_model import (
     ClientConfig,
+    ClientConfigResponse,
     ClientSettingsModel,
 )
 from backend.components.models.dictionary import (
@@ -77,7 +78,11 @@ from backend.components.modules.api_errors import api_error
 from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger
 from backend.components.modules.public_url import request_base_url
-from backend.components.services import audio_storage, dictionary_service
+from backend.components.services import (
+    audio_storage,
+    client_release,
+    dictionary_service,
+)
 from backend.components.services.asr_backends import DisabledBackend
 from backend.components.services.asr_factory import (
     get_final_backend,
@@ -1801,14 +1806,18 @@ def _get_or_create_client_settings(db) -> ClientSettingsModel:
     return settings
 
 
-@settings_bp.get("/client-config/", response_model=ClientConfig)
+@settings_bp.get("/client-config/", response_model=ClientConfigResponse)
 async def get_client_config(db: SessionDep):
-    """Return the desktop-client policy.
+    """Return the desktop-client policy plus the newest client version.
 
     Deliberately unauthenticated: the client fetches it at startup, before
     anyone has logged in. The content (program names, numbers) is not secret.
     """
-    return ClientConfig.from_row(_get_or_create_client_settings(db))
+    config = ClientConfig.from_row(_get_or_create_client_settings(db))
+    return ClientConfigResponse(
+        **config.model_dump(),
+        latest_client_version=await client_release.latest_client_version(),
+    )
 
 
 @settings_bp.put("/client-config/", response_model=ClientConfig)

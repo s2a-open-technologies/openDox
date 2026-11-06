@@ -142,6 +142,7 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | `TRUSTED_PROXY_IPS` | IPs, die `X-Forwarded-Proto`/`-Host` setzen dürfen (OIDC-Redirect) | – (Auto-Erkennung: Loopback + Docker-Gateway) |
 | `CLIENT_SERVER_URL` | Server-Adresse, die in die `settings.json` des Desktop-Clients geschrieben wird (Admin → Clients) | – (aus der Anfrage des Admins abgeleitet, inkl. `ROOT_PATH`) |
 | `CLIENT_DOWNLOAD_BASE_URL` | Basis-URL der Installer-Downloads im Admin-Bereich | neuestes GitHub-Release von `opendox-client` |
+| `CLIENT_LATEST_RELEASE_URL` | Quelle der neuesten Client-Version für den Update-Hinweis im Client; leer = aus | GitHub-API, neuestes Release von `opendox-client` |
 | `WHISPER_API_ENDPOINT` | Whisper-API-URL (Fallback, wenn keine DB-Settings gesetzt sind) | `http://localhost:9100/v1` |
 | `WHISPER_API_KEY` | Whisper-API-Key | `loc-123` |
 | `FAILED_AUDIO_RETENTION_DAYS` | Tage, bis Audio fehlgeschlagener Transkriptionen in den Objektspeicher archiviert wird | `3` |

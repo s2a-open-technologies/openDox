@@ -12,6 +12,12 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+- **Client update hint** — `GET /settings/client-config/` now also returns `latest_client_version`, the newest
+  openDox client release (asked from GitHub by the server, cached 6 h, failures 15 min). The desktop client only shows
+  it as a note in its settings dialog; rollout stays with the customer's IT. `CLIENT_LATEST_RELEASE_URL=""` turns the
+  lookup off (e.g. networks without internet access).
+
 ## [0.11.2] — 2026-11-02
 
 ### Changed

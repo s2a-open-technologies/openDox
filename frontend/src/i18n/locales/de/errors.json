@@ -12,6 +12,8 @@
   "category_not_found": "Kategorie nicht gefunden",
   "builtin_category_locked": "Name, Beschreibung und Prompt der mitgelieferten Kategorie sind schreibgeschützt; sie kann nicht gelöscht werden",
   "default_must_be_global": "Nur eine globale Kategorie kann Standard für alle sein",
+  "invalid_language_code": "Sprachcodes müssen zweistellig sein (ISO 639-1): {{language}}",
+  "translation_target_in_sources": "Die Sprache der Instanz ({{language}}) kann keine Diktiersprache sein",
   "category_edit_forbidden": "Keine Berechtigung, diese Kategorie zu bearbeiten",
   "category_delete_forbidden": "Keine Berechtigung, diese Kategorie zu löschen",
   "admin_required": "Administrator-Rechte erforderlich",
@@ -46,5 +48,7 @@
   "ldap_unreachable": "LDAP-Server nicht erreichbar",
   "ldap_tls_failed": "TLS-Verbindung fehlgeschlagen (Zertifikat prüfen)",
   "ldap_bind_failed": "Anmeldung des Dienstkontos fehlgeschlagen",
-  "ldap_test_failed": "LDAP-Test fehlgeschlagen (Details im Server-Log)"
+  "ldap_test_failed": "LDAP-Test fehlgeschlagen (Details im Server-Log)",
+  "translation_not_available": "Diktieren in dieser Sprache ist für Sie nicht freigegeben ({{language}})",
+  "segment_out_of_range": "Übersetzter Satz nicht gefunden"
 }

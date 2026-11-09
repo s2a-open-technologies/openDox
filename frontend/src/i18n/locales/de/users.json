@@ -4,6 +4,7 @@
   "create": "Benutzer anlegen",
   "active": "Aktiv",
   "inactive": "Inaktiv",
+  "translationReleased": "Übersetzung freigegeben",
   "empty": "Keine Benutzer vorhanden",
   "dialog": {
     "editTitle": "Benutzer bearbeiten",
@@ -15,6 +16,8 @@
     "password": "Passwort",
     "passwordUnchanged": "(leer = unveraendert)",
     "isActive": "Aktiv",
+    "translationAllowed": "Übersetzung freigeben",
+    "translationAllowedHint": "Darf in einer anderen Sprache diktieren, wenn die Übersetzung auf „Ausgewählte Benutzer“ steht.",
     "role": "Rolle",
     "update": "Aktualisieren",
     "add": "Anlegen"

@@ -186,6 +186,8 @@ der MDR hält.
 
 Bereits ausführlich in [`docs/data-mapping.md`](data-mapping.md) und
 [`SECURITY.md`](../SECURITY.md) (Art.-32-Maßnahmentabelle,
-Data-Subject-Rights-Tabelle) sowie in
+Data-Subject-Rights-Tabelle), der DSFA-Vorlage
+[`docs/dsfa-vorlage.md`](dsfa-vorlage.md) (durchführen muss sie der
+Betreiber als Verantwortlicher) sowie in
 [`docs/oss-audit-talk-outline.md`](oss-audit-talk-outline.md) behandelt —
 hier nur der Querverweis, um Dopplung zu vermeiden.

@@ -90,16 +90,51 @@ def summary_enabled(db: Session, record: Record) -> bool:
     return category_llm_enabled(effective_category(db, record))
 
 
+def result_text(record: Record) -> str:
+    """Return the text the summary is built from (and served without one).
+
+    The translation for a recording dictated in another language, otherwise
+    the transcript. ``content`` always keeps the original.
+    """
+    return record.translation or record.content or ""
+
+
 def effective_summary(record: Record, enabled: bool) -> str:
     """Return the text the API serves as ``summarize``.
 
     A stored summary always wins. Without one, a record whose category runs no
-    LLM gets its transcript, so clients that only read ``summarize`` still get
-    the result text — and always the current one, also after transcript edits.
+    LLM gets its result text (transcript, or translation), so clients that
+    only read ``summarize`` still get it — and always the current one, also
+    after edits. The desktop client must never receive the untranslated text.
     """
     if record.summarize:
         return record.summarize
-    return "" if enabled else (record.content or "")
+    return "" if enabled else result_text(record)
+
+
+def sanitize_if_configured(db: Session, text: str) -> tuple[str, dict[str, str]]:
+    """Mask names etc. with EntityGuard when the operator configured it.
+
+    Shared by every step that sends patient text to the LLM (summary,
+    translation). Fail-closed: a sanitizer error raises, so the text never
+    reaches the LLM unmasked.
+
+    Returns:
+        The text to send and the entity mapping ({token: real value}); the
+        unchanged text and ``{}`` when the sanitizer is off.
+    """
+    llm_settings = db.exec(select(LlmSettingsModel)).first()
+    if (
+        llm_settings
+        and llm_settings.sanitizer_enabled
+        and llm_settings.sanitizer_endpoint
+    ):
+        return sanitize(
+            text=text,
+            endpoint=llm_settings.sanitizer_endpoint,
+            api_key=llm_settings.sanitizer_api_key,
+        )
+    return text, {}
 
 
 def run_summary(
@@ -113,20 +148,7 @@ def run_summary(
         The summary with real names re-injected, and the entity mapping
         (empty when the sanitizer is off or found nothing).
     """
-    llm_settings = db.exec(select(LlmSettingsModel)).first()
-    text_for_llm = text
-    entity_mapping: dict[str, str] = {}
-
-    if (
-        llm_settings
-        and llm_settings.sanitizer_enabled
-        and llm_settings.sanitizer_endpoint
-    ):
-        text_for_llm, entity_mapping = sanitize(
-            text=text,
-            endpoint=llm_settings.sanitizer_endpoint,
-            api_key=llm_settings.sanitizer_api_key,
-        )
+    text_for_llm, entity_mapping = sanitize_if_configured(db, text)
 
     if category and category.llm_override_enabled and category.llm_model:
         model = SummarizeModel(

@@ -42,6 +42,18 @@ formuliert, dass sie bestehende EntityGuard-Token wie `[PERSON]`/`[LOCATION]`
 ausdrücklich ausnimmt — sonst würden sich beide Instruktionen widersprechen
 (siehe Alembic-Revision `a599665d9034`).
 
+## Übersetzung
+
+Wird ein Diktat in einer anderen Sprache übersetzt, läuft derselbe Sanitizer
+**vor** der Übersetzung (`llm_gate.sanitize_if_configured()`, aufgerufen in
+`_translate_record()`): Das LLM bekommt nur den maskierten Text und die
+Anweisung, Platzhalter unverändert zu übernehmen. Danach setzt `reinject()`
+die echten Namen in Original- und Übersetzungssatz wieder ein, erst dann
+werden die Zahlen pro Satz verglichen. Fail-closed wie bei der
+Zusammenfassung: Ist der Sanitizer nicht erreichbar, endet die Aufnahme mit
+Fehler, der Text geht nicht unmaskiert an das LLM. Ob der Sanitizer Namen in
+der jeweiligen Fremdsprache erkennt, hängt vom Sanitizer-Dienst ab.
+
 ## Felder in der Datenbank
 
 | Feld | Inhalt | Verschlüsselt |

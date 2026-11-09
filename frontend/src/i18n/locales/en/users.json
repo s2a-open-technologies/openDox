@@ -4,6 +4,7 @@
   "create": "Add user",
   "active": "Active",
   "inactive": "Inactive",
+  "translationReleased": "Translation released",
   "empty": "No users",
   "dialog": {
     "editTitle": "Edit user",
@@ -15,6 +16,8 @@
     "password": "Password",
     "passwordUnchanged": "(empty = unchanged)",
     "isActive": "Active",
+    "translationAllowed": "Release translation",
+    "translationAllowedHint": "May dictate in another language while translation is set to “Selected users”.",
     "role": "Role",
     "update": "Update",
     "add": "Create"

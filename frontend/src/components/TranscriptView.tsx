@@ -28,6 +28,9 @@ import type { Recording, Category } from "@/pages/Dashboard";
 import { cn } from "@/lib/utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TranslationPanel, type TranslationSegment } from "@/components/TranslationPanel";
+import { languageName } from "@/lib/languageName";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -57,12 +60,28 @@ interface TranscriptViewProps {
   onCategoryChange: (id: string, categoryId: number) => Promise<void>;
 }
 
-// No LLM for the record: the server sends the transcript as summarize.
-const isTranscriptOnly = (enabled?: boolean, summarize?: string | null, content?: string | null) =>
-  enabled === false && (summarize || "") === (content || "");
+// No LLM for the record: the server sends the result text (transcript, or
+// the translation of a foreign-language dictation) as summarize.
+const isTranscriptOnly = (enabled?: boolean, summarize?: string | null, resultText?: string | null) =>
+  enabled === false && (summarize || "") === (resultText || "");
+
+// Same joining as the server (translation.segmenter.join_sentences).
+const joinSegments = (segments: TranslationSegment[], edits: Record<number, string>) => {
+  const lines: string[][] = [];
+  let last: number | null = null;
+  segments.forEach((segment, index) => {
+    if (segment.paragraph !== last) {
+      lines.push([]);
+      last = segment.paragraph;
+    }
+    const text = (edits[index] ?? segment.target).trim();
+    if (text) lines[lines.length - 1].push(text);
+  });
+  return lines.filter((line) => line.length).map((line) => line.join(" ")).join("\n");
+};
 
 const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCategoryChange }: TranscriptViewProps) => {
-  const { t } = useTranslation(["transcript", "disclaimer"]);
+  const { t, i18n } = useTranslation(["transcript", "disclaimer"]);
   const { authFetch } = useAuth();
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [taskError, setTaskError] = useState<string | null>(null);
@@ -76,9 +95,13 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [hasAudio, setHasAudio] = useState<boolean>(!!transcript?.hasAudio);
   const [isChangingCategory, setIsChangingCategory] = useState(false);
+  const [segments, setSegments] = useState<TranslationSegment[]>(transcript?.translationSegments || []);
+  const [translation, setTranslation] = useState(transcript?.translation || "");
+  const [segmentEdits, setSegmentEdits] = useState<Record<number, string>>({});
   const [summaryIsTranscript, setSummaryIsTranscript] = useState(
-    isTranscriptOnly(transcript?.summaryEnabled, transcript?.summarize, transcript?.content)
+    isTranscriptOnly(transcript?.summaryEnabled, transcript?.summarize, transcript?.translation || transcript?.content)
   );
+  const isTranslated = !!transcript?.sourceLanguage;
 
   const editedContentRef = useRef(editedContent);
   const editedSummaryRef = useRef(editedSummary);
@@ -99,21 +122,29 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       setIsEditingSummary(false);
       setConfirmDialogOpen(false);
       setHasAudio(!!transcript?.hasAudio);
+      setSegments(transcript?.translationSegments || []);
+      setTranslation(transcript?.translation || "");
+      setSegmentEdits({});
       prevId.current = transcript?.id;
     }
   }, [transcript?.id, transcript?.content, transcript?.summarize, transcript?.hasAudio]);
 
   // Category change or save on the same record: the server decided anew.
   useEffect(() => {
-    setSummaryIsTranscript(isTranscriptOnly(transcript?.summaryEnabled, transcript?.summarize, transcript?.content));
+    setSummaryIsTranscript(
+      isTranscriptOnly(transcript?.summaryEnabled, transcript?.summarize, transcript?.translation || transcript?.content)
+    );
     setEditedSummary(transcript?.summarize || "");
   }, [transcript?.summaryEnabled, transcript?.summarize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const contentDiff = (transcript?.content || "") !== editedContent;
     const summaryDiff = !summaryIsTranscript && (transcript?.summarize || "") !== editedSummary;
-    setHasUnsavedChanges(contentDiff || summaryDiff);
-  }, [editedContent, editedSummary, transcript?.content, transcript?.summarize, summaryIsTranscript]);
+    const translationDiff = Object.entries(segmentEdits).some(
+      ([index, target]) => segments[Number(index)]?.target !== target
+    );
+    setHasUnsavedChanges(contentDiff || summaryDiff || translationDiff);
+  }, [editedContent, editedSummary, transcript?.content, transcript?.summarize, summaryIsTranscript, segmentEdits, segments]);
 
   useEffect(() => {
     if (!transcript?.taskId) {
@@ -148,7 +179,13 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
               if (typeof recData.has_audio === "boolean") {
                 setHasAudio(recData.has_audio);
               }
-              setSummaryIsTranscript(isTranscriptOnly(recData.summary_enabled, recData.summarize, recData.content));
+              if (Array.isArray(recData.translation_segments)) {
+                setSegments(recData.translation_segments);
+                setTranslation(recData.translation || "");
+              }
+              setSummaryIsTranscript(
+                isTranscriptOnly(recData.summary_enabled, recData.summarize, recData.translation || recData.content)
+              );
             }
           }
         }
@@ -184,6 +221,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       case 'pending':
       case 'running':
       case 'transcribing':
+      case 'translating':
       case 'processing_llm':
         // Redundant with the isProcessing banner above the title row —
         // that one already shows a "läuft"/"arbeitet" indicator.
@@ -207,12 +245,33 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
     }
   };
 
+  const saveTranslation = async (): Promise<string> => {
+    const edits = Object.entries(segmentEdits)
+      .filter(([index, target]) => segments[Number(index)]?.target !== target)
+      .map(([index, target]) => ({ index: Number(index), target }));
+    if (edits.length === 0 || !transcript.dbId) return translation;
+    const res = await authFetch(`/api/v1/records/record/${transcript.dbId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ translation_segments: edits }),
+    });
+    if (!res.ok) throw new Error(t("translation.saveFailed"));
+    const data = await res.json();
+    setSegments(data.translation_segments || []);
+    setTranslation(data.translation || "");
+    setSegmentEdits({});
+    return data.translation || "";
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Echoing the transcript back is ignored by the server, so it stays linked.
-      await onSave(transcript.id, editedContent, summaryIsTranscript ? editedContent : editedSummary);
+      const resultText = isTranslated ? await saveTranslation() : editedContent;
+      // Echoing the result text back is ignored by the server, so it stays linked.
+      await onSave(transcript.id, editedContent, summaryIsTranscript ? resultText : editedSummary);
       setHasUnsavedChanges(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("translation.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -231,7 +290,9 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
     }
   };
 
-  const isProcessing = taskStatus === 'pending' || taskStatus === 'running' || taskStatus === 'transcribing' || taskStatus === 'processing_llm';
+  const isProcessing = taskStatus === 'pending' || taskStatus === 'running' || taskStatus === 'transcribing' || taskStatus === 'translating' || taskStatus === 'processing_llm';
+  const sourceName = transcript.sourceLanguage ? languageName(transcript.sourceLanguage, i18n.language) : "";
+  const currentTranslation = joinSegments(segments, segmentEdits) || translation;
 
   const handleCategorySelect = async (val: string) => {
     const newCategoryId = parseInt(val);
@@ -295,6 +356,76 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
     }
   };
 
+  const summarySection = (
+    <>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+        <h3 className="text-xl font-semibold text-foreground">{t("summary.title")}</h3>
+        {!summaryIsTranscript && (
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!confirmed}
+            onClick={() => handleCopy(editedSummary)}
+            title={!confirmed ? t("confirmFirst") : ""}
+            aria-label={t("summary.copyLabel")}
+          >
+            <Copy className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRegenerateSummary}
+            disabled={regeneratingId === transcript?.dbId || isProcessing}
+            title={t("summary.regenerate")}
+          >
+            {regeneratingId === transcript?.dbId
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <TfiReload />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!confirmed}
+            onClick={() => setIsEditingSummary(!isEditingSummary)}
+            title={!confirmed ? t("confirmFirst") : isEditingSummary ? t("markdownPreview") : t("edit")}
+          >
+            {isEditingSummary ? <Eye className="w-4 h-4 sm:mr-2" /> : <Pencil className="w-4 h-4 sm:mr-2" />}
+            <span className="hidden sm:inline">{isEditingSummary ? t("preview") : t("edit")}</span>
+          </Button>
+        </div>
+        )}
+      </div>
+      {summaryIsTranscript ? (
+        <p className="text-muted-foreground italic">{t("summary.llmDisabled")}</p>
+      ) : isEditingSummary ? (
+        <Textarea
+          value={editedSummary}
+          onChange={(e) => setEditedSummary(e.target.value)}
+          placeholder={t("summary.none")}
+          readOnly={!confirmed}
+          onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
+          onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
+          onCut={(e) => { if (!confirmed) e.preventDefault(); }}
+          title={!confirmed ? t("confirmFirst") : undefined}
+          className={`flex-1 min-h-0 font-sans shadow-xs text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
+        />
+      ) : (
+        <div
+          onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
+          onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
+          className={`flex-1 min-h-0 overflow-y-auto prose prose-sm dark:prose-invert max-w-none${!confirmed ? ' select-none pointer-events-none opacity-75' : ''}`}
+        >
+          {editedSummary ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{editedSummary}</ReactMarkdown>
+          ) : (
+            <p className="text-muted-foreground italic">{t("summary.none")}</p>
+          )}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="h-full flex flex-col p-8 gap-6 bg-background">
       {isProcessing && (
@@ -303,7 +434,9 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
           <span className="text-sm font-medium text-foreground">
             {taskStatus === 'processing_llm'
               ? t("processing.llm")
-              : t("processing.transcribing")}
+              : taskStatus === 'translating'
+                ? t("processing.translating")
+                : t("processing.transcribing")}
           </span>
         </div>
       )}
@@ -367,7 +500,9 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       <div className="flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(18rem,1fr)_minmax(18rem,1fr)] lg:grid-cols-2 lg:grid-rows-1 gap-6">
         <div className="flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-semibold text-foreground">{t("title")}</h3>
+            <h3 className="text-xl font-semibold text-foreground">
+              {isTranslated ? t("translation.originalTitle", { language: sourceName }) : t("title")}
+            </h3>
             <Button
               variant="ghost"
               size="sm"
@@ -388,76 +523,48 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
             onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
             onCut={(e) => { if (!confirmed) e.preventDefault(); }}
             title={!confirmed ? t("confirmFirst") : undefined}
+            dir="auto"
             className={`flex-1 min-h-0 font-sans shadow-md text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
           />
         </div>
 
         <div className="flex flex-col min-h-0">
           <Card className="p-6 flex flex-col flex-1 min-h-0 shadow-md">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-              <h3 className="text-xl font-semibold text-foreground">{t("summary.title")}</h3>
-              {!summaryIsTranscript && (
-              <div className="flex items-center gap-2 ml-auto">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!confirmed}
-                  onClick={() => handleCopy(editedSummary)}
-                  title={!confirmed ? t("confirmFirst") : ""}
-                  aria-label={t("summary.copyLabel")}
-                >
-                  <Copy className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRegenerateSummary}
-                  disabled={regeneratingId === transcript?.dbId || isProcessing}
-                  title={t("summary.regenerate")}
-                >
-                  {regeneratingId === transcript?.dbId
-                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <TfiReload />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!confirmed}
-                  onClick={() => setIsEditingSummary(!isEditingSummary)}
-                  title={!confirmed ? t("confirmFirst") : isEditingSummary ? t("markdownPreview") : t("edit")}
-                >
-                  {isEditingSummary ? <Eye className="w-4 h-4 sm:mr-2" /> : <Pencil className="w-4 h-4 sm:mr-2" />}
-                  <span className="hidden sm:inline">{isEditingSummary ? t("preview") : t("edit")}</span>
-                </Button>
-              </div>
-              )}
-            </div>
-            {summaryIsTranscript ? (
-              <p className="text-muted-foreground italic">{t("summary.llmDisabled")}</p>
-            ) : isEditingSummary ? (
-              <Textarea
-                value={editedSummary}
-                onChange={(e) => setEditedSummary(e.target.value)}
-                placeholder={t("summary.none")}
-                readOnly={!confirmed}
-                onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
-                onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
-                onCut={(e) => { if (!confirmed) e.preventDefault(); }}
-                title={!confirmed ? t("confirmFirst") : undefined}
-                className={`flex-1 min-h-0 font-sans shadow-xs text-base leading-relaxed resize-none${!confirmed ? ' select-none cursor-not-allowed opacity-75' : ''}`}
-              />
-            ) : (
-              <div
-                onContextMenu={(e) => { if (!confirmed) e.preventDefault(); }}
-                onCopy={(e) => { if (!confirmed) e.preventDefault(); }}
-                className={`flex-1 min-h-0 overflow-y-auto prose prose-sm dark:prose-invert max-w-none${!confirmed ? ' select-none pointer-events-none opacity-75' : ''}`}
-              >
-                {editedSummary ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{editedSummary}</ReactMarkdown>
-                ) : (
-                  <p className="text-muted-foreground italic">{t("summary.none")}</p>
+            {isTranslated ? (
+              <Tabs defaultValue="translation" className="flex flex-col flex-1 min-h-0">
+                <TabsList className="self-start mb-4">
+                  <TabsTrigger value="translation">{t("translation.tab")}</TabsTrigger>
+                  {!summaryIsTranscript && <TabsTrigger value="summary">{t("summary.title")}</TabsTrigger>}
+                </TabsList>
+                <TabsContent value="translation" className="flex flex-col flex-1 min-h-0 mt-0 data-[state=inactive]:hidden">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-sm text-muted-foreground">{t("translation.hint")}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!confirmed || segments.length === 0}
+                      onClick={() => handleCopy(currentTranslation)}
+                      title={!confirmed ? t("confirmFirst") : ""}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      {t("copy")}
+                    </Button>
+                  </div>
+                  <TranslationPanel
+                    segments={segments}
+                    edits={segmentEdits}
+                    editable={confirmed}
+                    onEdit={(index, target) => setSegmentEdits((prev) => ({ ...prev, [index]: target }))}
+                  />
+                </TabsContent>
+                {!summaryIsTranscript && (
+                  <TabsContent value="summary" className="flex flex-col flex-1 min-h-0 mt-0 data-[state=inactive]:hidden">
+                    {summarySection}
+                  </TabsContent>
                 )}
-              </div>
+              </Tabs>
+            ) : (
+              summarySection
             )}
           </Card>
         </div>
@@ -488,7 +595,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
             className="mt-0.5"
           />
           <label htmlFor="transcript-confirm" className="text-sm text-muted-foreground cursor-pointer">
-            {t("confirmLabel")}
+            {isTranslated ? t("translation.confirmLabel") : t("confirmLabel")}
           </label>
         </div>
       </div>

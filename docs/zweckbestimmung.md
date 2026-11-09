@@ -1,6 +1,6 @@
 # Zweckbestimmung openDox
 
-> Stand: 2026-10-05 · gilt für openDox ab Version 0.8.x
+> Stand: 2026-11-06 · gilt für openDox ab Version 0.8.x
 > Diese Zweckbestimmung legt fest, wofür openDox vom Hersteller bestimmt ist
 > und wofür nicht. Sie ist die Grundlage der Abgrenzung zum Medizinprodukt
 > (Art. 2 Nr. 1 Verordnung (EU) 2017/745, MDR) und ergänzt
@@ -40,6 +40,7 @@ vollständig beim Anwender.
 | Fachbegriff-Korrektur | Phonetischer Abgleich mit Glossaren (Kategorie, persönliches Wörterbuch) |
 | PII-Maskierung (optional) | Ersetzen von Namen und Orten durch Platzhalter vor der LLM-Verarbeitung |
 | Textentwurf | Sprachmodell strukturiert bzw. bereinigt den Text nach Kategorie-Vorgabe |
+| Übersetzung (optional) | Ein Diktat in einer anderen Sprache wird wörtlich in die Sprache der Instanz übersetzt; das Original bleibt das Transkript. Nur nach Freigabe durch den Betreiber |
 | Ablage | Verschlüsselte Speicherung von Text und optional Audio, Archivierung, Export |
 
 ## 4. Ausdrücklich nicht bestimmungsgemäß
@@ -99,6 +100,15 @@ Die Abgrenzung wird in der Software nachvollziehbar abgebildet:
   in allen Oberflächensprachen.
 - Das Sprachmodell wird angewiesen, nichts zu ergänzen und keine Platzhalter
   für fehlende Angaben zu erfinden.
+- Übersetzung: standardmäßig aus, der Betreiber gibt sie für alle oder für
+  einzelne Benutzer frei. Übersetzt wird wörtlich und vollständig, ohne
+  Kürzung und ohne inhaltliche Korrektur, und immer in die Sprache der
+  Instanz. Das Diktat in der Originalsprache bleibt unverändert gespeichert
+  und wird Satz für Satz neben der Übersetzung angezeigt. Sätze, deren Zahlen
+  zwischen Original und Übersetzung abweichen, werden markiert. Vor dem
+  Kopieren bestätigt der Anwender, dass er die Übersetzung mit seinem Diktat
+  verglichen hat. Die Übersetzung ist ein maschineller Entwurf wie jede
+  andere Ausgabe und kein beglaubigter oder geprüfter Text.
 - Der mitgelieferte Standardprompt (Kategorie „Standard“, nur
   Zeichensetzung) ist schreibgeschützt: Name, Beschreibung und Prompt lassen
   sich weder über die Oberfläche noch über die API oder ein Backup-Restore

@@ -12,6 +12,31 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+- **Translation: dictate in your native language** — off by default. Admins switch it on in the new tab
+  *Übersetzung* and release it for all or selected users (user management), with the allowed dictation languages.
+  Users then pick a *Diktiersprache* when recording or uploading. Whisper transcribes in that language, the configured
+  LLM translates literally, sentence by sentence, into the **instance language** (Whisper setting, usually German),
+  and the summary is built from the translation. The original stays the transcript. The transcript view shows the
+  sentence pairs, highlights sentences whose numbers differ, lets users correct single sentences and asks for a
+  separate confirmation. Without an LLM summary the translation is the result text, also for the desktop client.
+  The live preview is skipped for languages the live model does not know (e.g. Arabic). Web UI only.
+
+- **Manuals in the admin UI** — new admin tab *Handbücher* with download links to the user, administration and
+  installation manual of the running version, straight from its GitHub release. `MANUALS_DOWNLOAD_BASE_URL`
+  (`{version}` is replaced) points the links at an internal mirror instead.
+
+- **DPIA template** — `docs/dsfa-vorlage.md`: a pre-filled template for the data protection impact assessment
+  (Art. 35 GDPR) that operators complete and own; risks, measures and code references from the product side.
+
+### Security
+- **Translation uses the PII sanitizer** — with EntityGuard configured, names are masked before the transcript goes to
+  the LLM for translation and re-inserted afterwards (fail-closed, like the summary).
+
+### Fixed
+- **Transcription language setting is applied** — the final Whisper call now uses the language set under
+  *Dienste → Whisper / ASR*; before it always sent `de`.
+
 ## [0.11.3] — 2026-11-06
 
 ### Added

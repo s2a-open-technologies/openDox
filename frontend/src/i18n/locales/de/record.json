@@ -45,5 +45,11 @@
     "stopTitle": "Aufnahme beenden",
     "stopDescription": "Möchten Sie die Aufnahme wirklich beenden und speichern?",
     "cancel": "Abbrechen"
+  },
+  "dictationLanguage": {
+    "label": "Diktiersprache",
+    "instance": "{{language}} (Standard)",
+    "translatedInto": "Das Diktat wird nach der Aufnahme übersetzt (Zielsprache: {{language}}). Das Original bleibt erhalten.",
+    "noLivePreview": "Für diese Sprache gibt es keine Live-Vorschau. Der Text erscheint nach dem Beenden der Aufnahme."
   }
 }

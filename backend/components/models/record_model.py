@@ -17,6 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import json
 from typing import Optional
 
 from pydantic import BaseModel
@@ -47,6 +48,28 @@ class Record(SQLModel, table=True):
         default=None, sa_column=Column(EncryptedString, nullable=True)
     )
 
+    # Dictation in another language (translation_gate). None = dictated in the
+    # instance language; then the fields below stay empty. ``content`` always
+    # keeps the original, the summary runs on ``translation``.
+    source_language: Optional[str] = Field(default=None)
+    # Instance language the text was translated into (it may change later).
+    translation_language: Optional[str] = Field(default=None)
+    translation: Optional[str] = Field(
+        default=None, sa_column=Column(EncryptedString, nullable=True)
+    )
+    # JSON list of translation.translator.Segment dicts (sentence pairs).
+    translation_segments: Optional[str] = Field(
+        default=None, sa_column=Column(EncryptedString, nullable=True)
+    )
+
+    def segments(self) -> list[dict]:
+        """Return the stored sentence pairs ([] if none or unreadable)."""
+        try:
+            data = json.loads(self.translation_segments or "[]")
+        except ValueError:
+            return []
+        return data if isinstance(data, list) else []
+
     def to_dict(self):
         """Return the record's fields as a plain dictionary."""
         return {
@@ -61,6 +84,10 @@ class Record(SQLModel, table=True):
             "has_audio": bool(self.file),
             "archived": self.archived,
             "task_id": self.task_id,
+            "source_language": self.source_language,
+            "translation_language": self.translation_language,
+            "translation": self.translation or "",
+            "translation_segments": self.segments(),
         }
 
 
@@ -76,6 +103,15 @@ class RecordCreate(SQLModel):
     user_id: int
     title: str
     category_id: Optional[int] = None
+    # Dictation language (ISO 639-1); omitted = the instance language.
+    source_language: Optional[str] = None
+
+
+class SegmentEdit(SQLModel):
+    """An edited translated sentence (index into the stored pairs)."""
+
+    index: int
+    target: str
 
 
 class RecordUpdate(SQLModel):
@@ -85,6 +121,8 @@ class RecordUpdate(SQLModel):
     content: Optional[str] = None
     summarize: Optional[str] = None
     category_id: Optional[int] = None
+    # Edited translated sentences; sources stay, numbers are checked again.
+    translation_segments: Optional[list[SegmentEdit]] = None
 
 
 class RecordRead(RecordBase):
@@ -104,6 +142,10 @@ class RecordRead(RecordBase):
     has_audio: bool = False
     archived: bool = False
     task_id: Optional[int] = None
+    source_language: Optional[str] = None
+    translation_language: Optional[str] = None
+    translation: str = ""
+    translation_segments: list[dict] = []
 
 
 class RecordChunk(BaseModel):

@@ -246,6 +246,25 @@ class SummarizeModel:
             "Meta-Kommentare oder Wiederholung dieser Anweisung."
         )
 
+    def complete(self, system_prompt: str, message: str) -> str:
+        """Send ``message`` with ``system_prompt`` as is and return the answer.
+
+        For tasks other than the summary (e.g. translation): the summary's
+        hardening rules are not appended — "drop the sentence instead" would
+        be wrong for a literal translation. Only the thinking suppression is.
+        Messages are passed directly, so braces in the prompt need no escaping.
+        """
+        prompt = (
+            system_prompt.rstrip()
+            + "\nDo not output your reasoning or thinking process. "
+            "Output only the final result."
+        )
+        response = self.client.invoke([("system", prompt), ("human", message)])
+        result = _strip_thinking(response.content)
+        if not result.strip():
+            raise ValueError("LLM response was empty after stripping reasoning")
+        return result
+
     def generate_response(
         self, message: str, custom_system_prompt: str | None = None
     ) -> str:

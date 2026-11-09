@@ -51,6 +51,9 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { defaultCategoryId } from "@/lib/categories";
+import { DictationLanguageSelect } from "@/components/DictationLanguageSelect";
+import type { TranslationSegment } from "@/components/TranslationPanel";
+import { useTranslationAvailability } from "@/hooks/useTranslationAvailability";
 
 export interface Recording {
   id: string;
@@ -66,6 +69,12 @@ export interface Recording {
   userid: string;
   taskId?: string | number;
   hasAudio?: boolean;
+  // Dictated in another language: content is the original, translation the
+  // text in the instance language (see TranslationPanel).
+  sourceLanguage?: string | null;
+  translationLanguage?: string | null;
+  translation?: string;
+  translationSegments?: TranslationSegment[];
 }
 
 export interface Category {
@@ -87,7 +96,20 @@ interface RecordData {
   timestamp: string;
   task_id?: number | null;
   has_audio?: boolean;
+  source_language?: string | null;
+  translation_language?: string | null;
+  translation?: string | null;
+  translation_segments?: TranslationSegment[];
 }
+
+// Translation fields of an API record (empty for dictations in the instance
+// language). Every place that turns a record into a Recording uses this.
+const translationFields = (d: RecordData) => ({
+  sourceLanguage: d.source_language ?? null,
+  translationLanguage: d.translation_language ?? null,
+  translation: d.translation || "",
+  translationSegments: d.translation_segments || [],
+});
 
 const Dashboard = () => {
   const { t, i18n } = useTranslation(["dashboard", "disclaimer"]);
@@ -115,6 +137,14 @@ const Dashboard = () => {
   const [uploadCategoryId, setUploadCategoryId] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Dictation language per dialog; "" = the instance language (no translation).
+  const [translationAvailability, reloadTranslationAvailability] =
+    useTranslationAvailability();
+  useEffect(() => {
+    if (isDialogOpen || uploadDialogOpen) reloadTranslationAvailability();
+  }, [isDialogOpen, uploadDialogOpen, reloadTranslationAvailability]);
+  const [dictationLanguage, setDictationLanguage] = useState("");
+  const [uploadLanguage, setUploadLanguage] = useState("");
 
   const userId = user?.id?.toString() || "";
 
@@ -145,6 +175,7 @@ const Dashboard = () => {
           userid: d.user_id.toString(),
           taskId: d.task_id || undefined,
           hasAudio: d.has_audio || false,
+          ...translationFields(d),
         })));
       }
     } catch (err) {
@@ -249,6 +280,7 @@ const Dashboard = () => {
       summarize: "",
       userid: userId,
       taskId: undefined,
+      sourceLanguage: recordingData.source_language ?? null,
     };
     if (showArchived) setShowArchived(false);
     setRecordings(prev => [tempRecording, ...prev]);
@@ -284,6 +316,7 @@ const Dashboard = () => {
         summaryEnabled: data.summary_enabled ?? true,
         userid: data.user_id.toString(),
         taskId: effectiveTaskId,
+        ...translationFields(data),
       };
 
       setRecordings(prev => prev.map(r => r.id === sessionId ? finalRecording : r));
@@ -326,6 +359,7 @@ const Dashboard = () => {
         summaryEnabled: data.summary_enabled ?? true,
         userid: data.user_id.toString(),
         taskId: data.task_id || recording.taskId,
+        ...translationFields(data),
       });
     } catch (err) {
       console.error(err);
@@ -345,7 +379,12 @@ const Dashboard = () => {
       if (!res.ok) throw new Error("Failed to save");
       // The server decides what summarize holds (the transcript without an LLM).
       const saved: RecordData = await res.json();
-      const update = { content, summarize: saved.summarize || "", summaryEnabled: saved.summary_enabled ?? true };
+      const update = {
+        content,
+        summarize: saved.summarize || "",
+        summaryEnabled: saved.summary_enabled ?? true,
+        ...translationFields(saved),
+      };
       toast.success(t("saved"));
       setRecordings(prev => prev.map(r => r.id === id ? { ...r, ...update } : r));
       if (selectedRecording?.id === id) {
@@ -419,6 +458,7 @@ const Dashboard = () => {
       formData.append("category_id", uploadCategoryId);
       formData.append("user_id", userId);
       if (uploadTitle.trim()) formData.append("title", uploadTitle.trim());
+      if (uploadLanguage) formData.append("source_language", uploadLanguage);
 
       const res = await authFetch("/api/v1/records/upload", {
         method: "POST",
@@ -443,6 +483,7 @@ const Dashboard = () => {
         summarize: "",
         userid: userId,
         taskId: data.task_id,
+        sourceLanguage: uploadLanguage || null,
       };
       if (showArchived) setShowArchived(false);
       setRecordings(prev => [tempRecording, ...prev]);
@@ -450,6 +491,7 @@ const Dashboard = () => {
       setUploadDialogOpen(false);
       setUploadFile(null);
       setUploadTitle("");
+      setUploadLanguage("");
       setUploadCategoryId(null);
       toast.success(t("upload.success"));
     } catch (err) {
@@ -506,6 +548,7 @@ const Dashboard = () => {
               userId={userId}
               title={newTitle}
               categoryId={categoryId}
+              sourceLanguage={dictationLanguage || null}
               resumeSessionId={activeSessionId !== "new" ? activeSessionId ?? undefined : undefined}
               onRecordingStart={handleRecordingStart}
               onFinalTranscription={handleFinalTranscription}
@@ -662,6 +705,12 @@ const Dashboard = () => {
                       </p>
                     )}
                   </div>
+                  <DictationLanguageSelect
+                    availability={translationAvailability}
+                    value={dictationLanguage}
+                    onChange={setDictationLanguage}
+                    liveHint
+                  />
 
                   <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
@@ -747,6 +796,13 @@ const Dashboard = () => {
                   </p>
                 )}
               </div>
+              <DictationLanguageSelect
+                id="upload-dictation-language"
+                availability={translationAvailability}
+                value={uploadLanguage}
+                onChange={setUploadLanguage}
+                disabled={uploading}
+              />
               <div className="grid gap-2">
                 <FileDropzone
                   accept="audio/*"

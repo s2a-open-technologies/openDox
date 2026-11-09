@@ -95,6 +95,7 @@ Die Navigation links (auf dem Smartphone oben) enthält:
 | **Authentifizierung** | LDAP, OIDC / SSO und automatische Abmeldung | Administrator |
 | **Backup** | Einstellungen sichern und wiederherstellen | Administrator |
 | **Clients** | Desktop-Client verteilen und konfigurieren | Administrator |
+| **Handbücher** | Handbücher zur laufenden Version herunterladen | Administrator |
 | **Kategorien** | Globale Kategorien | Moderator, Administrator |
 | **Wörterbücher** | Globale Wörterbücher | Moderator, Administrator |
 | **System** | Status aller Dienste | Moderator, Administrator |
@@ -260,9 +261,14 @@ Zusammenfassung korrekt zurückgesetzt wurden.
 
 # Kategorien
 
-Eine Kategorie ist eine Vorlage für einen Einsatzzweck, z. B. *Arztbrief
-Kardiologie* oder *OP-Bericht*. Benutzer wählen sie beim Start einer
-Aufnahme und können sie danach ändern.
+Eine Kategorie ist eine Vorlage für einen Einsatzzweck. Benutzer wählen sie
+beim Start einer Aufnahme und können sie danach ändern.
+
+Mitgeliefert wird nur die Kategorie **Standard**. Nur sie ist von der
+*Zweckbestimmung* abgedeckt. Eigene Kategorien, z. B. *Arztbrief
+Kardiologie* oder *OP-Bericht*, legen Sie als Betreiber in eigener
+Verantwortung an. Mit einem eigenen Prompt verlassen Sie den Rahmen, für den
+openDox bereitgestellt wird (*Zweckbestimmung*, Abschnitt 6).
 
 Unter **Kategorien** verwalten Moderatoren und Administratoren die
 **globalen** Kategorien, die allen Benutzern zur Verfügung stehen.
@@ -517,6 +523,9 @@ Teilen Sie das Passwort auf sicherem Weg mit.
 
 - **Bearbeiten:** Name, Rolle und Status ändern. Bleibt **Passwort** leer,
   ändert es sich nicht. So setzen Sie auch ein vergessenes Passwort zurück.
+  Mit **Übersetzung freigeben** darf die Person in einer anderen Sprache
+  diktieren, solange die Übersetzung auf *Ausgewählte Benutzer* steht (siehe
+  *Übersetzung*). In der Liste steht dann *Übersetzung freigegeben*.
 - **Sperren:** Schalten Sie **Aktiv** aus. Das Konto bleibt mit allen
   Aufnahmen erhalten, eine Anmeldung ist nicht mehr möglich. Eine laufende
   Sitzung endet spätestens nach einer halben Stunde. Die Sperre gilt auch für
@@ -704,6 +713,47 @@ Client neu gestartet wird.
 | **Zwischenablage leeren nach (Sekunden)** | Löscht den Text aus der Zwischenablage, sofern sie sich nicht geändert hat; 0 = nie. | 30 |
 | **Erlaubte Zielprogramme** | Ein Programm pro Zeile, z. B. `medistar.exe`. Leer = jedes Programm; sonst fragt der Client vor dem Einfügen in andere Programme nach. | leer |
 
+# Übersetzung
+
+Ärztinnen und Ärzte können in ihrer Muttersprache diktieren, z. B. Russisch
+oder Arabisch. openDox transkribiert das Diktat in dieser Sprache und
+übersetzt es danach in die **Sprache der Instanz**. Das ist die Sprache unter
+*Dienste → Whisper / ASR → Allgemein*, in der Regel Deutsch. Die Übersetzung
+läuft über das Sprachmodell unter *Dienste → LLM*. Ein eigenes Modell ist
+nicht nötig.
+
+![Übersetzung: Schalter, Zugriff und Diktiersprachen](bilder/administration/15-uebersetzung.png)
+
+Das Diktat in der Originalsprache bleibt das Transkript. Die Übersetzung ist
+ein eigenes Feld, und die Zusammenfassung wird aus der Übersetzung erstellt.
+Arbeitet eine Kategorie ohne KI, ist die Übersetzung der Ergebnistext, auch
+für den Desktop-Client.
+
+| Feld | Bedeutung | Standard |
+|:-----------|:-------------------------------|:-----------|
+| **Übersetzung einschalten** | Schaltet die Funktion für die Instanz ein. Ohne aktives LLM steht sie nicht zur Verfügung. | aus |
+| **Wer darf übersetzen?** | *Ausgewählte Benutzer* (Freigabe unter *Benutzer → Bearbeiten*) oder *Alle Benutzer*. | ausgewählte |
+| **Diktiersprachen** | Sprachen, aus denen diktiert werden darf. Weitere Sprachen ergänzen Sie mit ihrem zweistelligen ISO-Code. Die Sprache der Instanz selbst steht nicht zur Wahl. | Russisch, Ukrainisch, Polnisch, Rumänisch, Bulgarisch, Serbisch, Arabisch |
+
+Hinweise:
+
+- **Live-Vorschau:** Das Live-Modell kennt 25 europäische Sprachen, darunter
+  Russisch, Ukrainisch, Polnisch, Rumänisch und Bulgarisch. Bei anderen
+  Sprachen, z. B. Arabisch, Türkisch oder Persisch, läuft die Aufnahme ohne
+  Live-Text; der Text erscheint nach dem Beenden.
+- **Wörterbücher und Whisper-Prompt** der Kategorie wirken nicht auf das
+  fremdsprachige Original. Die Fachbegriff-Korrektur läuft auf der
+  Übersetzung, wenn die Sprache der Instanz Deutsch ist.
+- **PII-Sanitizer:** Ist er eingeschaltet (*Dienste → LLM*), maskiert er Namen
+  auch vor der Übersetzung. Ob er Namen in der jeweiligen Fremdsprache
+  erkennt, hängt vom Sanitizer ab. Betreiben Sie die Übersetzung deshalb
+  möglichst mit einem eigenen Sprachmodell.
+- **Zahlenabgleich:** openDox vergleicht pro Satz die Zahlen in Original und
+  Übersetzung und markiert Abweichungen für den Anwender.
+- **Zweckbestimmung:** Die Übersetzung ist ein maschineller Entwurf. Die
+  Anwender müssen sie mit ihrem Diktat vergleichen, bevor sie den Text
+  übernehmen.
+
 # Backup der Einstellungen
 
 Unter **Backup** sichern Sie alle globalen **Einstellungen** von openDox als
@@ -800,6 +850,18 @@ Betriebshandbuch*).
 > dem Produktivbetrieb mit Betriebs- oder Personalrat und
 > Datenschutzbeauftragten, wer es einsehen darf und wie lange es aufbewahrt
 > wird.
+
+# Handbücher
+
+Unter **Handbücher** laden Sie das Benutzer-, Administrations- und
+Installationshandbuch als PDF herunter, und zwar genau in der Version, mit der
+Ihr openDox-Server läuft. Die Dateien kommen direkt aus dem GitHub-Release
+dieser Version; **Release-Seite öffnen** zeigt alle Dateien des Releases.
+
+Ihr Browser lädt die PDFs selbst, nicht der Server. Ohne Internetzugang am
+Arbeitsplatz kann der Betrieb die Handbücher auf einem internen Server
+ablegen und `MANUALS_DOWNLOAD_BASE_URL` darauf setzen (siehe
+Installationshandbuch).
 
 # Fehlersuche
 

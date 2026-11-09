@@ -1,0 +1,10 @@
+{
+  "heading": "Handbücher",
+  "description": "Benutzer-, Administrations- und Installationshandbuch zu openDox als PDF.",
+  "benutzer": "Benutzerhandbuch",
+  "administration": "Administrationshandbuch",
+  "installation": "Installationshandbuch",
+  "releasePage": "Release-Seite öffnen",
+  "hint": "Die PDFs werden vom Release-Server geladen; der Browser braucht dafür Zugang zum Internet bzw. zum eingerichteten Mirror.",
+  "unavailable": "Für diese Version sind keine Handbücher verfügbar."
+}

@@ -65,6 +65,9 @@ class User(SQLModel, table=True):
     idp_refresh_token: Optional[str] = Field(
         default=None, sa_column=Column(EncryptedString, nullable=True)
     )
+    # Released for dictation in another language while the translation
+    # setting is limited to selected users (TranslationSettingsModel.access).
+    translation_allowed: bool = Field(default=False)
 
     @property
     def is_superuser(self) -> bool:
@@ -83,6 +86,7 @@ class UserCreate(UserBase):
 
     password: str  # Klartext beim Eingang – wird gehasht gespeichert
     role: str = "user"
+    translation_allowed: bool = False
 
 
 class UserRead(UserBase):
@@ -93,6 +97,7 @@ class UserRead(UserBase):
     role: str
     disclaimer_accepted_at: Optional[datetime] = None
     ui_language: Optional[str] = None
+    translation_allowed: bool = False
 
 
 class UserLogin(SQLModel):
@@ -109,6 +114,7 @@ class UserUpdate(SQLModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
+    translation_allowed: Optional[bool] = None
 
 
 class RetentionRead(SQLModel):

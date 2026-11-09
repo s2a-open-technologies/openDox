@@ -6,10 +6,12 @@
     "auth": "Authentifizierung",
     "backup": "Backup",
     "clients": "Clients",
+    "translation": "Übersetzung",
     "categories": "Kategorien",
     "dictionaries": "Wörterbücher",
     "system": "System",
-    "audit": "Audit"
+    "audit": "Audit",
+    "manuals": "Handbücher"
   },
   "services": {
     "heading": "API-Dienste konfigurieren"

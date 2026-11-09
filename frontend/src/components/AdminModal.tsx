@@ -24,7 +24,7 @@ import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  GlobeLock, BookOpenCheck, BookMarked, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor, ScrollText
+  GlobeLock, BookOpenCheck, BookMarked, Settings, Users, Server, HardDrive, Mic, Brain, Archive, Monitor, ScrollText, Languages, BookText
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,6 +46,8 @@ import { ClientConfig } from './settings/ClientConfig';
 import { SessionSettings } from './settings/SessionSettings';
 import { ClientDistribution } from './settings/ClientDistribution';
 import { AuditLog } from './settings/AuditLog';
+import { TranslationSettings } from './settings/TranslationSettings';
+import { ManualDownloads } from './settings/ManualDownloads';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -72,6 +74,8 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
       { id: 'auth', label: t('nav.auth'), icon: GlobeLock },
       { id: 'backup', label: t('nav.backup'), icon: HardDrive },
       { id: 'clients', label: t('nav.clients'), icon: Monitor },
+      { id: 'translation', label: t('nav.translation'), icon: Languages },
+      { id: 'manuals', label: t('nav.manuals'), icon: BookText },
     ] : []),
     // Nur Admins: das Audit-Log ist auch für Demo-Viewer gesperrt.
     ...(isAdmin ? [{ id: 'audit', label: t('nav.audit'), icon: ScrollText }] : []),
@@ -186,8 +190,12 @@ const AdminModal = ({ isOpen, onClose }: AdminModalProps) => {
             <ClientConfig readOnly={readOnly} />
           </fieldset>
         );
+      case 'translation':
+        return <TranslationSettings readOnly={readOnly} />;
       case 'audit':
         return <AuditLog />;
+      case 'manuals':
+        return <ManualDownloads />;
       case 'categories':
         return (
           <div className="space-y-4">

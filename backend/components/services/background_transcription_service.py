@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from sqlmodel import select
 
 # Custom imports
+from backend.components.llm.llm_model import SummarizeModel
 from backend.components.models.record_model import Record
 from backend.components.models.task_model import Task
 from backend.components.modules.logger import get_logger
@@ -40,7 +41,9 @@ from backend.components.services.llm_gate import (
     effective_category,
     llm_globally_enabled,
     run_summary,
+    sanitize_if_configured,
 )
+from backend.components.services.sanitizing_service import reinject
 from backend.components.services.settings_service import (
     get_audio_settings,
     get_settings,
@@ -48,6 +51,9 @@ from backend.components.services.settings_service import (
 )
 from backend.components.services.task_service import update_task_status
 from backend.components.services.term_correction_service import correct_terms
+from backend.components.services.translation import check_segment, translate
+from backend.components.services.translation.segmenter import join_sentences
+from backend.components.services.translation_gate import target_language
 from backend.components.sql.sql_engine import get_session_factory
 
 logger = get_logger(__name__)
@@ -276,6 +282,117 @@ def resolve_failed_task(db, record: Record) -> str | None:
     return task.status
 
 
+def _source_language(record: Record | None, target: str) -> str | None:
+    """Dictation language if the record is to be translated, else None."""
+    source = (record.source_language or "").lower() if record else ""
+    return source if source and source != target else None
+
+
+def _correct_terms(
+    db, cat, record: Record | None, texts: list[str], task_id: int
+) -> list[str]:
+    """Phonetic term correction of German texts (fail-open, see module docs).
+
+    Returns the texts unchanged when it is switched off, finds no glossary or
+    fails.
+    """
+    whisper_settings = get_settings()
+    if not whisper_settings.term_correction_enabled:
+        return texts
+    try:
+        # The category's dictionaries plus all personal dictionaries of the
+        # recording's owner — whisper_prompt never feeds it.
+        glossary = glossary_for_category(db, cat, record.user_id if record else None)
+        if not glossary:
+            return texts
+        corrected = []
+        for text in texts:
+            text, replacements = correct_terms(
+                text, glossary, whisper_settings.term_correction_threshold
+            )
+            for r in replacements:
+                logger.info(
+                    f"[TASK {task_id}] Fachbegriff-Korrektur: "
+                    f"{r['original']!r} -> {r['replacement']!r} "
+                    f"(score={r['score']:.1f})"
+                )
+            corrected.append(text)
+        return corrected
+    except Exception:
+        logger.warning(
+            f"[TASK {task_id}] term_correction_service failed, using uncorrected text",
+            exc_info=True,
+        )
+        return texts
+
+
+def _translate_record(
+    db,
+    cat,
+    record: Record | None,
+    text: str,
+    source: str,
+    target: str,
+    task_id: int,
+) -> str:
+    """Translate the transcript into the instance language and store it.
+
+    ``content`` keeps the original. Raises on any LLM error, so the task ends
+    in "error" with the transcript already saved.
+
+    Returns:
+        The translated text (what the summary is built from).
+    """
+    # Names are masked like for the summary, fail-closed: an unreachable
+    # sanitizer raises, the original never reaches the LLM unmasked.
+    masked, entity_mapping = sanitize_if_configured(db, text)
+    model = SummarizeModel(enable_thinking=False)
+    result = translate(
+        masked,
+        source,
+        target,
+        complete=model.complete,
+        preserve_tokens=bool(entity_mapping),
+    )
+    segments = result.segments
+    if entity_mapping:
+        # Real names back into both sides, then check the numbers again
+        # (digits inside tokens like [PERSON_1] must not count).
+        segments = [
+            check_segment(
+                reinject(s.source, entity_mapping),
+                reinject(s.target, entity_mapping),
+                s.paragraph,
+            )
+            for s in segments
+        ]
+        result.text = join_sentences(
+            [s.target for s in segments], [s.paragraph for s in segments]
+        )
+    if target == "de":
+        corrected = _correct_terms(
+            db, cat, record, [s.target for s in segments], task_id
+        )
+        for segment, fixed in zip(segments, corrected):
+            segment.target = fixed
+        result.text = join_sentences(corrected, [s.paragraph for s in segments])
+    flagged = sum(1 for s in segments if s.flagged)
+    logger.info(
+        f"[TASK {task_id}] Translation {source}->{target} completed "
+        f"({len(segments)} sentences, {flagged} with differing numbers)"
+    )
+    if record:
+        record.translation = result.text
+        record.translation_language = target
+        record.translation_segments = json.dumps(
+            [s.to_dict() for s in segments], ensure_ascii=False
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+    return result.text
+
+
 def background_transcription_task(
     task_id: int,
     session_id: str,
@@ -314,42 +431,28 @@ def background_transcription_task(
 
         update_task_status(db, task_id, "transcribing")
 
+        # Dictated in another language: Whisper gets that language and no
+        # category prompt (its vocabulary hints are in the instance language).
+        target = target_language(db)
+        source = _source_language(record, target)
+        text_language = source or target
+        prompt = None if source else category_whisper_prompt
+
         final_params = get_whisper_params()
         if file_path:
             text = backend.transcribe(
-                file_path, prompt=category_whisper_prompt, params=final_params
+                file_path, language=text_language, prompt=prompt, params=final_params
             )
         elif pcm_buffer:
             text = backend.transcribe(
-                pcm_buffer, prompt=category_whisper_prompt, params=final_params
+                pcm_buffer, language=text_language, prompt=prompt, params=final_params
             )
         else:
             raise ValueError("No audio source provided (pcm_buffer or file_path)")
 
-        whisper_settings = get_settings()
-        if whisper_settings.term_correction_enabled:
-            try:
-                # The category's dictionaries plus all personal dictionaries
-                # of the recording's owner — whisper_prompt never feeds it.
-                glossary = glossary_for_category(
-                    db, cat, record.user_id if record else None
-                )
-                if glossary:
-                    text, replacements = correct_terms(
-                        text, glossary, whisper_settings.term_correction_threshold
-                    )
-                    for r in replacements:
-                        logger.info(
-                            f"[TASK {task_id}] Fachbegriff-Korrektur: "
-                            f"{r['original']!r} -> {r['replacement']!r} "
-                            f"(score={r['score']:.1f})"
-                        )
-            except Exception:
-                logger.warning(
-                    f"[TASK {task_id}] term_correction_service failed, "
-                    "using uncorrected text",
-                    exc_info=True,
-                )
+        # Kölner Phonetik only works on German text.
+        if text_language == "de":
+            text = _correct_terms(db, cat, record, [text], task_id)[0]
 
         if record:
             if _should_overwrite_content(text, record.content):
@@ -366,13 +469,18 @@ def background_transcription_task(
                     "keeping existing content"
                 )
 
+        result = text
+        if source and text.strip():
+            update_task_status(db, task_id, "translating")
+            result = _translate_record(db, cat, record, text, source, target, task_id)
+
         if not llm_globally_enabled(db) or not category_llm_enabled(cat):
             # Transcription only: summarize stays empty, the API serves the
             # transcript in its place (llm_gate.effective_summary).
             logger.info(f"[TASK {task_id}] LLM disabled (global/category), skipped")
         else:
             update_task_status(db, task_id, "processing_llm")
-            summary, entity_mapping = run_summary(db, cat, text)
+            summary, entity_mapping = run_summary(db, cat, result)
             logger.info(
                 f"[TASK {task_id}] Summarization completed ({len(summary)} chars, "
                 f"{len(entity_mapping)} sanitized entities)"

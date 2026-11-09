@@ -12,6 +12,8 @@
   "category_not_found": "Category not found",
   "builtin_category_locked": "The built-in category's name, description and prompt are read-only; it cannot be deleted",
   "default_must_be_global": "Only a global category can be the default for everyone",
+  "invalid_language_code": "Language codes must have two letters (ISO 639-1): {{language}}",
+  "translation_target_in_sources": "The instance language ({{language}}) cannot be a dictation language",
   "category_edit_forbidden": "Not authorized to edit this category",
   "category_delete_forbidden": "Not authorized to delete this category",
   "admin_required": "Administrator role required",
@@ -46,5 +48,7 @@
   "ldap_unreachable": "LDAP server not reachable",
   "ldap_tls_failed": "TLS connection failed (check the certificate)",
   "ldap_bind_failed": "Service account bind failed",
-  "ldap_test_failed": "LDAP test failed (details in the server log)"
+  "ldap_test_failed": "LDAP test failed (details in the server log)",
+  "translation_not_available": "Dictation in this language is not released for you ({{language}})",
+  "segment_out_of_range": "Translated sentence not found"
 }

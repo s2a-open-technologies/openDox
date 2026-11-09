@@ -34,7 +34,17 @@ BATCH_SIZE = 500
 # rotation (tests/security/test_key_rotation.py checks the list against the
 # metadata).
 _ENCRYPTED_TABLES = (
-    ("record", ("title", "content", "summarize", "pii_mapping")),
+    (
+        "record",
+        (
+            "title",
+            "content",
+            "summarize",
+            "pii_mapping",
+            "translation",
+            "translation_segments",
+        ),
+    ),
     ("dictionary", ("terms",)),
     ("ldapsettingsmodel", ("bind_user_password",)),
     ("oidcsettingsmodel", ("client_secret",)),

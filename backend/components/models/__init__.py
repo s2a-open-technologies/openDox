@@ -48,6 +48,9 @@ from backend.components.models.session_settings_model import SessionSettingsMode
 from backend.components.models.settings_model import WhisperSettingsModel
 from backend.components.models.task_model import Task
 from backend.components.models.token_model import Token
+from backend.components.models.translation_settings_model import (
+    TranslationSettingsModel,
+)
 from backend.components.models.user_model import User
 
 __all__ = [
@@ -76,5 +79,6 @@ __all__ = [
     "WhisperSettingsModel",
     "Task",
     "Token",
+    "TranslationSettingsModel",
     "User",
 ]

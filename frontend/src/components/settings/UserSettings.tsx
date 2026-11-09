@@ -27,7 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Pencil, Plus, Trash2, Shield } from 'lucide-react';
+import { Languages, Pencil, Plus, Trash2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import {
     Select,
@@ -52,6 +52,7 @@ interface UserData {
     name: string;
     is_active: boolean;
     role: Role;
+    translation_allowed?: boolean;
 }
 
 const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
@@ -66,11 +67,13 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
         password: string;
         is_active: boolean;
         role: Role;
+        translation_allowed: boolean;
     }>({
         name: '',
         password: '',
         is_active: true,
         role: 'user',
+        translation_allowed: false,
     });
 
     const fetchUsers = async () => {
@@ -91,7 +94,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
 
     const openCreate = () => {
         setEditingUser(null);
-        setFormData({ name: '', password: '', is_active: true, role: 'user' });
+        setFormData({ name: '', password: '', is_active: true, role: 'user', translation_allowed: false });
         setDialogOpen(true);
     };
 
@@ -102,6 +105,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
             password: '',
             is_active: user.is_active,
             role: user.role,
+            translation_allowed: !!user.translation_allowed,
         });
         setDialogOpen(true);
     };
@@ -114,10 +118,17 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 : '/api/v1/auth/users';
             const method = editingUser ? 'PUT' : 'POST';
 
-            const body: { name: string; is_active: boolean; role: Role; password?: string } = {
+            const body: {
+                name: string;
+                is_active: boolean;
+                role: Role;
+                translation_allowed: boolean;
+                password?: string;
+            } = {
                 name: formData.name,
                 is_active: formData.is_active,
                 role: formData.role,
+                translation_allowed: formData.translation_allowed,
             };
             if (formData.password) body.password = formData.password;
 
@@ -194,6 +205,12 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                         <span className={user.role === 'admin' ? 'text-primary' : ''}>
                                             {t(`common:roles.${user.role}`)}
                                         </span>
+                                        {user.translation_allowed && (
+                                            <span className="flex items-center gap-1">
+                                                <Languages className="w-3.5 h-3.5" />
+                                                {t('translationReleased')}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
@@ -263,6 +280,17 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                 id="is-active"
                                 checked={formData.is_active}
                                 onCheckedChange={checked => setFormData({ ...formData, is_active: checked })}
+                            />
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <Label htmlFor="translation-allowed">{t('dialog.translationAllowed')}</Label>
+                                <p className="text-xs text-muted-foreground">{t('dialog.translationAllowedHint')}</p>
+                            </div>
+                            <Switch
+                                id="translation-allowed"
+                                checked={formData.translation_allowed}
+                                onCheckedChange={checked => setFormData({ ...formData, translation_allowed: checked })}
                             />
                         </div>
                         <div className="space-y-2">

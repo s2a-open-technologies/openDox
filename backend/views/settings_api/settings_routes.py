@@ -66,6 +66,12 @@ from backend.components.models.session_settings_model import (
     SessionSettingsModel,
 )
 from backend.components.models.settings_model import WhisperSettingsModel
+from backend.components.models.translation_settings_model import (
+    TranslationAvailability,
+    TranslationConfig,
+    TranslationSettingsModel,
+    split_languages,
+)
 from backend.components.models.user_model import (
     UI_LANGUAGES,
     RetentionRead,
@@ -98,6 +104,12 @@ from backend.components.services.session_store import (
 )
 from backend.components.services.session_store_redis import RedisSessionStore
 from backend.components.services.settings_service import get_settings_service
+from backend.components.services.translation_gate import (
+    live_preview_supported,
+    offered_languages,
+    target_language,
+    translation_available,
+)
 from backend.components.sql.sql_engine import SessionDep
 from backend.views.auth_api.dependencies import get_current_user
 from backend.views.settings_api import settings_bp
@@ -1448,6 +1460,7 @@ _BACKUP_SINGLETONS: tuple[tuple[type, str], ...] = (
     (AudioSettingsModel, "audio"),
     (SessionSettingsModel, "session"),
     (ClientSettingsModel, "client"),
+    (TranslationSettingsModel, "translation"),
 )
 
 # Credentials never leave the server in a backup file, and a restore never
@@ -2025,6 +2038,93 @@ async def update_category_policy(
     )
 
 
+# Translation (dictation in another language)
+#
+# Off by default; the operator releases it for every user or for selected
+# ones (User.translation_allowed, set in the user management). The target is
+# always the instance's transcription language, never a separate setting.
+
+_ISO_639_1 = re.compile(r"^[a-z]{2}$")
+
+
+def _translation_config(db: SessionDep) -> TranslationConfig:
+    settings = db.exec(select(TranslationSettingsModel)).first()
+    if not settings:
+        settings = TranslationSettingsModel()
+    return TranslationConfig(
+        enabled=settings.enabled,
+        access=settings.access,
+        languages=split_languages(settings.languages),
+        target_language=target_language(db),
+    )
+
+
+@settings_bp.get("/translation/", response_model=TranslationConfig)
+async def get_translation_config(
+    db: SessionDep,
+    _: User = Depends(_require_secret_reader),
+):
+    """Return the translation settings (admin UI, also for demo viewers)."""
+    return _translation_config(db)
+
+
+@settings_bp.put("/translation/", response_model=TranslationConfig)
+async def update_translation_config(
+    config_in: TranslationConfig,
+    request: Request,
+    db: SessionDep,
+    admin: User = Depends(_require_admin),
+):
+    """Save the translation settings; ``target_language`` is read-only."""
+    languages: list[str] = []
+    for code in config_in.languages:
+        code = code.strip().lower()
+        if not _ISO_639_1.match(code):
+            raise api_error(
+                400,
+                "invalid_language_code",
+                "Language codes must be two letters (ISO 639-1)",
+                language=code,
+            )
+        if code not in languages:
+            languages.append(code)
+    target = target_language(db)
+    if target in languages:
+        raise api_error(
+            400,
+            "translation_target_in_sources",
+            "The instance language cannot be a dictation language to translate from",
+            language=target,
+        )
+    settings = db.exec(select(TranslationSettingsModel)).first()
+    before = snapshot(settings)
+    if not settings:
+        settings = TranslationSettingsModel()
+    settings.enabled = config_in.enabled
+    settings.access = config_in.access
+    settings.languages = ",".join(languages)
+    _audit_settings(db, request, admin, "translation", before, settings)
+    db.add(settings)
+    db.commit()
+    return _translation_config(db)
+
+
+@settings_bp.get("/translation/me", response_model=TranslationAvailability)
+async def get_my_translation(
+    db: SessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """Return whether the caller may dictate in another language, and which."""
+    available = translation_available(db, current_user)
+    languages = offered_languages(db) if available else []
+    return TranslationAvailability(
+        available=available,
+        languages=languages,
+        target_language=target_language(db),
+        live_languages=[code for code in languages if live_preview_supported(code)],
+    )
+
+
 @settings_bp.get("/client-distribution/")
 async def get_client_distribution(
     request: Request,
@@ -2047,3 +2147,43 @@ async def get_client_distribution(
         "download_base_url": download_base_url.strip().rstrip("/"),
         "files": _CLIENT_DOWNLOAD_FILES,
     }
+
+
+# User manuals: release.yml attaches the PDFs built by scripts/build_handbuch.sh
+# to every GitHub release; the file names follow that script's scheme.
+_MANUALS_RELEASE_BASE = "https://github.com/s2a-open-technologies/openDox/releases"
+_MANUAL_LABELS = {
+    "benutzer": "Benutzerhandbuch",
+    "administration": "Administrationshandbuch",
+    "installation": "Installationshandbuch",
+}
+
+
+@settings_bp.get("/manuals/")
+async def get_manuals(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Download links of the user manuals matching the running app version.
+
+    The browser loads the PDFs straight from the GitHub release.
+    ``MANUALS_DOWNLOAD_BASE_URL`` (``{version}`` is replaced) points them at a
+    mirror instead, e.g. in networks without internet access.
+    """
+    if current_user.role not in ("admin", "demo_viewer"):
+        raise api_error(403, "admin_required", "Admin role required")
+    version = str(request.app.version or "").strip()
+    release_url = f"{_MANUALS_RELEASE_BASE}/tag/v{version}"
+    if not version or version == "unknown":
+        return {"version": version, "release_url": "", "manuals": []}
+    base = (env_or_file("MANUALS_DOWNLOAD_BASE_URL", "") or "").strip()
+    if base:
+        base = base.replace("{version}", version)
+    else:
+        base = f"{_MANUALS_RELEASE_BASE}/download/v{version}"
+    base = base.rstrip("/")
+    manuals = []
+    for key, label in _MANUAL_LABELS.items():
+        file = f"openDox-{label}-{version}.pdf"
+        manuals.append({"key": key, "file": file, "url": f"{base}/{file}"})
+    return {"version": version, "release_url": release_url, "manuals": manuals}

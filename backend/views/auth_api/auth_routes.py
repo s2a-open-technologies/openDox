@@ -300,6 +300,7 @@ async def create_user(
         name=user_in.name,
         hashed_password=get_password_hash(user_in.password),
         role=user_in.role if user_in.role in ROLES else "user",
+        translation_allowed=user_in.translation_allowed,
     )
     db.add(db_user)
     db.flush()
@@ -341,7 +342,15 @@ async def update_user(
     if not user:
         raise api_error(404, "user_not_found", "User not found")
 
-    before = {"name": user.name, "is_active": user.is_active, "role": user.role}
+    def _state() -> dict:
+        return {
+            "name": user.name,
+            "is_active": user.is_active,
+            "role": user.role,
+            "translation_allowed": user.translation_allowed,
+        }
+
+    before = _state()
     if user_in.name is not None:
         user.name = user_in.name
     if user_in.is_active is not None:
@@ -350,8 +359,10 @@ async def update_user(
         user.role = user_in.role
     if user_in.password is not None:
         user.hashed_password = get_password_hash(user_in.password)
+    if user_in.translation_allowed is not None:
+        user.translation_allowed = user_in.translation_allowed
 
-    after = {"name": user.name, "is_active": user.is_active, "role": user.role}
+    after = _state()
     details: dict = {"fields": changed_fields(before, after)}
     if user_in.password is not None:
         details["fields"].append("password")

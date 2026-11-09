@@ -51,6 +51,7 @@
     "settings_audio_update": "Audio-Einstellungen geändert",
     "settings_client_update": "Client-Richtlinie geändert",
     "settings_session_update": "Sitzungsrichtlinie geändert",
+    "settings_translation_update": "Übersetzungs-Einstellungen geändert",
     "category_create": "Kategorie angelegt",
     "category_update": "Kategorie geändert",
     "category_delete": "Kategorie gelöscht",

@@ -263,3 +263,28 @@ def test_callback_does_not_undo_admin_lock(
     assert response.json()["detail"] == "Konto gesperrt"
     with session_factory() as session:
         assert session.get(User, locked.id).is_active is False
+
+
+def test_callback_takeover_removes_local_password(
+    client, session_factory, monkeypatch, create_user
+):
+    _create_settings(session_factory)
+    existing = create_user("dr.mueller", password="local-pass")
+    client.cookies.set("oidc_state", _serializer.dumps({"state": "expected-state"}))
+    _patch_happy_path(monkeypatch, username="dr.mueller")
+
+    response = client.get(
+        "/api/v1/auth/oidc/callback",
+        params={"code": "abc", "state": "expected-state"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    with session_factory() as session:
+        from backend.components.models.user_model import User
+
+        assert session.get(User, existing.id).hashed_password == ""
+    login = client.post(
+        "/api/v1/auth/login", json={"name": "dr.mueller", "password": "local-pass"}
+    )
+    assert login.status_code == 401

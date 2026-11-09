@@ -34,15 +34,37 @@ def _settings(**overrides):
     return SimpleNamespace(**defaults)
 
 
-def _bind_connection(entries):
-    """Fake service-account connection returned by the first Connection() call."""
+def _bind_connection(entries, groups=None):
+    """Fake service-account connection returned by the first Connection() call.
+
+    ``groups`` lists ``(dn, cn)`` or ``(dn, cn, sAMAccountName)`` entries;
+    the group-name lookup (a search for group object classes) gets those whose
+    cn or sAMAccountName is in the filter, every other search gets ``entries``.
+    """
     conn = MagicMock()
     conn.server = "fake-server"
+    conn.filters = []
 
     def fake_search(base_dn, search_filter, attributes=None, **kwargs):
-        conn.entries = entries
+        conn.filters.append(search_filter)
         conn.last_search_filter = search_filter
         conn.last_base_dn = base_dn
+        if "objectClass=group" in search_filter:
+            conn.entries = []
+            for group in groups or []:
+                dn, cn, sam = (*group, None)[:3]
+                hit = f"(cn={cn})".lower() in search_filter.lower() or (
+                    sam and f"(samaccountname={sam})".lower() in search_filter.lower()
+                )
+                if hit:
+                    entry = SimpleNamespace(
+                        entry_dn=dn, cn=SimpleNamespace(values=[cn])
+                    )
+                    if sam:
+                        entry.sAMAccountName = SimpleNamespace(values=[sam])
+                    conn.entries.append(entry)
+        else:
+            conn.entries = entries
 
     conn.search.side_effect = fake_search
     conn.entries = []
@@ -386,7 +408,7 @@ def test_authenticate_nested_group_not_checked_when_disabled(patched_connection)
     )
 
     assert result["success"] is False
-    assert bind_conn.search.call_count == 1
+    assert not any("1.2.840.113556.1.4.1941" in f for f in bind_conn.filters)
 
 
 def test_check_user_ok_returns_role(patched_connection):
@@ -456,3 +478,168 @@ def test_check_user_unavailable_without_service_account(patched_connection):
 
     assert result["status"] == "unavailable"
     connection.assert_not_called()
+
+
+def _login(patched_connection, member_of, groups=None, **settings):
+    bind_conn = _bind_connection(
+        [_user_entry("uid=jdoe,dc=example,dc=com", member_of=member_of)], groups
+    )
+    patched_connection(bind_conn, MagicMock(bound=True))
+    return LdapService(_settings(**settings)).authenticate("jdoe", "secret"), bind_conn
+
+
+def test_group_name_found_deep_in_the_tree(patched_connection):
+    deep = "CN=opendox-admin,OU=Gruppen,OU=Klinik,DC=example,DC=com"
+    result, bind_conn = _login(
+        patched_connection,
+        [deep],
+        groups=[(deep, "opendox-admin")],
+        admin_groups="opendox-admin",
+    )
+
+    assert result["role"] == "admin"
+    assert any(
+        "objectClass=group" in f and "(cn=opendox-admin)" in f
+        for f in bind_conn.filters
+    )
+
+
+def test_full_dn_outside_base_dn_matches(patched_connection):
+    result, _ = _login(
+        patched_connection,
+        ["CN=opendox,OU=Apps,DC=other,DC=org"],
+        allowed_groups="cn=opendox, ou=Apps, dc=other, dc=org",
+    )
+
+    assert result["success"] is True
+    assert result["role"] == "user"
+
+
+def test_full_dns_and_names_separated_by_semicolon(patched_connection):
+    result, _ = _login(
+        patched_connection,
+        ["cn=mods,ou=x,dc=example,dc=com"],
+        groups=[("cn=mods,ou=x,dc=example,dc=com", "mods")],
+        allowed_groups="cn=a,ou=y,dc=example,dc=com; b, c",
+        moderator_groups="mods",
+    )
+
+    assert result["role"] == "moderator"
+
+
+def test_ambiguous_group_name_grants_nothing(patched_connection):
+    real = "cn=opendox-admin,ou=gruppen,dc=example,dc=com"
+    fake = "cn=opendox-admin,ou=sandbox,dc=example,dc=com"
+    result, _ = _login(
+        patched_connection,
+        [fake],
+        groups=[(real, "opendox-admin"), (fake, "opendox-admin")],
+        admin_groups="opendox-admin",
+    )
+
+    assert result["success"] is False
+
+
+def test_unknown_group_name_falls_back_to_base_dn_rule(patched_connection):
+    result, _ = _login(
+        patched_connection,
+        ["cn=opendox-user,dc=example,dc=com"],
+        groups=[],
+        allowed_groups="opendox-user",
+    )
+
+    assert result["success"] is True
+
+
+def test_group_in_other_ou_with_unknown_name_is_denied(patched_connection):
+    result, _ = _login(
+        patched_connection,
+        ["cn=opendox-user,ou=gruppen,dc=example,dc=com"],
+        groups=[],
+        allowed_groups="opendox-user",
+    )
+
+    assert result["success"] is False
+
+
+def test_nested_check_uses_resolved_group_dn(patched_connection):
+    deep = "cn=opendox-user,ou=gruppen,dc=example,dc=com"
+    result, bind_conn = _login(
+        patched_connection,
+        ["cn=team-a,dc=example,dc=com"],
+        groups=[(deep, "opendox-user")],
+        allowed_groups="opendox-user",
+        nested_groups=True,
+    )
+
+    assert result["success"] is True
+    assert bind_conn.last_search_filter == (
+        "(memberOf:1.2.840.113556.1.4.1941:=" + deep + ")"
+    )
+
+
+@pytest.fixture
+def active_directory(monkeypatch):
+    """Pretend the server schema is Active Directory's (knows sAMAccountName)."""
+    monkeypatch.setattr(
+        ldap_module, "_schema_has", lambda conn, attr: attr == "sAMAccountName"
+    )
+
+
+def test_group_found_by_sam_account_name_on_ad(patched_connection, active_directory):
+    dn = "cn=opendox benutzer,ou=gruppen,dc=example,dc=com"
+    result, bind_conn = _login(
+        patched_connection,
+        [dn],
+        groups=[(dn, "openDox Benutzer", "opendox-user")],
+        allowed_groups="opendox-user",
+    )
+
+    assert result["success"] is True
+    assert any("(sAMAccountName=opendox-user)" in f for f in bind_conn.filters)
+
+
+def test_sam_account_name_not_searched_without_ad_schema(patched_connection):
+    dn = "cn=opendox benutzer,ou=gruppen,dc=example,dc=com"
+    result, bind_conn = _login(
+        patched_connection,
+        [dn],
+        groups=[(dn, "openDox Benutzer", "opendox-user")],
+        allowed_groups="opendox-user",
+    )
+
+    assert result["success"] is False
+    assert not any("sAMAccountName" in f for f in bind_conn.filters)
+
+
+def test_cn_of_one_and_sam_of_another_group_is_ambiguous(
+    patched_connection, active_directory
+):
+    a = "cn=opendox-admin,ou=gruppen,dc=example,dc=com"
+    b = "cn=sandbox,ou=test,dc=example,dc=com"
+    result, _ = _login(
+        patched_connection,
+        [a],
+        groups=[(a, "opendox-admin", "oda"), (b, "sandbox", "opendox-admin")],
+        admin_groups="opendox-admin",
+    )
+
+    assert result["success"] is False
+
+
+@pytest.mark.parametrize(
+    "raw, names, dns",
+    [
+        (None, set(), set()),
+        ("a, B", {"a", "b"}, set()),
+        ("a\nb", {"a", "b"}, set()),
+        (
+            "CN=x, OU=y,DC=z; a",
+            {"a"},
+            {"cn=x,ou=y,dc=z"},
+        ),
+        (r"cn=Doe\, John,dc=z", set(), {r"cn=doe\, john,dc=z"}),
+    ],
+)
+def test_parse_group_entries(raw, names, dns):
+    assert ldap_module._parse_group_entries(raw) == (names, dns)

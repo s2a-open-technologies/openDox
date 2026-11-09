@@ -98,6 +98,38 @@ async def login(request: Request, user_in: UserLogin, db: SessionDep):
         raise
 
 
+# Login sources whose password is not kept in openDox.
+EXTERNAL_AUTH_SOURCES = ("ldap", "oidc")
+
+
+def drop_local_password(db, request: Request, user: User, source: str) -> None:
+    """Remove the local password of an account taken over by LDAP or OIDC.
+
+    A directory or SSO login lands in the local account of the same name. Its
+    old password would stay a second way in that skips the group gate, the
+    role sync and a lock in the directory, so it is cleared (and audited). The
+    caller commits.
+
+    Args:
+        db: Database session.
+        request: The login request (for the audit entry).
+        user: The existing account that was just authenticated externally.
+        source: ``"ldap"`` or ``"oidc"``.
+    """
+    if not user.hashed_password:
+        return
+    user.hashed_password = ""
+    audit(
+        db,
+        "user.local_password_removed",
+        request=request,
+        actor=user,
+        target_type="user",
+        target_id=user.id,
+        details={"source": source},
+    )
+
+
 def _authenticate(request: Request, user_in: UserLogin, db: SessionDep) -> Token:
     login_limiter.check(request)
 
@@ -154,6 +186,7 @@ def _authenticate(request: Request, user_in: UserLogin, db: SessionDep) -> Token
                     )
                 user.role = role
                 user.auth_source = "ldap"
+                drop_local_password(db, request, user, "ldap")
 
             db.commit()
             db.refresh(user)
@@ -347,8 +380,24 @@ async def update_user(
     if user_in.is_active is not None:
         user.is_active = user_in.is_active
     if user_in.role is not None and user_in.role in ROLES:
+        if user_in.role != user.role and user.auth_source in EXTERNAL_AUTH_SOURCES:
+            # Set from the directory / IdP groups on every login; a change here
+            # would silently be undone, so it has to be made there.
+            raise api_error(
+                400,
+                "role_managed_externally",
+                "The role of this account is managed by LDAP/SSO groups",
+            )
         user.role = user_in.role
     if user_in.password is not None:
+        if user.auth_source in EXTERNAL_AUTH_SOURCES:
+            # The password lives in the directory / at the IdP; a local one
+            # would be a second way in past the group gate and directory locks.
+            raise api_error(
+                400,
+                "password_managed_externally",
+                "The password of this account is managed by LDAP/SSO",
+            )
         user.hashed_password = get_password_hash(user_in.password)
 
     after = {"name": user.name, "is_active": user.is_active, "role": user.role}

@@ -14,8 +14,10 @@
     "usernamePlaceholder": "e.g. dr.mueller",
     "password": "Password",
     "passwordUnchanged": "(empty = unchanged)",
+    "passwordExternal": "The password is managed in the directory (LDAP) or by the SSO provider and cannot be changed here.",
     "isActive": "Active",
     "role": "Role",
+    "roleExternal": "The role follows the groups in the directory (LDAP) or at the SSO provider and is changed there.",
     "update": "Update",
     "add": "Create"
   },

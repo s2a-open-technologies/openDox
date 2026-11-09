@@ -39,6 +39,7 @@ from backend.components.security.hashing import (
 from backend.components.services.audit_service import audit
 from backend.components.services.oidc import OidcDiscoveryError, OidcService
 from backend.components.sql.sql_engine import SessionDep
+from backend.views.auth_api.auth_routes import drop_local_password
 
 oidc_bp = APIRouter(prefix="/api/v1/auth/oidc", tags=["auth"])
 
@@ -256,6 +257,7 @@ async def oidc_callback(request: Request, db: SessionDep):
                 details={"from": user.role, "to": role, "source": "oidc"},
             )
         user.role = role
+        drop_local_password(db, request, user, "oidc")
     user.auth_source = "oidc"
     # Kept to re-check the account at the provider on every session renewal.
     user.idp_refresh_token = token_data.get("refresh_token")

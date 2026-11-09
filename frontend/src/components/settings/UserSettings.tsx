@@ -52,7 +52,11 @@ interface UserData {
     name: string;
     is_active: boolean;
     role: Role;
+    auth_source?: string | null;
 }
+
+// Login sources whose password is managed outside openDox.
+const EXTERNAL_AUTH_SOURCES = ['ldap', 'oidc'];
 
 const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const { t } = useTranslation(['users', 'common']);
@@ -61,6 +65,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
     const [loading, setLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
+    const externalAccount = !!editingUser?.auth_source && EXTERNAL_AUTH_SOURCES.includes(editingUser.auth_source);
     const [formData, setFormData] = useState<{
         name: string;
         password: string;
@@ -114,12 +119,12 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                 : '/api/v1/auth/users';
             const method = editingUser ? 'PUT' : 'POST';
 
-            const body: { name: string; is_active: boolean; role: Role; password?: string } = {
+            const body: { name: string; is_active: boolean; role?: Role; password?: string } = {
                 name: formData.name,
                 is_active: formData.is_active,
-                role: formData.role,
             };
-            if (formData.password) body.password = formData.password;
+            if (!externalAccount) body.role = formData.role;
+            if (formData.password && !externalAccount) body.password = formData.password;
 
             const res = await authFetch(url, {
                 method,
@@ -249,13 +254,20 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>{t('dialog.password')} {editingUser && t('dialog.passwordUnchanged')}</Label>
-                            <Input
-                                type="password"
-                                value={formData.password}
-                                onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                placeholder="••••••••"
-                            />
+                            <Label>
+                                {t('dialog.password')}{' '}
+                                {editingUser && !externalAccount && t('dialog.passwordUnchanged')}
+                            </Label>
+                            {externalAccount ? (
+                                <p className="text-sm text-muted-foreground">{t('dialog.externalAccount')}</p>
+                            ) : (
+                                <Input
+                                    type="password"
+                                    value={formData.password}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                    placeholder="••••••••"
+                                />
+                            )}
                         </div>
                         <div className="flex items-center justify-between">
                             <Label htmlFor="is-active">{t('dialog.isActive')}</Label>
@@ -269,6 +281,7 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                             <Label>{t('dialog.role')}</Label>
                             <Select
                                 value={formData.role}
+                                disabled={externalAccount}
                                 onValueChange={(v: Role) => setFormData({ ...formData, role: v })}
                             >
                                 <SelectTrigger>
@@ -281,6 +294,9 @@ const UserSettings = ({ readOnly = false }: { readOnly?: boolean }) => {
                                     <SelectItem value="user">{t('common:roles.user')}</SelectItem>
                                 </SelectContent>
                             </Select>
+                            {externalAccount && (
+                                <p className="text-sm text-muted-foreground">{t('dialog.roleExternal')}</p>
+                            )}
                         </div>
                     </div>
 

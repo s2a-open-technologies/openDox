@@ -17,26 +17,64 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+# Standard library
+import logging
+import re
 import ssl
 
+# Third-party
 from ldap3 import ALL, BASE, Connection, Server, Tls
 from ldap3.utils.conv import escape_filter_chars
 
+logger = logging.getLogger(__name__)
 
-def _parse_groups(raw: str | None) -> set[str]:
-    """Parse a comma-separated group-name list into a set of trimmed names."""
-    if not raw:
-        return set()
-    return {name.strip() for name in raw.split(",") if name.strip()}
+# Object classes a group entry may have: AD (group), OpenLDAP (groupOfNames,
+# groupOfUniqueNames, posixGroup). Keeps a person whose cn equals a group name
+# from being taken for the group.
+_GROUP_CLASSES = (
+    "(|(objectClass=group)(objectClass=groupOfNames)"
+    "(objectClass=groupOfUniqueNames)(objectClass=posixGroup))"
+)
+
+
+def _parse_group_entries(raw: str | None) -> tuple[set[str], set[str]]:
+    """Split a group field into plain group names and full DNs.
+
+    Entries are separated by ``;`` or a line break. An entry containing ``=``
+    is a full DN (its commas belong to the DN); any other entry is split once
+    more at commas, so the old comma-separated name lists keep working.
+
+    Args:
+        raw: The configured field value.
+
+    Returns:
+        ``(names, dns)`` with names lower-cased and DNs normalised.
+    """
+    names: set[str] = set()
+    dns: set[str] = set()
+    for piece in re.split(r"[;\n]", raw or ""):
+        piece = piece.strip()
+        if not piece:
+            continue
+        if "=" in piece:
+            dns.add(_normalize_dn(piece))
+        else:
+            names.update(n.strip().lower() for n in piece.split(",") if n.strip())
+    return names, dns
+
+
+def _normalize_dn(dn: str) -> str:
+    """Lower-case a DN and drop the blanks around its separators."""
+    rdns = re.split(r"(?<!\\),", dn)
+    parts = []
+    for rdn in rdns:
+        attr, _, value = rdn.partition("=")
+        parts.append(f"{attr.strip()}={value.strip()}")
+    return ",".join(parts).lower()
 
 
 # Active Directory LDAP_MATCHING_RULE_IN_CHAIN: the server resolves nested groups.
 _AD_IN_CHAIN = "1.2.840.113556.1.4.1941"
-
-
-def _group_dn(name: str, base_dn: str) -> str:
-    """Build the expected DN for a group name directly under ``base_dn``."""
-    return f"cn={name},{base_dn}"
 
 
 # userAccountControl flag ACCOUNTDISABLE (Active Directory).
@@ -113,25 +151,88 @@ class LdapService:
         conn.search(self.settings.base_dn, search_filter, attributes=attributes)
         return conn.entries[0] if conn.entries else None
 
+    def _find_groups(self, conn, names):
+        """Look up group names below ``base_dn``; returns ``{name: {dn, ...}}``.
+
+        A name matches the group's ``cn`` and, on Active Directory, also its
+        ``sAMAccountName`` (the "pre-Windows 2000" name admins usually know,
+        which may differ from the cn). ldap3 rejects attribute names the server
+        schema does not know, so ``sAMAccountName`` is only used where it exists.
+        """
+        found: dict[str, set[str]] = {name: set() for name in names}
+        if not names:
+            return found
+        attrs = ["cn"]
+        if _schema_has(conn, "sAMAccountName"):
+            attrs.append("sAMAccountName")
+        name_filter = "".join(
+            f"({attr}={escape_filter_chars(n)})"
+            for n in sorted(names)
+            for attr in attrs
+        )
+        conn.search(
+            self.settings.base_dn,
+            f"(&{_GROUP_CLASSES}(|{name_filter}))",
+            attributes=attrs,
+        )
+        for group in conn.entries:
+            keys = set()
+            for attr in attrs:
+                values = getattr(group, attr, None)
+                keys.update(str(v).lower() for v in (values.values if values else []))
+            for key in keys & found.keys():
+                found[key].add(_normalize_dn(group.entry_dn))
+        return found
+
+    def _configured_group_dns(self, conn):
+        """Resolve the three group fields to sets of group DNs.
+
+        A full DN is taken as it is. A name is searched (as cn, on Active
+        Directory also as sAMAccountName) in the whole subtree below
+        ``base_dn``, so the group may sit in any OU. A name that is not
+        found falls back to ``cn=<name>,<base_dn>`` (the old rule, in case the
+        service account may not search groups); a name that matches several
+        groups counts for none of them, since a same-named group elsewhere must
+        not grant access — the admin has to enter the full DN then.
+        """
+        fields = [
+            _parse_group_entries(self.settings.allowed_groups),
+            _parse_group_entries(self.settings.admin_groups),
+            _parse_group_entries(self.settings.moderator_groups),
+        ]
+        all_names = set().union(*(names for names, _ in fields))
+        found = self._find_groups(conn, all_names)
+        resolved: dict[str, set[str]] = {}
+        for name, dns in found.items():
+            if len(dns) > 1:
+                logger.warning(
+                    "LDAP group name %r is ambiguous (%d groups); ignored, "
+                    "enter the full DN instead",
+                    name,
+                    len(dns),
+                )
+                resolved[name] = set()
+            elif dns:
+                resolved[name] = dns
+            else:
+                logger.warning(
+                    "LDAP group %r not found below the base DN "
+                    "(searched cn, on Active Directory also sAMAccountName)",
+                    name,
+                )
+                resolved[name] = {_normalize_dn(f"cn={name},{self.settings.base_dn}")}
+        return tuple(
+            set(dns).union(*(resolved[n] for n in names)) for names, dns in fields
+        )
+
     def _resolve_role(self, conn, entry):
         """Map the entry's group membership to a role; None if not permitted."""
         user_dn = entry.entry_dn
         member_of = getattr(entry, "memberOf", None)
         member_of_values = member_of.values if member_of else []
-        user_group_dns = {v.lower() for v in member_of_values}
+        user_group_dns = {_normalize_dn(v) for v in member_of_values}
 
-        allowed_dns = {
-            _group_dn(name, self.settings.base_dn).lower()
-            for name in _parse_groups(self.settings.allowed_groups)
-        }
-        admin_dns = {
-            _group_dn(name, self.settings.base_dn).lower()
-            for name in _parse_groups(self.settings.admin_groups)
-        }
-        moderator_dns = {
-            _group_dn(name, self.settings.base_dn).lower()
-            for name in _parse_groups(self.settings.moderator_groups)
-        }
+        allowed_dns, admin_dns, moderator_dns = self._configured_group_dns(conn)
         if getattr(self.settings, "nested_groups", False):
             # Active Directory only: memberOf lists direct groups, so ask
             # the server per configured group whether the user is a

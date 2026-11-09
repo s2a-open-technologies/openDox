@@ -12,6 +12,20 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Fixed
+- **LDAP groups in sub-OUs** — group names were only matched as `cn=<name>,<Base DN>`, so a group in any deeper or other
+  organisational unit never matched and nobody could log in. Names are now looked up in the whole tree below the base
+  DN, by `cn` and on Active Directory also by `sAMAccountName`; a name that exists more than once counts for none (enter the DN then). The group fields also accept full DNs,
+  separated by semicolons, for groups outside the base DN. Existing comma-separated name lists keep working.
+
+### Security
+- **LDAP/SSO takeover of a local account** — an LDAP or SSO login with the name of an existing local account lands in
+  that account (as before), but now removes its local password (audit `user.local_password_removed`). Before, the old
+  password kept working and got past the group gate, the role sync and a lock in the directory. The user management no
+  longer offers a password for LDAP/SSO accounts and locks their role (it comes from the groups and is changed in the
+  directory), `PUT /auth/users/{id}` refuses a password (400 `password_managed_externally`) or a role change (400
+  `role_managed_externally`); `UserRead` now carries `auth_source`.
+
 ## [0.11.3] — 2026-11-06
 
 ### Added

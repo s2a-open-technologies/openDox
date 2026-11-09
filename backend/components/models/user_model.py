@@ -93,6 +93,7 @@ class UserRead(UserBase):
     role: str
     disclaimer_accepted_at: Optional[datetime] = None
     ui_language: Optional[str] = None
+    auth_source: Optional[str] = None
 
 
 class UserLogin(SQLModel):

@@ -532,9 +532,19 @@ Teilen Sie das Passwort auf sicherem Weg mit.
 > soll.
 >
 > Bei LDAP- und SSO-Konten wird die Rolle bei jeder Anmeldung aus den
-> Gruppen neu gesetzt. Eine hier geänderte Rolle gilt dort also nur bis zur
-> nächsten Anmeldung. Ändern Sie stattdessen die Gruppenzugehörigkeit im
-> Verzeichnisdienst.
+> Gruppen neu gesetzt. Sie lässt sich deshalb hier nicht ändern. Ändern Sie
+> die Gruppenzugehörigkeit im Verzeichnisdienst bzw. beim SSO-Anbieter.
+
+> **Gleichnamige lokale Konten:** Meldet sich jemand per LDAP oder SSO mit
+> einem Namen an, den es in openDox schon als lokales Konto gibt, übernimmt er
+> dieses Konto mit allen Aufnahmen. Das lokale Passwort wird dabei gelöscht
+> (Audit-Eintrag „Lokales Passwort bei LDAP-/SSO-Übernahme entfernt“), damit
+> die Anmeldung nicht an Gruppen und Sperren im Verzeichnis vorbei möglich
+> bleibt. Legen Sie lokale Konten deshalb nicht unter Namen an, die es im
+> Verzeichnis gibt, außer es ist dieselbe Person. Für LDAP- und SSO-Konten
+> bietet die Benutzerverwaltung kein Passwortfeld an, und die Rolle ist
+> gesperrt. Passwort und Gruppen (und damit die Rolle) ändern Sie im
+> Verzeichnis bzw. beim SSO-Anbieter.
 
 # Authentifizierung
 
@@ -567,17 +577,28 @@ sich gleichzeitig nutzen. In beiden Fällen gilt:
 | **User DN Pattern** | Attribut des Anmeldenamens: `uid` (OpenLDAP) oder `sAMAccountName` (AD) | `sAMAccountName` |
 | **Suchfilter (optional)** | Schränkt ein, welche Einträge bei der Anmeldung überhaupt gefunden werden, z. B. nur Personen oder nur eine OU. Wird per UND mit der Suche nach dem Anmeldenamen verknüpft. Wer nicht passt, gilt als „nicht gefunden“. Für Gruppen „User-Gruppen“ verwenden. | `(objectClass=person)` |
 | **Verschachtelte Gruppen auflösen** | Auch Mitglieder von Untergruppen zählen. Nur Active Directory. | |
-| **User-Gruppen** | Mitglieder melden sich mit der Rolle User an. Gruppennamen ohne DN, durch Kommas getrennt. | `openDox-Benutzer` |
+| **User-Gruppen** | Mitglieder melden sich mit der Rolle User an. Gruppenname oder vollständiger DN (siehe unten). | `openDox-Benutzer` |
 | **Admin-Gruppen** | Mitglieder werden Administratoren | `openDox-Admins` |
 | **Moderator-Gruppen** | Mitglieder werden Moderatoren | `openDox-Moderatoren` |
 | **Bind User DN** / **Bind User Password** | Dienstkonto für die Suche | |
 
 ![Authentifizierung → LDAP: Gruppen und Dienstkonto](bilder/administration/10b-ldap-gruppen.png)
 
-Tragen Sie bei den Gruppen nur den **Namen** ein, keinen vollständigen DN.
-openDox bildet den DN selbst als `cn=<Name>,<Base DN>`. Liegen Ihre Gruppen in
-einer anderen Organisationseinheit, muss die Base DN so gewählt sein, dass
-diese Form passt.
+Bei den Gruppen können Sie den **Namen** oder den **vollständigen DN**
+eintragen:
+
+- **Name** (z. B. `openDox-Admins`): openDox sucht die Gruppe im ganzen Baum
+  unterhalb der Base DN, über ihren `cn` und bei Active Directory auch über den
+  Prä-Windows-2000-Namen (`sAMAccountName`), sie darf also in einer beliebigen Organisationseinheit
+  liegen. Mehrere Namen trennen Sie durch Kommas. Gibt es den Namen mehrfach,
+  zählt er aus Sicherheitsgründen für keine der Gruppen, dann tragen Sie den DN
+  ein. Wird der Name nicht gefunden, prüft openDox `cn=<Name>,<Base DN>`.
+- **DN** (z. B. `CN=openDox-Admins,OU=Gruppen,DC=klinik,DC=local`): wird so
+  übernommen, wie er ist. Damit sind auch Gruppen außerhalb der Base DN
+  möglich. Mehrere DNs (oder DNs und Namen gemischt) trennen Sie durch
+  Semikolons, weil ein DN selbst Kommas enthält.
+
+Für die Namenssuche muss das Dienstkonto Gruppen lesen dürfen.
 
 Die Gruppenzugehörigkeit liest openDox aus dem Attribut `memberOf` des
 Benutzers. Das liefert Active Directory immer, OpenLDAP nur mit dem

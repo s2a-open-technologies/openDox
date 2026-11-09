@@ -14,8 +14,10 @@
     "usernamePlaceholder": "z.B. dr.mueller",
     "password": "Passwort",
     "passwordUnchanged": "(leer = unveraendert)",
+    "passwordExternal": "Das Passwort wird im Verzeichnisdienst (LDAP) bzw. beim SSO-Anbieter verwaltet und kann hier nicht geändert werden.",
     "isActive": "Aktiv",
     "role": "Rolle",
+    "roleExternal": "Die Rolle ergibt sich aus den Gruppen im Verzeichnisdienst (LDAP) bzw. beim SSO-Anbieter und wird dort geändert.",
     "update": "Aktualisieren",
     "add": "Anlegen"
   },

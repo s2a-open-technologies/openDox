@@ -24,6 +24,8 @@
   "no_audio_for_record": "Keine Audiodatei für diese Aufnahme vorhanden",
   "user_exists": "Benutzer existiert bereits",
   "user_not_found": "Benutzer nicht gefunden",
+  "role_managed_externally": "Die Rolle dieses Kontos ergibt sich aus den LDAP-/SSO-Gruppen und kann hier nicht geändert werden",
+  "password_managed_externally": "Das Passwort dieses Kontos wird über LDAP/SSO verwaltet und kann hier nicht geändert werden",
   "cannot_delete_self": "Sie können sich nicht selbst löschen",
   "recording_audio_unavailable": "Diese Aufnahme kann hier nicht fortgesetzt werden: Ihr bisheriges Audio liegt auf einer anderen Server-Instanz. Bitte die Aufnahme neu starten.",
   "dictionary_not_found": "Wörterbuch nicht gefunden",

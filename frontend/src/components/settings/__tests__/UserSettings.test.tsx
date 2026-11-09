@@ -149,6 +149,28 @@ describe("UserSettings", () => {
     expect(screen.getByText(/leer = unveraendert/)).toBeInTheDocument();
   });
 
+  it("hides the password field for an LDAP account", async () => {
+    const authFetch = vi.fn().mockResolvedValue(
+      jsonResponse([
+        { id: 1, name: "dr.mueller", is_active: true, role: "user", auth_source: "ldap" },
+      ])
+    );
+    const user = userEvent.setup();
+    renderWithAuthFetch(authFetch);
+
+    await screen.findByText("dr.mueller");
+    const editButton = screen
+      .getAllByRole("button")
+      .find((btn) => btn.querySelector("svg.lucide-pencil"));
+    await user.click(editButton!);
+
+    expect(screen.getByText(/im Verzeichnisdienst \(LDAP\)/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("••••••••")).not.toBeInTheDocument();
+    expect(screen.queryByText(/leer = unveraendert/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Die Rolle ergibt sich aus den Gruppen/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeDisabled();
+  });
+
   it("does not call the API when delete is not confirmed", async () => {
     vi.stubGlobal("confirm", vi.fn(() => false));
     const authFetch = vi.fn().mockResolvedValue(

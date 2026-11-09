@@ -43,6 +43,7 @@
     "user_update": "User changed",
     "user_delete": "User deleted",
     "user_role_sync": "Role changed by group",
+    "user_local_password_removed": "Local password removed on LDAP/SSO takeover",
     "settings_whisper_update": "Whisper/ASR settings changed",
     "settings_llm_update": "LLM settings changed",
     "settings_ldap_update": "LDAP settings changed",

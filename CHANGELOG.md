@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.11.4] — 2026-11-19
+
 ### Fixed
 - **LDAP groups in sub-OUs** — group names were only matched as `cn=<name>,<Base DN>`, so a group in any deeper or other
   organisational unit never matched and nobody could log in. Names are now looked up in the whole tree below the base
@@ -541,7 +543,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.3...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.4...HEAD
+[0.11.4]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.0...v0.11.1

@@ -134,6 +134,30 @@ def test_pipeline_summarizes_when_enabled(session_factory, create_user, pipeline
         assert session.get(Record, record.id).summarize == "LLM-Zusammenfassung"
 
 
+@pytest.mark.parametrize("silent_text", ["", "   \n"])
+def test_pipeline_skips_llm_for_empty_transcript(
+    session_factory, create_user, pipeline, llm, monkeypatch, silent_text
+):
+    """Record key tapped and released: no speech, so nothing to summarize."""
+    _set_global(session_factory, True)
+    record = _record(
+        session_factory,
+        create_user("dr.a").id,
+        _category(session_factory, llm_enabled=True),
+    )
+    backend = MagicMock()
+    backend.transcribe.return_value = silent_text
+    monkeypatch.setattr(bts, "get_final_backend", lambda: backend)
+
+    pipeline(record)
+
+    llm.generate_response.assert_not_called()
+    llm_gate.sanitize.assert_not_called()
+    with session_factory() as session:
+        assert session.get(Record, record.id).summarize == ""
+        assert session.get(Task, record.task_id).status == "finished"
+
+
 def test_read_serves_transcript_as_summary(
     client, session_factory, create_user, auth_headers
 ):

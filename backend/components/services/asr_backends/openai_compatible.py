@@ -32,7 +32,7 @@ from backend.components.services.vad_segmenter import (
     segment_speech,
 )
 
-from .base import ASRBackend
+from .base import ASRBackend, ASRError
 
 logger = get_logger(__name__)
 
@@ -213,8 +213,11 @@ class OpenAICompatibleBackend(ASRBackend):
                 sets the pause length of the local voice activity detection.
 
         Returns:
-            Transcribed text. Empty if no speech was found or if any chunk
-            failed (a partial transcript is never returned silently).
+            Transcribed text. Empty only if no speech was found.
+
+        Raises:
+            ASRError: Audio could not be read, the server was unreachable or
+                rejected a chunk (a partial transcript is never returned).
         """
         try:
             samples = decode_audio(audio)
@@ -224,7 +227,7 @@ class OpenAICompatibleBackend(ASRBackend):
             chunks = segment_speech(samples, min_silence_ms=min_silence)
         except Exception as e:
             logger.error(f"Error preparing audio for ASR API: {e}")
-            return ""
+            raise ASRError(f"Audio konnte nicht verarbeitet werden: {e}") from e
 
         if not chunks:
             logger.info("No speech detected, skipping ASR API call")
@@ -248,10 +251,10 @@ class OpenAICompatibleBackend(ASRBackend):
                 texts = list(pool.map(send, chunks))  # keeps recording order
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection error to ASR API: {e}")
-            return ""
+            raise ASRError(f"Transkriptions-Server nicht erreichbar: {e}") from e
         except Exception as e:
             logger.error(f"Error calling ASR API: {e}")
-            return ""
+            raise ASRError(f"Transkriptions-Server: {e}") from e
 
         return " ".join(t for t in texts if t)
 
@@ -275,3 +278,34 @@ class OpenAICompatibleBackend(ASRBackend):
         except Exception as e:
             logger.warning(f"Health check failed: {e}")
             return False
+
+    def probe(self) -> tuple[str, list[str]]:
+        """Check reachability and, where the server lists models, the model.
+
+        Returns:
+            ``("ok", ids)``, ``("model_not_found", ids)`` or
+            ``("unreachable", [])``. A server without a usable ``/models``
+            list (404, other shape) counts as ``ok`` — the model can't be
+            verified there.
+        """
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        try:
+            response = requests.get(
+                self.endpoint.replace("/audio/transcriptions", "/models"),
+                headers=headers,
+                timeout=5,
+            )
+        except Exception as e:
+            logger.warning(f"ASR probe failed: {e}")
+            return "unreachable", []
+        if response.status_code == 404:
+            return "ok", []
+        if response.status_code != 200:
+            return "unreachable", []
+        try:
+            ids = [m["id"] for m in response.json()["data"]]
+        except Exception:
+            return "ok", []
+        if ids and self.model not in ids:
+            return "model_not_found", ids
+        return "ok", ids

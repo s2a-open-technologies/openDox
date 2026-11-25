@@ -444,9 +444,20 @@ async def test_asr_connection(
             "error": "Backend ist deaktiviert oder nicht konfiguriert",
         }
 
-    ok = await asyncio.to_thread(asr_backend.health_check)
+    model = getattr(asr_backend, "model", None)
+    if hasattr(asr_backend, "probe"):
+        state, available = await asyncio.to_thread(asr_backend.probe)
+        ok = state != "unreachable"
+        if state == "model_not_found":
+            return {
+                "ok": False,
+                "code": "asr_model_not_found",
+                "error": f"Modell {model} nicht gefunden",
+                "params": {"model": model, "available": ", ".join(available[:5])},
+            }
+    else:
+        ok = await asyncio.to_thread(asr_backend.health_check)
     if ok:
-        model = getattr(asr_backend, "model", None)
         result = {"ok": True}
         if model:
             result["model"] = model

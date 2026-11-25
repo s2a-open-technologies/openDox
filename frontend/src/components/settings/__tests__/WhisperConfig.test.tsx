@@ -178,6 +178,7 @@ describe("WhisperConfig", () => {
     const authFetch = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(baseSettings))
+      .mockResolvedValueOnce(jsonResponse({}))
       .mockResolvedValueOnce(jsonResponse({ ok: true, model: "large-v3-turbo" }));
     const user = userEvent.setup();
     renderWithAuthFetch(authFetch);
@@ -186,8 +187,9 @@ describe("WhisperConfig", () => {
     await user.click(screen.getByRole("tab", { name: "Live" }));
     await user.click(screen.getByRole("button", { name: "Verbindung testen" }));
 
-    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(2));
-    expect(authFetch.mock.calls[1][0]).toBe("/api/v1/settings/asr-test/?backend=live");
+    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(3));
+    expect(authFetch.mock.calls[1][1].method).toBe("PUT");
+    expect(authFetch.mock.calls[2][0]).toBe("/api/v1/settings/asr-test/?backend=live");
     expect(await screen.findByText("Erreichbar · Modell: large-v3-turbo")).toBeInTheDocument();
   });
 
@@ -195,6 +197,7 @@ describe("WhisperConfig", () => {
     const authFetch = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(baseSettings))
+      .mockResolvedValueOnce(jsonResponse({}))
       .mockResolvedValueOnce(jsonResponse({ ok: false, error: "Nicht erreichbar" }));
     const user = userEvent.setup();
     renderWithAuthFetch(authFetch);
@@ -203,8 +206,9 @@ describe("WhisperConfig", () => {
     await user.click(screen.getByRole("tab", { name: "Final" }));
     await user.click(screen.getByRole("button", { name: "Verbindung testen" }));
 
-    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(2));
-    expect(authFetch.mock.calls[1][0]).toBe("/api/v1/settings/asr-test/?backend=final");
+    await waitFor(() => expect(authFetch).toHaveBeenCalledTimes(3));
+    expect(authFetch.mock.calls[1][1].method).toBe("PUT");
+    expect(authFetch.mock.calls[2][0]).toBe("/api/v1/settings/asr-test/?backend=final");
     expect(await screen.findByText("Nicht erreichbar")).toBeInTheDocument();
   });
 });

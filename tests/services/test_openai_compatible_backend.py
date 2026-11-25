@@ -5,6 +5,7 @@ import pytest
 import requests
 
 from backend.components.services.asr_backends import openai_compatible as mod
+from backend.components.services.asr_backends.base import ASRError
 from backend.components.services.asr_backends.openai_compatible import (
     OpenAICompatibleBackend,
 )
@@ -122,7 +123,7 @@ def test_connection_error_is_retried(backend, audio, monkeypatch):
     assert calls["n"] == 3
 
 
-def test_failed_chunk_returns_empty_not_partial_text(backend, audio, monkeypatch):
+def test_failed_chunk_raises_not_partial_text(backend, audio, monkeypatch):
     monkeypatch.setattr(mod, "segment_speech", lambda *a, **k: _chunks(3))
 
     def post(url, headers, files, timeout):
@@ -133,11 +134,47 @@ def test_failed_chunk_returns_empty_not_partial_text(backend, audio, monkeypatch
 
     monkeypatch.setattr(mod.requests, "post", post)
 
-    assert backend.transcribe(audio) == ""
+    with pytest.raises(ASRError):
+        backend.transcribe(audio)
 
 
-def test_unreadable_audio_returns_empty(backend):
-    assert backend.transcribe("/nonexistent/file.wav") == ""
+def test_unknown_model_error_carries_server_message(backend, audio, monkeypatch):
+    monkeypatch.setattr(mod, "segment_speech", lambda *a, **k: _chunks(1))
+    monkeypatch.setattr(
+        mod.requests,
+        "post",
+        lambda *a, **k: FakeResponse(status=404, body={"error": "model missing"}),
+    )
+
+    with pytest.raises(ASRError, match="404"):
+        backend.transcribe(audio)
+
+
+def test_unreadable_audio_raises(backend):
+    with pytest.raises(ASRError):
+        backend.transcribe("/nonexistent/file.wav")
+
+
+def test_probe_flags_unknown_model(backend, monkeypatch):
+    body = {"data": [{"id": "openai/whisper-large-v3-turbo"}]}
+    monkeypatch.setattr(mod.requests, "get", lambda *a, **k: FakeResponse(body=body))
+    backend.model = "whisper-large-v3-turbo"
+    assert backend.probe()[0] == "model_not_found"
+    backend.model = "openai/whisper-large-v3-turbo"
+    assert backend.probe()[0] == "ok"
+
+
+def test_probe_without_model_list_is_ok(backend, monkeypatch):
+    monkeypatch.setattr(mod.requests, "get", lambda *a, **k: FakeResponse(status=404))
+    assert backend.probe() == ("ok", [])
+
+
+def test_probe_unreachable(backend, monkeypatch):
+    def boom(*a, **k):
+        raise requests.exceptions.ConnectionError("down")
+
+    monkeypatch.setattr(mod.requests, "get", boom)
+    assert backend.probe()[0] == "unreachable"
 
 
 def test_api_key_is_sent_as_bearer(audio, monkeypatch):

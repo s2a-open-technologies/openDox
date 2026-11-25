@@ -474,7 +474,10 @@ def background_transcription_task(
             update_task_status(db, task_id, "translating")
             result = _translate_record(db, cat, record, text, source, target, task_id)
 
-        if not llm_globally_enabled(db) or not category_llm_enabled(cat):
+        if not result.strip():
+            # Nothing was said (or found): there is nothing to summarize.
+            logger.info(f"[TASK {task_id}] Empty transcript, LLM step skipped")
+        elif not llm_globally_enabled(db) or not category_llm_enabled(cat):
             # Transcription only: summarize stays empty, the API serves the
             # transcript in its place (llm_gate.effective_summary).
             logger.info(f"[TASK {task_id}] LLM disabled (global/category), skipped")

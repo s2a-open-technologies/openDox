@@ -21,7 +21,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { BookMarked, BookOpenCheck, Languages, Palette, Trash2 } from 'lucide-react';
+import { BookMarked, BookOpenCheck, FileText, Languages, Palette, Trash2 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SUPPORTED_LANGUAGES, isSupportedLanguage } from '@/i18n';
 import CategorySettings from './settings/CategorySettings';
 import DictionarySettings from './settings/DictionarySettings';
+import { ManualDownloads } from './settings/ManualDownloads';
 import { MyRetention } from './settings/MyRetention';
 import { ThemeToggle } from './settings/ThemeToggle';
 
@@ -61,6 +62,7 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
       : []),
     { id: 'retention', label: t('tabs.retention'), icon: Trash2 },
     { id: 'appearance', label: t('tabs.appearance'), icon: Palette },
+    { id: 'manual', label: t('tabs.manual'), icon: FileText },
   ];
 
   const handleLanguageChange = async (code: string) => {
@@ -139,6 +141,16 @@ const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
               <p className="text-sm text-muted-foreground">{t('appearance.description')}</p>
             </div>
             <ThemeToggle />
+          </div>
+        );
+      case 'manual':
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-medium">{t('manual.heading')}</h3>
+              <p className="text-sm text-muted-foreground">{t('manual.description')}</p>
+            </div>
+            <ManualDownloads variant="user" />
           </div>
         );
       default:

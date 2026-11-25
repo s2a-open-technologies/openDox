@@ -7,7 +7,8 @@
     "dictionary": "Mis diccionarios",
     "categories": "Mis categorías",
     "appearance": "Diseño",
-    "retention": "Conservación"
+    "retention": "Conservación",
+    "manual": "Manual"
   },
   "language": {
     "heading": "Idioma de la interfaz",
@@ -34,5 +35,9 @@
   "retention": {
     "heading": "Conservación",
     "description": "Durante cuánto tiempo se conservan sus grabaciones antes de eliminarse automáticamente."
+  },
+  "manual": {
+    "heading": "Manual de usuario",
+    "description": "El manual de usuario de openDox en PDF."
   }
 }

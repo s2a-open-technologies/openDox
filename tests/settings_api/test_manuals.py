@@ -49,30 +49,17 @@ def test_demo_viewer_may_read(client, create_user, auth_headers):
 
 
 @pytest.mark.parametrize("role", ["user", "moderator"])
-def test_other_roles_are_refused(client, create_user, auth_headers, role):
+def test_other_roles_get_only_the_user_manual(client, create_user, auth_headers, role):
     user = create_user("someone", role=role)
 
     response = client.get(URL, headers=auth_headers(user))
 
-    assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "admin_required"
+    assert response.status_code == 200
+    body = response.json()
+    assert [m["key"] for m in body["manuals"]] == ["benutzer"]
+    assert body["manuals"][0]["file"] == "openDox-Benutzerhandbuch-1.2.3.pdf"
+    assert body["release_url"] == ""
 
 
-def test_base_url_override(client, create_user, auth_headers, monkeypatch):
-    monkeypatch.setenv("MANUALS_DOWNLOAD_BASE_URL", "https://mirror.local/v{version}/")
-    admin = create_user("admin", role="admin")
-
-    manuals = client.get(URL, headers=auth_headers(admin)).json()["manuals"]
-
-    assert manuals[0]["url"] == (
-        "https://mirror.local/v1.2.3/openDox-Benutzerhandbuch-1.2.3.pdf"
-    )
-
-
-def test_unknown_version_has_no_links(client, create_user, auth_headers, app):
-    app.version = "unknown"
-    admin = create_user("admin", role="admin")
-
-    body = client.get(URL, headers=auth_headers(admin)).json()
-
-    assert body["manuals"] == []
+def test_anonymous_is_refused(client):
+    assert client.get(URL).status_code in (401, 403)

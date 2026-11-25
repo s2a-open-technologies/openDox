@@ -69,6 +69,39 @@ describe("ManualDownloads", () => {
     expect(authFetch).toHaveBeenCalledWith("/api/v1/settings/manuals/");
   });
 
+  it("shows just the list without a card in the user variant", async () => {
+    mockAuth({
+      version: "1.2.3",
+      release_url: "",
+      manuals: [{ key: "benutzer", file: "b.pdf", url: `${base}/download/v1.2.3/b.pdf` }],
+    });
+
+    render(<ManualDownloads variant="user" />);
+
+    expect(await screen.findByRole("link", { name: /Benutzerhandbuch/ })).toBeInTheDocument();
+    expect(screen.queryByText("Handbücher")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Release-Seite/ })).not.toBeInTheDocument();
+  });
+
+  it("offers only the user manual in the user variant, even to an admin", async () => {
+    mockAuth({
+      version: "1.2.3",
+      release_url: `${base}/tag/v1.2.3`,
+      manuals: [
+        { key: "benutzer", file: "b.pdf", url: `${base}/download/v1.2.3/b.pdf` },
+        { key: "administration", file: "a.pdf", url: `${base}/download/v1.2.3/a.pdf` },
+        { key: "installation", file: "i.pdf", url: `${base}/download/v1.2.3/i.pdf` },
+      ],
+    });
+
+    render(<ManualDownloads variant="user" />);
+
+    expect(await screen.findByRole("link", { name: /Benutzerhandbuch/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Administrationshandbuch/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Installationshandbuch/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Release-Seite/ })).not.toBeInTheDocument();
+  });
+
   it("says so when the version has no manuals", async () => {
     mockAuth({ version: "unknown", release_url: "", manuals: [] });
 

@@ -2218,11 +2218,14 @@ async def get_manuals(
     The browser loads the PDFs straight from the GitHub release.
     ``MANUALS_DOWNLOAD_BASE_URL`` (``{version}`` is replaced) points them at a
     mirror instead, e.g. in networks without internet access.
+
+    Every signed-in user gets the user manual (profile dialog); admins and demo
+    viewers additionally the administration and installation manual and the
+    link to the release page.
     """
-    if current_user.role not in ("admin", "demo_viewer"):
-        raise api_error(403, "admin_required", "Admin role required")
+    privileged = current_user.role in ("admin", "demo_viewer")
     version = str(request.app.version or "").strip()
-    release_url = f"{_MANUALS_RELEASE_BASE}/tag/v{version}"
+    release_url = f"{_MANUALS_RELEASE_BASE}/tag/v{version}" if privileged else ""
     if not version or version == "unknown":
         return {"version": version, "release_url": "", "manuals": []}
     base = (env_or_file("MANUALS_DOWNLOAD_BASE_URL", "") or "").strip()
@@ -2233,6 +2236,8 @@ async def get_manuals(
     base = base.rstrip("/")
     manuals = []
     for key, label in _MANUAL_LABELS.items():
+        if not privileged and key != "benutzer":
+            continue
         file = f"openDox-{label}-{version}.pdf"
         manuals.append({"key": key, "file": file, "url": f"{base}/{file}"})
     return {"version": version, "release_url": release_url, "manuals": manuals}

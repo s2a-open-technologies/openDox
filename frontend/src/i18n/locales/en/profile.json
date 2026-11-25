@@ -7,7 +7,8 @@
     "dictionary": "My dictionaries",
     "categories": "My categories",
     "appearance": "Appearance",
-    "retention": "Retention"
+    "retention": "Retention",
+    "manual": "Manual"
   },
   "language": {
     "heading": "Interface language",
@@ -34,5 +35,9 @@
   "retention": {
     "heading": "Retention",
     "description": "How long your recordings are kept before they are deleted automatically."
+  },
+  "manual": {
+    "heading": "User manual",
+    "description": "The openDox user manual as a PDF."
   }
 }

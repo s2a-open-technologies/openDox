@@ -94,6 +94,29 @@ describe("ProfileModal", () => {
     expect(screen.queryByText("Sprache")).not.toBeInTheDocument();
   });
 
+  it("lets every user download the user manual from the profile", async () => {
+    const authFetch = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(
+        url.includes("/manuals/")
+          ? jsonResponse({
+              version: "1.2.3",
+              release_url: "",
+              manuals: [{ key: "benutzer", file: "b.pdf", url: "https://example.test/b.pdf" }],
+            })
+          : jsonResponse({ personal_categories_allowed: false })
+      )
+    );
+    const user = userEvent.setup();
+    renderModal({ role: "user", authFetch });
+
+    await user.click(screen.getByRole("button", { name: /Handbuch/ }));
+
+    const link = await screen.findByRole("link", { name: /Benutzerhandbuch/ });
+    expect(link).toHaveAttribute("href", "https://example.test/b.pdf");
+    expect(screen.queryByRole("link", { name: /Administrationshandbuch/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Release-Seite/ })).not.toBeInTheDocument();
+  });
+
   it("opens on the language tab", () => {
     renderModal();
 

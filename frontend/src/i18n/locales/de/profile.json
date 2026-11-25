@@ -7,7 +7,8 @@
     "dictionary": "Meine Wörterbücher",
     "categories": "Meine Kategorien",
     "appearance": "Design",
-    "retention": "Aufbewahrung"
+    "retention": "Aufbewahrung",
+    "manual": "Handbuch"
   },
   "language": {
     "heading": "Sprache der Benutzeroberfläche",
@@ -34,5 +35,9 @@
   "retention": {
     "heading": "Aufbewahrung",
     "description": "Wie lange Ihre Aufnahmen aufbewahrt werden, bevor sie automatisch gelöscht werden."
+  },
+  "manual": {
+    "heading": "Benutzerhandbuch",
+    "description": "Das Benutzerhandbuch zu openDox als PDF."
   }
 }

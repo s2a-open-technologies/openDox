@@ -39,7 +39,8 @@ interface ManualsResponse {
 
 // Die Links zeigen auf die PDFs, die release.yml an jedes GitHub-Release hängt;
 // der Browser lädt sie direkt dort (oder vom Mirror aus MANUALS_DOWNLOAD_BASE_URL).
-export function ManualDownloads() {
+// variant "user": nur die Liste, ohne Karte (das Profil liefert Überschrift und Text selbst).
+export function ManualDownloads({ variant = "admin" }: { variant?: "admin" | "user" } = {}) {
   const { t } = useTranslation("manuals");
   const { authFetch } = useAuth();
   const [data, setData] = useState<ManualsResponse | null>(null);
@@ -55,37 +56,50 @@ export function ManualDownloads() {
     return null;
   }
 
+  // Im Profil gibt es für jede Rolle nur das Benutzerhandbuch, auch für Admins
+  // (die bekommen die übrigen in der Administration).
+  const manuals = variant === "user" ? data.manuals.filter(m => m.key === "benutzer") : data.manuals;
+  const releaseUrl = variant === "user" ? "" : data.release_url;
+
+  const content = (
+    <>
+      {manuals.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
+      ) : (
+        <div className="flex flex-col gap-2 max-w-sm">
+          {manuals.map(m => (
+            <Button key={m.key} variant="outline" className="w-full justify-start" asChild>
+              <a href={m.url} target="_blank" rel="noopener noreferrer" title={m.file}>
+                <Download className="w-4 h-4 mr-2" />
+                {t(m.key)}
+              </a>
+            </Button>
+          ))}
+        </div>
+      )}
+      {releaseUrl && (
+        <Button variant="link" className="px-0" asChild>
+          <a href={releaseUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="w-4 h-4 mr-2" />
+            {t("releasePage")}
+          </a>
+        </Button>
+      )}
+      <p className="text-xs text-muted-foreground">{t("hint")}</p>
+    </>
+  );
+
+  if (variant === "user") {
+    return <div className="space-y-4">{content}</div>;
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>{t("heading")}</CardTitle>
         <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {data.manuals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
-        ) : (
-          <div className="flex flex-col gap-2 max-w-sm">
-            {data.manuals.map(m => (
-              <Button key={m.key} variant="outline" className="w-full justify-start" asChild>
-                <a href={m.url} target="_blank" rel="noopener noreferrer" title={m.file}>
-                  <Download className="w-4 h-4 mr-2" />
-                  {t(m.key)}
-                </a>
-              </Button>
-            ))}
-          </div>
-        )}
-        {data.release_url && (
-          <Button variant="link" className="px-0" asChild>
-            <a href={data.release_url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-4 h-4 mr-2" />
-              {t("releasePage")}
-            </a>
-          </Button>
-        )}
-        <p className="text-xs text-muted-foreground">{t("hint")}</p>
-      </CardContent>
+      <CardContent className="space-y-4">{content}</CardContent>
     </Card>
   );
 }

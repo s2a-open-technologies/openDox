@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "services": "Servicios",
+    "archive": "Archivado",
+    "users": "Usuarios",
+    "auth": "Autenticación",
+    "backup": "Copia de seguridad",
+    "clients": "Clientes",
+    "translation": "Traducción",
+    "categories": "Categorías",
+    "dictionaries": "Diccionarios",
+    "system": "Sistema",
+    "audit": "Auditoría",
+    "manuals": "Manuales"
+  },
+  "services": {
+    "heading": "Configurar servicios API"
+  },
+  "archive": {
+    "heading": "Archivado"
+  },
+  "users": {
+    "heading": "Gestión de usuarios"
+  },
+  "auth": {
+    "heading": "Autenticación",
+    "session": "Sesión"
+  },
+  "system": {
+    "heading": "Administración del sistema"
+  },
+  "backup": {
+    "heading": "Copia de seguridad de datos"
+  },
+  "selectOption": "Seleccione una opción en la navegación",
+  "readOnlyBanner": "Modo de solo lectura (demo): todos los ajustes están protegidos contra escritura. Solo las categorías siguen siendo editables."
+}

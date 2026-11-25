@@ -1,0 +1,38 @@
+{
+  "menu": "Perfil",
+  "administration": "Administración",
+  "title": "Perfil",
+  "tabs": {
+    "language": "Idioma",
+    "dictionary": "Mis diccionarios",
+    "categories": "Mis categorías",
+    "appearance": "Diseño",
+    "retention": "Conservación"
+  },
+  "language": {
+    "heading": "Idioma de la interfaz",
+    "description": "Elija el idioma en el que se muestra openDox para usted. El ajuste se aplica en todos sus dispositivos.",
+    "label": "Idioma",
+    "saved": "Idioma guardado",
+    "saveFailed": "No se pudo guardar el idioma"
+  },
+  "dictionary": {
+    "heading": "Mis diccionarios",
+    "description": "Listas de términos propias para la corrección automática de términos técnicos, por ejemplo para hacer pruebas. Se aplican automáticamente a todas sus grabaciones, con independencia de la categoría."
+  },
+  "categories": {
+    "heading": "Mis categorías",
+    "description": "Cree y gestione categorías propias para sus grabaciones. Solo son visibles para usted, además de las categorías proporcionadas globalmente. No necesita asociar sus propios diccionarios: siempre se aplican."
+  },
+  "appearance": {
+    "heading": "Diseño",
+    "description": "Claro, oscuro o según el sistema operativo.",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "retention": {
+    "heading": "Conservación",
+    "description": "Durante cuánto tiempo se conservan sus grabaciones antes de eliminarse automáticamente."
+  }
+}

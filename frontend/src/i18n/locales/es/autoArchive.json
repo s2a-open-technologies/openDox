@@ -1,0 +1,10 @@
+{
+  "title": "Archivado automático",
+  "description": "Archiva las grabaciones automáticamente al vencer el plazo (contado desde la hora de la grabación), con el mismo efecto que «Archivar» en el menú de la fila. Las grabaciones archivadas desaparecen de «Actuales» y pueden restaurarse en cualquier momento desde la pestaña Archivo.",
+  "enabled": "Archivar automáticamente",
+  "days": "Plazo en días",
+  "daysInvalid": "Introduzca un número entero entre 1 y 3650.",
+  "daysInvalidToast": "El plazo debe ser un número entero entre 1 y 3650",
+  "hint": "Comprobación cada 6 horas; los valores modificados se aplican sin reiniciar. Las grabaciones recuperadas manualmente del archivo no se tocan hasta que se vuelva a alcanzar el fin del plazo.",
+  "saved": "Archivado automático guardado"
+}

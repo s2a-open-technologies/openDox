@@ -1,0 +1,14 @@
+{
+  "title": "Transcripciones fallidas",
+  "description": "En caso de error, la grabación original se conserva en lugar de eliminarse; aquí se puede volver a lanzar el procesamiento.",
+  "retrying": "Reintentando la transcripción",
+  "retryFailed": "Error en el reintento",
+  "recording": "Grabación n.º {{id}}",
+  "unknownError": "Error desconocido",
+  "retry": "Reintentar",
+  "empty": "No hay transcripciones fallidas",
+  "discard": "Descartar",
+  "discardConfirm": "¿Eliminar definitivamente el audio conservado? Después ya no se podrá repetir la transcripción. La grabación sigue siendo visible para el usuario, que puede eliminarla.",
+  "discarded": "Audio descartado",
+  "discardFailed": "Error al descartar"
+}

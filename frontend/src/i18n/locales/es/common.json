@@ -1,0 +1,27 @@
+{
+  "roles": {
+    "admin": "Administrador",
+    "moderator": "Moderador",
+    "demo_viewer": "Visor de demostración (solo lectura)",
+    "user": "Usuario"
+  },
+  "online": "En línea",
+  "logout": "Cerrar sesión",
+  "save": "Guardar",
+  "saving": "Guardando...",
+  "saveFailed": "Error al guardar",
+  "connectionError": "Error de conexión",
+  "cancel": "Cancelar",
+  "delete": "Eliminar",
+  "edit": "Editar",
+  "loading": "Cargando...",
+  "notFound": {
+    "title": "¡Vaya! Página no encontrada",
+    "home": "Ir al inicio"
+  },
+  "dropzone": {
+    "hint": "Arrastre un archivo aquí o haga clic",
+    "selected": "{{name}} ({{size}})",
+    "notAccepted": "«{{name}}» tiene un formato no admitido"
+  }
+}

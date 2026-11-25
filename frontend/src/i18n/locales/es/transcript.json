@@ -1,0 +1,66 @@
+{
+  "empty": {
+    "title": "Ninguna grabación seleccionada",
+    "description": "Seleccione una grabación en la barra lateral para ver la transcripción.",
+    "start": "Iniciar nueva grabación"
+  },
+  "status": {
+    "finished": "Terminado",
+    "error": "Error",
+    "errorTitle": "Error en el procesamiento",
+    "errorHintSummary": "La transcripción existe, pero no se pudo crear el resumen. Vuelva a crearlo con «Regenerar resumen» (icono de flecha junto al resumen); después este aviso desaparece.",
+    "errorHintTranscript": "La transcripción ha fallado. Su administración puede volver a procesar la grabación.",
+    "errorDetail": "Detalles: {{error}}"
+  },
+  "processing": {
+    "llm": "La IA está creando el resumen...",
+    "transcribing": "Transcripción en curso...",
+    "translating": "Traducción en curso..."
+  },
+  "copy": "Copiar",
+  "summary": {
+    "regenerated": "Resumen regenerado",
+    "updatedFor": "Resumen de «{{title}}» actualizado",
+    "regenerateFailed": "Error al generar el resumen",
+    "regenerate": "Regenerar resumen",
+    "copyLabel": "Copiar resumen",
+    "none": "Todavía no hay resumen disponible",
+    "title": "Resumen",
+    "llmDisabled": "LLM no activado para esta categoría. Como texto resultante se utiliza la transcripción."
+  },
+  "download": {
+    "failed": "Error en la descarga"
+  },
+  "categoryPlaceholder": "Seleccionar categoría...",
+  "audio": "Audio",
+  "save": "Guardar",
+  "saving": "Guardando...",
+  "newRecording": "Nueva grabación",
+  "unsaved": "Hay cambios sin guardar",
+  "title": "Transcripción",
+  "confirmFirst": "Marque primero la casilla de confirmación",
+  "placeholder": "Transcripción...",
+  "markdownPreview": "Vista previa de Markdown",
+  "edit": "Editar",
+  "preview": "Vista previa",
+  "confirmLabel": "He revisado el texto con cuidado y, en su caso, lo he corregido. Asumo la responsabilidad del contenido copiado.",
+  "dialog": {
+    "title": "Asumir la responsabilidad",
+    "description": "Al confirmar, asume la responsabilidad del contenido copiado y confirma la correcta entrega a un profesional. Todas las transcripciones y resúmenes generados automáticamente deben ser revisados por personal cualificado.",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar"
+  },
+  "translation": {
+    "originalTitle": "Transcripción (original: {{language}})",
+    "tab": "Traducción",
+    "hint": "Arriba la traducción, debajo su dictado. Revise cada frase.",
+    "none": "Todavía no hay traducción.",
+    "flaggedSummary_one": "{{count}} frase con cifras discrepantes, revísela con especial atención.",
+    "flaggedSummary_other": "{{count}} frases con cifras discrepantes, revíselas con especial atención.",
+    "missingNumbers": "Falta en la traducción: {{numbers}}",
+    "extraNumbers": "Solo en la traducción: {{numbers}}",
+    "sentenceLabel": "Frase traducida {{n}}",
+    "saveFailed": "No se pudo guardar la traducción",
+    "confirmLabel": "He comparado la traducción frase por frase con mi dictado y, en su caso, la he corregido. Asumo la responsabilidad del contenido copiado."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "export": {
+    "title": "Exportar",
+    "description": "Guardar todos los ajustes globales como archivo JSON (Whisper, Parakeet, LLM, LDAP, OIDC, audio, cliente, categorías, idiomas, diccionarios), sin credenciales (contraseñas, claves API, certificados)",
+    "button": "Descargar copia de seguridad",
+    "success": "Copia de seguridad descargada",
+    "failed": "Error al exportar"
+  },
+  "restore": {
+    "title": "Restauración",
+    "description": "Importar ajustes desde un archivo de copia de seguridad. Sobrescribe todos los valores actuales; las credenciales guardadas se conservan.",
+    "remove": "Quitar",
+    "chooseFile": "Elegir archivo",
+    "button": "Importar copia de seguridad",
+    "noFile": "Elija primero un archivo",
+    "success": "Restaurado: {{items}}",
+    "failed": "Error al restaurar"
+  }
+}

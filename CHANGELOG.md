@@ -13,6 +13,8 @@ section as the GitHub Release notes.
 ## [Unreleased]
 
 ### Added
+- **Web UI in Spanish** (`es`) — selectable in the profile next to German and English, including the
+  "Kein Medizinprodukt" disclaimer and first-login gate. Locale files only.
 - **Translation: dictate in your native language** — off by default. Admins switch it on in the new tab
   *Übersetzung* and release it for all or selected users (user management), with the allowed dictation languages.
   Users then pick a *Diktiersprache* when recording or uploading. Whisper transcribes in that language, the configured

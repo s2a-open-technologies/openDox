@@ -1,0 +1,9 @@
+{
+  "label": "Eliminar mis grabaciones después de (días)",
+  "placeholder": "sin plazo propio",
+  "globalLimit": "Su centro elimina las grabaciones como muy tarde a los {{days}} días. Puede elegir un plazo más corto para sus propias grabaciones.",
+  "noGlobalLimit": "Su centro no ha fijado ningún plazo de eliminación. Puede elegir un plazo para sus propias grabaciones.",
+  "invalid": "Introduzca un número entero entre 1 y {{max}}.",
+  "hint": "Déjelo vacío para usar solo el plazo del centro. Las grabaciones eliminadas, incluido el audio, no se pueden recuperar.",
+  "saved": "Conservación guardada"
+}

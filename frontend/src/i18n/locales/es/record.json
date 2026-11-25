@@ -1,0 +1,55 @@
+{
+  "new": {
+    "title": "Nueva grabación",
+    "textTitle": "Texto de la grabación",
+    "placeholder": "Aquí aparecerá su transcripción.",
+    "recording": "Grabando... Haga clic para finalizar.",
+    "idle": "Haga clic en el micrófono para empezar."
+  },
+  "archive": {
+    "title": "Archivo",
+    "selectDate": "Seleccione una fecha a la izquierda para ver las transcripciones archivadas de ese día.",
+    "backToDates": "Volver a la selección de fecha",
+    "count_one": "{{count}} transcripción",
+    "count_other": "{{count}} transcripciones",
+    "restore": "Restaurar",
+    "delete": "Eliminar",
+    "unknownDate": "Fecha desconocida",
+    "today": "Hoy",
+    "yesterday": "Ayer"
+  },
+  "sidebar": {
+    "current": "Actuales",
+    "archive": "Archivo",
+    "upload": "Subir audio",
+    "noArchived": "No hay grabaciones archivadas",
+    "none": "No hay grabaciones",
+    "active": "Activa",
+    "archiveAction": "Archivar"
+  },
+  "recorder": {
+    "started": "Grabación iniciada",
+    "createFailed": "Error al crear la grabación",
+    "processingToast": "Procesando la grabación...",
+    "wsError": "Error de WebSocket",
+    "connectionLost": "Conexión interrumpida: reinicie la grabación",
+    "startFailed": "Error al iniciar la grabación",
+    "timeout": "Tiempo de espera agotado: no se pudo procesar la grabación",
+    "alreadyDisconnected": "La conexión ya se había interrumpido",
+    "paused": "Grabación en pausa",
+    "running": "Grabando...",
+    "ready": "Grabación lista",
+    "livePreviewNote": "La vista previa en vivo solo sirve como orientación general durante la grabación; no es el resultado final de la transcripción.",
+    "speak": "Hable para iniciar la transcripción",
+    "processing": "Procesando la grabación...",
+    "stopTitle": "Finalizar grabación",
+    "stopDescription": "¿Realmente desea finalizar y guardar la grabación?",
+    "cancel": "Cancelar"
+  },
+  "dictationLanguage": {
+    "label": "Idioma de dictado",
+    "instance": "{{language}} (predeterminado)",
+    "translatedInto": "El dictado se traducirá tras la grabación (idioma de destino: {{language}}). El original se conserva.",
+    "noLivePreview": "Para este idioma no hay vista previa en vivo. El texto aparece al finalizar la grabación."
+  }
+}

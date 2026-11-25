@@ -1,0 +1,23 @@
+{
+  "title": "Traducción",
+  "description": "Los médicos dictan en su lengua materna y openDox proporciona una traducción al idioma de esta instancia. El original sigue siendo la transcripción.",
+  "enabled": "Activar la traducción",
+  "purposeHint": "Desactivada por defecto. La traducción es un borrador automático y debe compararse con el propio dictado (finalidad prevista).",
+  "target": "Idioma de destino: {{language}}.",
+  "targetHint": "Es el idioma de transcripción de Servicios → Whisper / ASR.",
+  "access": "¿Quién puede traducir?",
+  "accessOptions": {
+    "selected": "Usuarios seleccionados",
+    "all": "Todos los usuarios"
+  },
+  "accessHints": {
+    "selected": "Autorización por usuario en Usuarios → Editar.",
+    "all": "Cualquier usuario con sesión iniciada puede elegir un idioma de dictado."
+  },
+  "languages": "Idiomas de dictado",
+  "languagesHint": "Se puede dictar en estos idiomas. El idioma de la propia instancia no se puede elegir.",
+  "otherCode": "Otros (código ISO, p. ej. fi)",
+  "add": "Añadir idioma",
+  "invalidCode": "Introduzca un código ISO de dos letras, p. ej. fi",
+  "saved": "Ajustes de traducción guardados"
+}

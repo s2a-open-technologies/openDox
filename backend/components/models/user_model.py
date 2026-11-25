@@ -34,7 +34,7 @@ ROLES = ("admin", "moderator", "demo_viewer", "user")
 # UI languages the frontend ships translations for (frontend/src/i18n). Add a
 # code here together with its locale folder. Not to be confused with the
 # transcription language (WhisperSettingsModel.language).
-UI_LANGUAGES = ("de", "en")
+UI_LANGUAGES = ("de", "en", "es")
 
 # Where a user logs in. Decides how a session renewal re-checks the account
 # (services/session_revalidation.py).

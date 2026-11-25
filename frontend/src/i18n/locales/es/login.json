@@ -1,0 +1,13 @@
+{
+  "welcome": "Bienvenido de nuevo",
+  "subtitle": "Inicie sesión para gestionar sus grabaciones",
+  "username": "Usuario",
+  "password": "Contraseña",
+  "submit": "Iniciar sesión",
+  "or": "o",
+  "sso": "Iniciar sesión con Single Sign-On",
+  "success": "Sesión iniciada correctamente",
+  "failed": "Error al iniciar sesión",
+  "sessionExpired": "Su sesión ha caducado. Vuelva a iniciar sesión.",
+  "idleLogout": "Se ha cerrado su sesión por inactividad."
+}

@@ -1,0 +1,31 @@
+{
+  "listTitle": "Lista de usuarios",
+  "listDescription": "Gestione las cuentas de usuario locales",
+  "create": "Crear usuario",
+  "active": "Activo",
+  "inactive": "Inactivo",
+  "translationReleased": "Traducción autorizada",
+  "empty": "No hay usuarios",
+  "dialog": {
+    "editTitle": "Editar usuario",
+    "createTitle": "Crear nuevo usuario",
+    "editDescription": "Edite los datos del usuario. Deje la contraseña vacía para no cambiarla.",
+    "createDescription": "Cree un nuevo usuario local.",
+    "username": "Nombre de usuario",
+    "usernamePlaceholder": "p. ej. dr.mueller",
+    "password": "Contraseña",
+    "passwordUnchanged": "(vacío = sin cambios)",
+    "isActive": "Activo",
+    "translationAllowed": "Autorizar la traducción",
+    "translationAllowedHint": "Puede dictar en otro idioma cuando la traducción está en «Usuarios seleccionados».",
+    "role": "Rol",
+    "update": "Actualizar",
+    "add": "Crear"
+  },
+  "operationFailed": "Error en la operación",
+  "updated": "Usuario actualizado",
+  "created": "Usuario creado",
+  "confirmDelete": "¿Realmente desea eliminar este usuario?",
+  "deleted": "Usuario eliminado",
+  "deleteFailed": "Error al eliminar"
+}

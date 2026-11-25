@@ -1,0 +1,68 @@
+{
+  "title": "Configuración del servidor de transcripción",
+  "tabs": {
+    "general": "General",
+    "live": "En vivo",
+    "final": "Final",
+    "quality": "Calidad"
+  },
+  "general": {
+    "title": "Ajustes generales",
+    "description": "Idioma",
+    "language": "Idioma"
+  },
+  "choose": "Elegir...",
+  "languages": {
+    "de": "Alemán",
+    "en": "Inglés",
+    "fr": "Francés",
+    "es": "Español",
+    "it": "Italiano",
+    "auto": "Automático (detección de idioma)"
+  },
+  "live": {
+    "title": "Transcripción en vivo",
+    "description": "Transcripción en tiempo real durante la grabación",
+    "enabled": "Transcripción en vivo activa",
+    "backends": {
+      "parakeet": "Parakeet (recomendado)",
+      "disabled": "Desactivado"
+    },
+    "parakeetHint": "Parakeet funciona con streaming controlado por Silero VAD: el texto crece mientras se habla y se fija en las pausas. La segmentación la realiza el servidor Parakeet."
+  },
+  "apiEndpoint": "Endpoint de la API",
+  "apiKeyOptional": "Clave API (opcional)",
+  "bearerToken": "Bearer Token",
+  "model": "Modelo",
+  "testConnection": "Probar conexión",
+  "test": {
+    "reachable": "Accesible",
+    "reachableModel": "Accesible · Modelo: {{model}}",
+    "unreachable": "No accesible",
+    "requestFailed": "Error en la solicitud"
+  },
+  "final": {
+    "title": "Transcripción final",
+    "description": "Transcripción de alta calidad tras la grabación",
+    "termCorrection": "Corrección de términos técnicos (fonética/difusa)",
+    "threshold": "Umbral (0-100)",
+    "thresholdHint": "Sustituye palabras del texto final por términos de los diccionarios de la categoría cuando suenan y se escriben de forma parecida. La puntuación es la media de ambos criterios (0–100). 85 es un buen valor predeterminado; 90 corrige algo menos, pero es aún más prudente con diccionarios muy grandes."
+  },
+  "quality": {
+    "title": "Calidad y antialucinación",
+    "description": "Evita muletillas inventadas durante el silencio. El silencio siempre se elimina ya en el backend (solo el habla llega al servidor Whisper); «VAD silencio mín.» define a partir de qué duración de pausa se corta. Los demás valores se pasan al servidor Whisper.",
+    "vadFilter": "Filtro VAD del servidor (adicional)",
+    "condPrev": "Usar el texto anterior como contexto",
+    "condPrevHint": "Whisper recibe el texto ya reconocido del fragmento anterior. Esto puede unificar la ortografía, pero a veces genera frases repetidas o inventadas. Recomendado: desactivado.",
+    "vadMinSilence": "VAD silencio mín. (ms)",
+    "temperature": "Temperature (0 = determinista)",
+    "noSpeech": "Umbral de no-habla",
+    "compressionRatio": "Umbral de compression ratio",
+    "logProb": "Umbral de log-prob",
+    "hallucinationSilence": "Umbral de silencio de alucinación (s, opcional)",
+    "off": "desactivado",
+    "beamFinal": "Beam-Size"
+  },
+  "save": "Guardar ajustes",
+  "saved": "Ajustes guardados"
+}

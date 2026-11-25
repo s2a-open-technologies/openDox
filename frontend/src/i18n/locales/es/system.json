@@ -1,0 +1,31 @@
+{
+  "title": "Estado del sistema",
+  "lastChecked": "Última comprobación: {{time}}",
+  "checking": "Comprobando...",
+  "services": "Servicios",
+  "probing": "Comprobación...",
+  "status": {
+    "online": "En línea",
+    "offline": "No accesible",
+    "disabled": "Desactivado"
+  },
+  "serviceNames": {
+    "Datenbank": "Base de datos",
+    "Transkription": "Transcripción"
+  },
+  "security": {
+    "title": "Seguridad",
+    "description": "No es un servicio, sino una comprobación de la configuración.",
+    "encryptionKey": "Clave de cifrado",
+    "match": "Coincide con los datos almacenados",
+    "mismatch": "No coincide con los datos almacenados",
+    "mismatchHint": "ENCRYPTION_KEY no es la clave con la que están cifrados los datos almacenados, o una rotación de claves no ha finalizado. Es posible que los datos almacenados no se puedan descifrar."
+  },
+  "session": {
+    "title": "Cierre de sesión automático",
+    "description": "Cierra la sesión de la interfaz web cuando no se ha introducido nada durante un tiempo. Se aplica a todos los usuarios, no al cliente de escritorio.",
+    "idleTimeout": "Cerrar sesión por inactividad (minutos)",
+    "idleTimeoutHint": "0 = nunca. Nunca se cierra la sesión durante una grabación ni mientras la transcripción está en curso.",
+    "saved": "Ajuste guardado"
+  }
+}

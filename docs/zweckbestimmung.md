@@ -121,6 +121,35 @@ Benutzer. Das gilt auch, wenn der Betreiber sie als *Standard für alle*
 vorauswählt (Administration → Kategorien). Für solche Prompts trägt der
 Betreiber die Verantwortung.
 
+**Orientierung für eigene Kategorien.** Maßstab ist, ob der Prompt nur das
+wiedergibt und ordnet, was gesprochen wurde, oder ob er etwas hinzufügt,
+bewertet oder ableitet. Beispiele, die innerhalb der Zweckbestimmung bleiben,
+solange der Prompt nichts ergänzt:
+
+- Gliederung des Diktats in Abschnitte mit festen Überschriften (z. B.
+  Anamnese, Befund, Procedere), in die nur eingeordnet wird, was gesagt wurde;
+- Briefform mit Anrede, Gruß und Absatzgliederung für ein diktiertes Schreiben;
+- Bereinigung des Sprechtextes: Zeichensetzung, Rechtschreibung, Entfernen von
+  Füllwörtern und Wiederholungen;
+- Darstellung genannter Aufzählungen (z. B. Medikamente, Maßnahmen) als Liste,
+  ohne sie zu prüfen, zu ergänzen oder zu bewerten;
+- einheitliche Schreibweise von Datums-, Mengen- und Einheitenangaben, wie sie
+  gesprochen wurden.
+
+Beispiele, die darüber hinausgehen und den Betreiber wie einen Hersteller
+behandeln können (siehe oben):
+
+- Diagnosen, Verdachtsdiagnosen oder differenzialdiagnostische Hinweise
+  vorschlagen;
+- ICD- oder andere Codes zuordnen, Scores oder Risiken berechnen;
+- Dosierungen, Wechselwirkungen oder Laborwerte prüfen oder bewerten;
+- fehlende Angaben ergänzen oder aus dem Diktat Schlüsse für Therapie und
+  Weiterbehandlung ziehen;
+- "Wichtiges" auswählen, gewichten oder als Empfehlung formulieren.
+
+Die Beispiele sind eine Orientierung, keine abschließende Liste und keine
+Rechtsberatung. Im Zweifel gilt: Der Prompt soll abbilden, nicht auswerten.
+
 Kategorien mit eigenem Prompt dürfen Benutzer nur anlegen, wenn der Betreiber
 das ausdrücklich freigibt (Administration → Kategorien → *Benutzerkategorien
 erlauben*, standardmäßig aus). Ohne Freigabe stammen alle wirksamen

@@ -17,6 +17,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import logging
 import re
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -30,6 +31,8 @@ from backend.components.services.settings_service import get_llm_settings
 # from a genuine hang. 5 minutes is generous enough for a large local model
 # on modest hardware while still guaranteeing the task eventually errors out.
 LLM_REQUEST_TIMEOUT_SECONDS = 300
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_openai_base_url(url: str) -> str:
@@ -284,11 +287,27 @@ class SummarizeModel:
         chain = template | self.client
         response = chain.invoke({"message": message})
 
-        result = _strip_thinking(response.content)
+        raw = response.content if isinstance(response.content, str) else ""
+        result = _strip_thinking(raw)
         if not result.strip():
+            meta = getattr(response, "response_metadata", {}) or {}
+            finish_reason = meta.get("finish_reason")
+            logger.warning(
+                "LLM returned no usable text: model=%s finish_reason=%s "
+                "raw_content_len=%d input_len=%d max_tokens=%s "
+                "enable_thinking=%s additional_kwargs_keys=%s",
+                self.model,
+                finish_reason,
+                len(raw),
+                len(message),
+                self.max_tokens,
+                self.enable_thinking,
+                sorted((response.additional_kwargs or {}).keys()),
+            )
             raise ValueError(
                 "LLM response was empty after stripping reasoning/thinking "
                 "blocks — the model likely got stuck reasoning without "
-                "producing an answer."
+                f"producing an answer (finish_reason={finish_reason}, "
+                f"raw_len={len(raw)})."
             )
         return result

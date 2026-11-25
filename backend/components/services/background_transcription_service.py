@@ -370,6 +370,11 @@ def background_transcription_task(
             # Transcription only: summarize stays empty, the API serves the
             # transcript in its place (llm_gate.effective_summary).
             logger.info(f"[TASK {task_id}] LLM disabled (global/category), skipped")
+        elif not text.strip():
+            # No speech (e.g. record key tapped and released at once): there is
+            # nothing to summarize, and an LLM given an empty message answers
+            # with a refusal or nothing, which used to fail the task.
+            logger.info(f"[TASK {task_id}] Empty transcript, LLM step skipped")
         else:
             update_task_status(db, task_id, "processing_llm")
             summary, entity_mapping = run_summary(db, cat, text)

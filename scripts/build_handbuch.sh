@@ -41,11 +41,10 @@ mkdir -p "$OUT/assets" "$OUT/bilder"
 # bilder/bilder/, und die alten Platzhalter bleiben in der PDF.
 cp -r "$SRC/bilder/." "$OUT/bilder/"
 
-# Das S2A-Logo ist weiß (für dunkle Flächen, Deckblatt); für die Kopfzeile
-# auf weißem Grund wird die Schrift in Navy umgefärbt.
-cp "$SRC/vorlage/s2a-open-technologies.svg" "$OUT/assets/s2a-logo-white.svg"
-sed 's/fill="#ffffff"/fill="#1A2B6D"/g' "$SRC/vorlage/s2a-open-technologies.svg" \
-  > "$OUT/assets/s2a-logo-dark.svg"
+# Zwei Logo-Varianten mit Farbverlauf: invertiert (weiße Schrift) fürs
+# Navy-Deckblatt, normal (Navy-Schrift) für die Kopfzeile auf weißem Grund.
+cp "$SRC/vorlage/s2a-logo-invertiert.svg" "$OUT/assets/s2a-logo-white.svg"
+cp "$SRC/vorlage/s2a-logo-normal.svg" "$OUT/assets/s2a-logo-dark.svg"
 
 # Platzhalter für jedes referenzierte, aber noch fehlende Bild
 for book in "${BOOKS[@]}"; do

@@ -2,8 +2,11 @@
 // Pandoc ersetzt die Dollar-Platzhalter; ein literales Dollarzeichen wäre doppelt zu schreiben.
 // Gebaut von scripts/build_handbuch.sh, Logos und Fonts kommen aus vorlage/.
 
-#let navy = rgb("#1A2B6D")
-#let cyan = rgb("#00CED1")
+// Farben aus dem S2A-Logo / der Visitenkarte: Hintergrund-Navy und der
+// Verlauf Teal -> Limette -> Grün
+#let navy = rgb("#082140")
+#let cyan = rgb("#29908b")
+#let lime = rgb("#a4c12d")
 #let ink = rgb("#1f2937")
 #let muted = rgb("#6b7280")
 #let line-gray = rgb("#d1d5db")
@@ -112,10 +115,10 @@
     #image("assets/s2a-logo-white.svg", width: 7.5cm)
     #v(1fr)
     #text(font: "Poppins", weight: "bold", size: 54pt, tracking: -1.5pt)[
-      #text(fill: white)[open]#text(fill: cyan)[Dox]
+      #text(fill: white)[open]#text(fill: lime)[Dox]
     ]
     #v(-0.6em)
-    #line(length: 6cm, stroke: 2pt + cyan)
+    #line(length: 6cm, stroke: 2pt + lime)
     #v(0.4em)
     #text(font: "Poppins", size: 24pt, fill: white, weight: "medium")[#doc-subtitle]
   ]
@@ -143,9 +146,9 @@
   margin: (top: 2.8cm, bottom: 2.4cm, x: 2.3cm),
   header: context {
     set text(size: 8.5pt, fill: muted)
-    grid(columns: (1fr, 4.2cm), align: (left + horizon, right + horizon),
+    grid(columns: (1fr, 3.2cm), align: (left + horizon, right + horizon),
       [#text(font: "Poppins", weight: "bold", fill: navy)[open]#text(font: "Poppins", weight: "bold", fill: cyan)[Dox] #h(0.4em) #doc-subtitle],
-      image("assets/s2a-logo-dark.svg", width: 4.2cm),
+      image("assets/s2a-logo-dark.svg", width: 3.2cm),
     )
     v(-0.3em)
     line(length: 100%, stroke: 0.5pt + line-gray)
@@ -162,7 +165,7 @@
 )
 #counter(page).update(1)
 
-#show outline.entry.where(level: 1): set block(above: 1.1em)
+#show outline.entry.where(level: 1): set block(above: 0.8em)
 #show outline.entry.where(level: 1): set text(weight: "bold", fill: navy)
 #outline(title: [Inhaltsverzeichnis], depth: 2, indent: auto)
 

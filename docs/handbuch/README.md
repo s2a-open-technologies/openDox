@@ -37,8 +37,10 @@ Release fehl.
   Typst. Deckblatt, Kopf-/Fußzeile, Farben (Navy `#1A2B6D`, Cyan `#00CED1`),
   Tabellen- und Bildstil stehen dort. Die PDF wird bewusst nicht über
   Word/OnlyOffice erzeugt, damit sie bei jedem Build gleich aussieht.
-- **Logo**: `vorlage/s2a-open-technologies.svg` (weiß, fürs Deckblatt); die
-  dunkle Variante für die Kopfzeile erzeugt das Build-Script.
+- **Logo**: zwei Varianten mit Farbverlauf, beide fertig geliefert:
+  `vorlage/s2a-logo-invertiert.svg` (weiße Schrift, Deckblatt auf Navy) und
+  `vorlage/s2a-logo-normal.svg` (Navy-Schrift, Kopfzeile auf Weiß). Das
+  Build-Script kopiert sie unverändert, es färbt nichts mehr um.
 - **Schriften**: `vorlage/fonts/` (Poppins für Überschriften, Lato für Text,
   beide SIL Open Font License, Lizenztexte liegen daneben).
 - **DOCX** (bearbeitbare Nebenausgabe): optional `vorlage/reference.docx` mit

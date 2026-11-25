@@ -81,6 +81,21 @@ _RAW_ALLOWED_LICENSES = {
     "agpl-3.0-or-later",
     "gnu affero general public license v3",
     "python-2.0",
+    # SPDX / classifier spellings of licenses that were reviewed by hand:
+    "3-clause bsd license",  # protobuf
+    "cnri-python",  # regex (Apache-2.0 AND CNRI-Python): permissive, GPL-compatible
+    "gpl-2.0-or-later",  # python-debian: "or later" lets the combination be AGPL-3.0
+}
+
+# Packages whose license metadata the allowlist cannot express and that were
+# reviewed by hand. Keep the reason: the generic classifier text involved
+# ("Other/Proprietary License") must never go on the allowlist itself.
+REVIEWED_PACKAGES = {
+    "reuse": (
+        "dev-only tool (REUSE lint, not shipped); its own License field says "
+        "Apache-2.0 AND CC0-1.0 AND CC-BY-SA-4.0 AND GPL-3.0-or-later, the "
+        "'Other/Proprietary' PyPI classifier is just the multi-license marker"
+    ),
 }
 
 
@@ -166,7 +181,11 @@ def get_frontend_licenses() -> list[dict]:
 
 def check(packages: list[dict], ecosystem: str) -> list[dict]:
     """Return the subset of ``packages`` whose license isn't in the allowlist."""
-    return [p for p in packages if not _license_ok(p["license"])]
+    return [
+        p
+        for p in packages
+        if p["name"] not in REVIEWED_PACKAGES and not _license_ok(p["license"])
+    ]
 
 
 def _license_cell(raw: str) -> str:

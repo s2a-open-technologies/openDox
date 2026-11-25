@@ -90,6 +90,13 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   const [confirmed, setConfirmed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // What the server holds. Follows the props, but also the polled result of a
+  // finishing task — the parent's copy of the record is stale until then, and
+  // comparing against it flagged the fresh transcript/summary as "unsaved".
+  const [baseline, setBaseline] = useState({
+    content: transcript?.content || "",
+    summarize: transcript?.summarize || "",
+  });
   const [isEditingSummary, setIsEditingSummary] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -138,13 +145,17 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
   }, [transcript?.summaryEnabled, transcript?.summarize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const contentDiff = (transcript?.content || "") !== editedContent;
-    const summaryDiff = !summaryIsTranscript && (transcript?.summarize || "") !== editedSummary;
+    setBaseline({ content: transcript?.content || "", summarize: transcript?.summarize || "" });
+  }, [transcript?.id, transcript?.content, transcript?.summarize]);
+
+  useEffect(() => {
+    const contentDiff = baseline.content !== editedContent;
+    const summaryDiff = !summaryIsTranscript && baseline.summarize !== editedSummary;
     const translationDiff = Object.entries(segmentEdits).some(
       ([index, target]) => segments[Number(index)]?.target !== target
     );
     setHasUnsavedChanges(contentDiff || summaryDiff || translationDiff);
-  }, [editedContent, editedSummary, transcript?.content, transcript?.summarize, summaryIsTranscript, segmentEdits, segments]);
+  }, [editedContent, editedSummary, baseline, summaryIsTranscript, segmentEdits, segments]);
 
   useEffect(() => {
     if (!transcript?.taskId) {
@@ -172,9 +183,11 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
               const recData = await recRes.json();
               if (recData.content && recData.content !== editedContentRef.current) {
                 setEditedContent(recData.content);
+                setBaseline((b) => ({ ...b, content: recData.content }));
               }
               if (recData.summarize && recData.summarize !== editedSummaryRef.current) {
                 setEditedSummary(recData.summarize);
+                setBaseline((b) => ({ ...b, summarize: recData.summarize }));
               }
               if (typeof recData.has_audio === "boolean") {
                 setHasAudio(recData.has_audio);
@@ -316,6 +329,7 @@ const TranscriptView = ({ transcript, categories, onNewRecording, onSave, onCate
       const data = await res.json();
       if (currentDbIdRef.current === targetId) {
         setEditedSummary(data.summarize || "");
+        setBaseline((b) => ({ ...b, summarize: data.summarize || "" }));
         setSummaryIsTranscript(data.summary_enabled === false);
         // A failed pipeline is resolved by a successful regeneration.
         if (data.task_status) {

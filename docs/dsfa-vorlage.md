@@ -1,6 +1,6 @@
 # Datenschutz-Folgenabschätzung (DSFA): Vorlage für Betreiber von openDox
 
-> Stand: 2026-11-06 · gilt für openDox ab Version 0.11.x
+> Stand: 2026-11-25 · gilt für openDox ab Version 0.12.x
 >
 > **Diese Vorlage ist keine fertige DSFA.** Durchführen und verantworten muss die
 > DSFA nach Art. 35 DSGVO der **Verantwortliche**, also die Klinik, Praxis oder das MVZ,
@@ -99,7 +99,7 @@ Der vollständige Fluss mit Diagramm steht in [`data-mapping.md`](data-mapping.m
 | Empfänger | Ort | Eintrag |
 |---|---|---|
 | Whisper, Parakeet, PostgreSQL, Redis, Garage | im openDox-Stack | ► Betreiber: Hosting (eigenes RZ, Dienstleister?) |
-| LLM-Endpunkt | konfigurierbar | ► Betreiber: Anbieter, Standort, Drittland ja/nein, AV-Vertrag |
+| LLM-Endpunkt | konfigurierbar (Zusammenfassung und, falls freigegeben, Übersetzung; also auch Gesundheitsdaten in Fremdsprache) | ► Betreiber: Anbieter, Standort, Drittland ja/nein, AV-Vertrag |
 | PII-Sanitizer | konfigurierbar | ► Betreiber: Anbieter, Standort, AV-Vertrag |
 | LDAP/AD, OIDC-Provider | konfigurierbar (nur Anmeldedaten) | ► Betreiber: |
 | Externer Objektspeicher (statt Garage) | konfigurierbar (nur verschlüsselte Blobs) | ► Betreiber: |
@@ -118,7 +118,10 @@ Der vollständige Fluss mit Diagramm steht in [`data-mapping.md`](data-mapping.m
 - **Zweckbindung:** Der Zweck ist in der Zweckbestimmung festgelegt. Die mitgelieferte
   Kategorie *Standard* (nur Zeichensetzung) ist schreibgeschützt
   (`Categories.is_builtin`, `settings_routes.py`). Eigene Prompts sind
-  Betreiberentscheidung. Benutzerkategorien sind standardmäßig aus
+  Betreiberentscheidung. Die Übersetzung bleibt eine Diktierhilfe: Sie ist nicht für
+  Dolmetscher-Ersatz im Patientengespräch und nicht für Aufklärung, Einwilligung
+  oder andere Texte an Patienten bestimmt (Zweckbestimmung, Abschnitt 4, Nr. 7 und 8);
+  Diktiersprachen und berechtigte Benutzer legt der Betreiber fest. Benutzerkategorien sind standardmäßig aus
   (`personal_categories_allowed`).
 - **Datenminimierung:**
   - Das Rohaudio wird nach der Verarbeitung gelöscht.
@@ -154,7 +157,7 @@ insbesondere bei externem LLM oder Sanitizer.
 |---|---|---|---|---|---|---|
 | R1 | Offenlegung von Gesundheitsdaten an Dritte oder ins Drittland | externer LLM- oder Sanitizer-Endpunkt | gering (lokal) / hoch (extern) | hoch | Self-Hosting als Standard; Sanitizer maskiert Namen vor Zusammenfassung und Übersetzung, fail-closed (`llm_gate.sanitize_if_configured`); LLM je Kategorie abschaltbar | ► Betreiber |
 | R2 | Unvollständige Maskierung | Der Sanitizer erkennt nicht jeden Namen, besonders in fremdsprachigem Text | mittel | hoch | Die Maskierung ist ein Zusatzschutz, kein Ersatz für ein vertrauenswürdiges LLM; Übersetzung nur mit lokalem LLM betreiben | mittel |
-| R3 | Falsche Dokumentation | Hör-, Schreib- oder Übersetzungsfehler, Halluzination, vertauschte Zahlen oder Verneinungen | mittel | hoch | Prüfpflicht mit Bestätigungshaken; Original bleibt erhalten; Zahlenabgleich pro übersetztem Satz; Anti-Platzhalter-Regel (`llm_model.py`); Hinweis „Kein Medizinprodukt“ | mittel (abhängig von der Prüfdisziplin) |
+| R3 | Falsche Dokumentation | Hör-, Schreib- oder Übersetzungsfehler, Halluzination, vertauschte Zahlen oder Verneinungen | mittel | hoch | Prüfpflicht mit Bestätigungshaken; Original bleibt erhalten; Zahlenabgleich pro übersetztem Satz (Negationen, Einheiten und Seitenangaben prüft kein automatischer Abgleich); Anti-Platzhalter-Regel (`llm_model.py`); Hinweis „Kein Medizinprodukt“ | mittel (abhängig von der Prüfdisziplin) |
 | R4 | Unbefugter Zugriff auf Aufnahmen | fremde Konten, zu weite Rollen | gering | hoch | Aufnahmen nur für ihre Eigentümer (`_require_owner` in `record.py`), auch nicht für Admins; LDAP/OIDC mit Gruppen-Gate (fail-closed); Sitzungsprüfung bei Verlängerung; Leerlauf-Abmeldung; Rate-Limit beim Login | gering |
 | R5 | Offenlegung bei Diebstahl der Datenbank oder eines Backups | Zugriff auf DB-Dateien | gering | hoch | Feldverschlüsselung der Inhalte (`field_encryption.py`, `ENCRYPTION_KEY` Pflicht); Einstellungs-Backup ohne Aufnahmen und ohne Zugangsdaten | gering (Schlüssel getrennt aufbewahren) |
 | R6 | Verlust der Verfügbarkeit oder Daten | Schlüsselverlust, Ausfall | mittel | mittel | Schlüsselrotation (`key_rotation.py`); Prüfung „Verschlüsselungsschlüssel“ im System-Tab; fehlgeschlagene Aufnahmen bleiben für einen Retry erhalten | ► Betreiber: Backup- und Schlüsselkonzept |
@@ -164,6 +167,7 @@ insbesondere bei externem LLM oder Sanitizer.
 | R10 | Leistungs- und Verhaltenskontrolle von Beschäftigten | Audit-Log mit Benutzername, IP und Zeit | gering | mittel | Bewusst schmaler Umfang: keine Protokollierung der Arbeit mit eigenen Aufnahmen, keine Inhalte; Lesen nur durch Admins; automatische Löschung | ► Betreiber: Vereinbarung nach § 87 Abs. 1 Nr. 6 BetrVG |
 | R11 | Zugangsdaten zu Drittsystemen werden bekannt | API-Keys, LDAP-Bind-Passwort | gering | mittel | Schlüssel nur für Admins lesbar; nicht im Backup; Docker-Secrets (`_FILE`) | gering |
 | R12 | Unverschlüsselte Übertragung zu externen Diensten | Endpunkte ohne TLS konfiguriert | ► Betreiber | hoch | Die Anwendung erzwingt kein TLS (bekannte Lücke) | ► Betreiber: nur `https`-Endpunkte |
+| R13 | Übersetzung wird als Dolmetscher-Ersatz oder für Patiententexte genutzt | Fehlverständnis der Funktion, zu weite Freigabe | mittel | hoch | Zweckbestimmung Abschnitt 4 Nr. 7 und 8; Übersetzung standardmäßig aus, Freigabe pro Benutzer oder für alle durch den Betreiber (`translation_gate.py`); Original bleibt erhalten, Satzpaare nebeneinander, eigene Bestätigung vor dem Kopieren; Hinweis „Kein Medizinprodukt“ | ► Betreiber: Diktiersprachen und Benutzer eng halten, Anwender einweisen |
 
 ## 5. Abhilfemaßnahmen (Art. 35 Abs. 7 lit. d)
 

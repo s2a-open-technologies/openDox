@@ -15,7 +15,7 @@ openDox ist eine webbasierte Plattform für die medizinische Dokumentation. Ärz
 | **Backend** | Python 3.12+, FastAPI, SQLModel, Alembic |
 | **Frontend** | React 18, TypeScript, Vite, shadcn/ui, Tailwind CSS |
 | **Transkription** | Zweistufig: Live per Parakeet (VAD-Streaming über WebSocket), final per Whisper (faster-whisper, OpenAI-kompatible API); beide als Docker-Services mitgeliefert |
-| **Oberfläche** | Mehrsprachig (Deutsch/English, `i18next`), Sprache pro Nutzer |
+| **Oberfläche** | Mehrsprachig (Deutsch/English/Español, `i18next`), Sprache pro Nutzer |
 | **Desktop-Client** | Optional: separater openDox-Client (Go/Wails), Verteilung und Richtlinie im Admin-Bereich, siehe [`docs/client.md`](docs/client.md) |
 | **Zusammenfassung** | Externes LLM via LangChain/OpenAI-kompatible API |
 | **Datenbank** | PostgreSQL (Docker) oder SQLite (Fallback) |

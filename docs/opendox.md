@@ -18,7 +18,7 @@
 - 🕵️ **PII-Sanitizer (EntityGuard, optional)**: maskiert Klarnamen vor dem LLM-Call, re-injiziert sie danach wieder in die gespeicherte Zusammenfassung
 - 🔐 **Datenschutz-Funktionen**: Feldweise Verschlüsselung für patientenbezogene Daten (inkl. Key-Rotation), automatische Löschung des Rohaudios nach erfolgreicher Verarbeitung. Ob ein Betrieb DSGVO-konform ist, hängt von der Konfiguration ab, siehe `docs/data-mapping.md`
 - 📖 **Fachbegriff-Korrektur**: optionale phonetische Korrektur (Kölner Phonetik) mit Kategorie-Glossar und privatem Nutzer-Wörterbuch
-- 🌍 **Mehrsprachige Oberfläche** (Deutsch/English) und optionaler **Desktop-Client** (`docs/client.md`)
+- 🌍 **Mehrsprachige Oberfläche** (Deutsch/English/Español) und optionaler **Desktop-Client** (`docs/client.md`)
 - 🎧 **Optionaler Audio-Download**: komprimierte, verschlüsselte Kopie der Aufnahme (Format/Bitrate wählbar) in einem S3-kompatiblen Objektspeicher (self-hosted Garage per Default)
 - 🏢 **Enterprise-Ready**: LDAP- und OIDC/SSO-Integration (inkl. Gruppen→Rollen-Mapping), Redis-Session-Store mit In-Memory-Fallback
 - 🐳 **Cloud-Native**: Docker-Compose-Stack (lokal/Demo) und Docker-Swarm-Produktionsdeploy mit PostgreSQL
@@ -738,7 +738,7 @@ Jedes S3-kompatible Backend funktioniert (generisches boto3); `docker-compose.ym
 
 ## System-Health-Check
 
-`GET /api/v1/settings/services-health/` (`settings_routes.py`) treibt den Admin-„System"-Tab (`SystemSettings.tsx`, alle 10s gepollt) — ein `async def check_x()`-Closure pro Dienst (Postgres, Redis, Whisper, Parakeet, EntityGuard, S3), alle parallel über `asyncio.gather`. Jeder liefert `"online"`/`"offline"`/`"disabled"` — `"disabled"` wird zurückgegeben, **bevor** ein Netzwerk-Call versucht wird, wenn ein Feature gar nicht konfiguriert ist (z. B. `audio_storage.is_configured()` für S3), damit ein bewusst deaktiviertes Feature nicht als falsches „offline" erscheint. Das Frontend ist vollständig generisch — es rendert einfach die zurückgegebene `{name, status}`-Liste, ein neuer Check erfordert also nur Backend-Änderungen. Die Prüfung des `ENCRYPTION_KEY` ist bewusst kein Eintrag dieser Liste (kein Dienst): Sie kommt als eigenes Feld `encryption_key` (`"match"`/`"mismatch"`) zurück und erscheint in der Karte *Sicherheit*.
+`GET /api/v1/settings/services-health/` (`settings_routes.py`) treibt den Admin-„System"-Tab (`SystemSettings.tsx`, alle 10s gepollt) — ein `async def check_x()`-Closure pro Dienst (Postgres, Redis, Whisper, Parakeet, LLM, EntityGuard, S3), alle parallel über `asyncio.gather`. Jeder liefert `"online"`/`"offline"`/`"disabled"` — `"disabled"` wird zurückgegeben, **bevor** ein Netzwerk-Call versucht wird, wenn ein Feature gar nicht konfiguriert ist (z. B. `audio_storage.is_configured()` für S3), damit ein bewusst deaktiviertes Feature nicht als falsches „offline" erscheint. Das Frontend ist vollständig generisch — es rendert einfach die zurückgegebene `{name, status}`-Liste, ein neuer Check erfordert also nur Backend-Änderungen. Die Prüfung des `ENCRYPTION_KEY` ist bewusst kein Eintrag dieser Liste (kein Dienst): Sie kommt als eigenes Feld `encryption_key` (`"match"`/`"mismatch"`) zurück und erscheint in der Karte *Sicherheit*.
 
 ---
 
@@ -1153,7 +1153,7 @@ Legend:
 | Methode | Pfad | Beschreibung |
 |---------|------|--------------|
 | GET/PUT | `/whisper-settings/` | Whisper-Konfiguration |
-| GET | `/asr-test/` | ASR-Endpunkt-Erreichbarkeit prüfen |
+| GET | `/asr-test/` | ASR-Endpunkt prüfen: erreichbar und konfiguriertes Modell vorhanden |
 | GET/PUT | `/llm-settings/` | LLM-Konfiguration |
 | GET | `/llm-test/` | Echter Chat-Completion-Probe gegen den konfigurierten LLM-Endpunkt |
 | GET/PUT | `/audio-settings/` | Audio-Download-Konfiguration (Format/Bitrate/Sample-Rate) |

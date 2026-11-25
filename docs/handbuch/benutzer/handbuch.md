@@ -413,7 +413,7 @@ Sie den Text an, bis das Ergebnis stimmt.
 
 ## Sprache
 
-Unter **Sprache** wählen Sie die Sprache der Oberfläche. Die Einstellung gilt
+Unter **Sprache** wählen Sie die Sprache der Oberfläche (Deutsch, English oder Español). Die Einstellung gilt
 auf allen Ihren Geräten. Sie betrifft nur die Bedienoberfläche, nicht die
 Sprache, in der diktiert wird.
 
@@ -482,6 +482,13 @@ der Einrichtung ist nicht möglich.
 
 Unter **Design** wählen Sie **Hell**, **Dunkel** oder **System** (passend zur
 Einstellung Ihres Betriebssystems).
+
+## Handbuch
+
+Unter **Handbuch** laden Sie dieses Benutzerhandbuch als PDF herunter, passend
+zur Version Ihrer Installation. Der Browser holt die Datei vom Release-Server
+des Projekts oder von einem Spiegel Ihrer Einrichtung; ohne Internetzugang
+fragen Sie Ihre IT nach dem Handbuch.
 
 # Desktop-Client
 

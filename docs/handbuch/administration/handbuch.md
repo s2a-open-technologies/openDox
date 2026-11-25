@@ -159,9 +159,11 @@ Die finale Transkription erzeugt das maßgebliche Transkript.
 |:-----------|:-------------------------------|
 | **API Endpoint** | Adresse des Whisper-Dienstes (OpenAI-kompatibel), in der Docker-Installation `http://whisper:5002/v1`. |
 | **API Key (optional)** | Muss dem beim Whisper-Dienst hinterlegten Schlüssel entsprechen (`WHISPER_API_KEY`). |
-| **Modell** | Modellname, den der Whisper-Dienst erwartet, z. B. `large-v3-turbo`. |
+| **Modell** | Modellname, den der Whisper-Dienst erwartet, z. B. `large-v3-turbo`. Manche Dienste (z. B. vLLM) erwarten einen Präfix wie `openai/whisper-large-v3-turbo`; **Verbindung testen** meldet ein unbekanntes Modell und nennt die verfügbaren. |
 | **Fachbegriff-Korrektur (Phonetik/Fuzzy)** | Schaltet die automatische Korrektur mit Wörterbüchern ein. Standard: aus. |
 | **Schwellenwert (0-100)** | Wie ähnlich ein Wort einem Wörterbuchbegriff sein muss, damit es ersetzt wird. |
+
+Mit **Verbindung testen** speichert openDox zuerst die Einstellungen und prüft dann, ob der Dienst erreichbar ist und das Modell kennt.
 
 ![Dienste → Whisper / ASR → Final](bilder/administration/04-whisper-final.png)
 
@@ -818,6 +820,7 @@ alle zehn Sekunden.
 | **Cache** | Redis (Sitzungen laufender Aufnahmen). |
 | **Transkription** | Whisper-Dienst für die finale Transkription. |
 | **Live** | Parakeet-Dienst für die Live-Vorschau. |
+| **LLM** | Sprachmodell für Zusammenfassung und Übersetzung. Prüft Erreichbarkeit, Zugangsschlüssel und ob das eingestellte Modell beim Dienst vorhanden ist. Gilt für das globale Modell, nicht für Modelle einzelner Kategorien. |
 | **PII** | PII-Sanitizer. |
 | **Objekt-Speicher (S3)** | Speicher für Audio-Download und ausgelagerte Fehlaufnahmen. |
 

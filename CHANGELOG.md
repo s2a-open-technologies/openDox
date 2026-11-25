@@ -13,6 +13,9 @@ section as the GitHub Release notes.
 ## [Unreleased]
 
 ### Added
+- **User manual in the profile dialog** — new tab *Handbuch* for every user, with the download link of the user
+  manual of the running version. `GET /settings/manuals/` is now open to all signed-in users; roles other than admin and
+  demo viewer only get the user manual (no administration/installation manual, no release page).
 - **LLM status in the System tab** — an *LLM* line next to Live and Transcription: reachable, API key accepted and
   the configured model listed by the server (a cheap `/models` call, not a chat request); off when the LLM is disabled.
 - **Web UI in Spanish** (`es`) — selectable in the profile next to German and English, including the
@@ -38,6 +41,14 @@ section as the GitHub Release notes.
   the LLM for translation and re-inserted afterwards (fail-closed, like the summary).
 
 ### Fixed
+- **Failed transcriptions show their real cause** — a Whisper error (wrong model name, server down) used to come
+  back as an empty text, the LLM then ran on nothing and the record showed "LLM response was empty". The ASR backend
+  now raises `ASRError` with the server's message, and an empty transcript skips the LLM step.
+- **ASR connection test was always green** — it only checked that the server answered. It now also checks that the
+  configured model exists (`/models`), names the available ones if not, and saves the form first, since it tests the
+  stored settings.
+- **"Unsaved changes" after a finished transcription** — the fresh transcript/summary was compared with a stale copy
+  of the record and flagged as unsaved.
 - **Transcription language setting is applied** — the final Whisper call now uses the language set under
   *Dienste → Whisper / ASR*; before it always sent `de`.
 

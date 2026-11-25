@@ -12,6 +12,8 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-25
+
 ### Added
 - **User manual in the profile dialog** — new tab *Handbuch* for every user, with the download link of the user
   manual of the running version. `GET /settings/manuals/` is now open to all signed-in users; roles other than admin and
@@ -583,7 +585,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.4...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.1...v0.11.2

@@ -22,6 +22,14 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 
+class ASRError(RuntimeError):
+    """The ASR server could not be reached or rejected the request.
+
+    Distinct from "no speech found" (empty text): callers must not carry on
+    with an empty transcript after this.
+    """
+
+
 class ASRBackend(ABC):
     """Abstract base class for ASR (Automatic Speech Recognition) backends.
 

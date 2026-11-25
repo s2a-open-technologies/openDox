@@ -4,7 +4,8 @@ Technische Bestandsaufnahme, welche (personenbezogenen/medizinischen) Daten
 durch openDox fließen, wo sie herkommen, wohin sie gehen, wo sie liegen und
 wie lange. Gedacht als Ausgangspunkt für ein Verzeichnis von
 Verarbeitungstätigkeiten (Art. 30 DSGVO), eine Datenschutz-Folgenabschätzung
-(Art. 35 DSGVO) oder ein Gespräch mit der Rechtsabteilung/dem
+(Art. 35 DSGVO, Vorlage: [`dsfa-vorlage.md`](dsfa-vorlage.md)) oder ein
+Gespräch mit der Rechtsabteilung/dem
 Datenschutzbeauftragten — ersetzt keine Rechtsberatung und keine
 Einzelfallprüfung der jeweiligen Betriebsumgebung.
 
@@ -62,9 +63,9 @@ PII-Sanitizer aktiv ist).
 
 | Kategorie | Beispiele | Wo im System |
 |---|---|---|
-| Gesundheitsdaten (besondere Kategorie, Art. 9 DSGVO) | Gesprochener Inhalt der Aufnahme, Transkript, Zusammenfassung | `record.content`, `record.summarize`, temporär als Audio |
+| Gesundheitsdaten (besondere Kategorie, Art. 9 DSGVO) | Gesprochener Inhalt der Aufnahme, Transkript, Übersetzung, Zusammenfassung | `record.content`, `record.translation`, `record.translation_segments`, `record.summarize`, temporär als Audio |
 | Patientenbezogene Identifikatoren | Namen, Orte, Daten, die im Transkript vorkommen (nicht strukturiert, Freitext) | Teil von `record.content`/`record.summarize`; ggf. maskiert falls Sanitizer aktiv |
-| Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle, UI-Sprache, privates Korrektur-Wörterbuch (`personal_glossary`, nie für Admins einsehbar) | `User`-Tabelle |
+| Nutzerkonto-Daten (Praxispersonal, nicht Patienten) | Benutzername, Passwort-Hash, Rolle, UI-Sprache, Freigabe für die Übersetzung, persönliche Wörterbücher (nie für Admins einsehbar) | `User`-Tabelle, `Dictionary` (mit `user_id`) |
 | Zugangsdaten zu Drittsystemen | LDAP-Bind-Passwort, OIDC-Client-Secret, API-Keys für LLM/Whisper/Sanitizer | Settings-Tabellen (siehe Verschlüsselung unten) |
 | Audit-Log (Praxispersonal, nicht Patienten) | Wer wann welche Einstellung/welchen Benutzer geändert hat (nur Feldnamen, keine Werte), fehlgeschlagene Anmeldungen (eingegebener Benutzername), abgelehnte Zugriffe, IP-Adresse, Rolle | `auditevent`-Tabelle, nur für Admins lesbar; keine Gesundheitsdaten, keine Aufnahmetitel, keine Zugangsdaten |
 | Audiodaten | Rohes PCM/WAV während der Aufnahme; optional persistiertes Audio (Format konfigurierbar: MP3/WAV/FLAC/OGG) | `chunks/` (temporär, bei fehlgeschlagener Transkription länger, siehe unten), Objektspeicher (optional, dauerhaft bis Löschung; dort auch archiviertes Fehlschlag-Audio unter `archive/`) |
@@ -77,6 +78,7 @@ PII-Sanitizer aktiv ist).
 | 2 | Live-Transkription | PCM-Frames → Text | Parakeet-Server (im Stack, self-hosted) | `parakeet_server/` |
 | 3 | Finale Transkription | Vollständige Audiodatei | Whisper-Server (im Stack, self-hosted) | `background_transcription_service.py` |
 | 4 | PII-Sanitisierung (optional) | Transkript mit Klarnamen | Sanitizer-Endpunkt — **Adresse vom Betreiber frei konfigurierbar** | `sanitizing_service.py`, Details: [`docs/pii.md`](pii.md) |
+| 4a | Übersetzung (optional, nur nach Freigabe durch den Betreiber) | Transkript in der Diktiersprache; bei aktivem Sanitizer **vorher maskiert**, echte Namen werden danach wieder eingesetzt | LLM-Endpunkt (wie Schritt 5) | `background_transcription_service.py` (`_translate_record`), `translation/` |
 | 5 | LLM-Zusammenfassung | Sanitisierter oder Klartext + Kategorie-Prompt | LLM-Endpunkt — **Adresse vom Betreiber frei konfigurierbar, OpenAI-kompatibel** | `backend/components/llm/llm_model.py` |
 | 6 | Persistierung | Transkript, Zusammenfassung, PII-Mapping | PostgreSQL, verschlüsselt | `record_model.py` |
 | 7 | Audio-Download (optional) | Komprimiertes Audio | Objektspeicher (S3-kompatibel), verschlüsselt vor Upload | `audio_storage.py`, `background_transcription_service.py` |
@@ -93,7 +95,8 @@ PII-Sanitizer aktiv ist).
 |---|---|---|
 | `record.content`, `record.summarize`, `record.pii_mapping` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | Persistiertes Audio im Objektspeicher | ✅ | Anwendungsseitig mit `ENCRYPTION_KEY` verschlüsselt **vor** dem Upload — der Objektspeicher-Anbieter sieht nie Klartext, unabhängig davon, ob er selbst Server-Side-Encryption anbietet |
-| `User.personal_glossary` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
+| `record.translation`, `record.translation_segments` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
+| `Dictionary.terms` (globale und persönliche Wörterbücher) | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `record.title` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `LdapSettingsModel.bind_user_password` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
 | `OidcSettingsModel.client_secret` | ✅ | Fernet (`ENCRYPTION_KEY`), `EncryptedString`-Spaltentyp |
@@ -190,6 +193,10 @@ Drittland im Spiel ist:**
   bis zur Archivierung (Standard 3 Tage) **unverschlüsselt** auf der Platte.
   Ohne konfigurierten Objektspeicher entfällt die Archivierung, die Datei
   bleibt dann bis zu einem Retry oder manueller Bereinigung dort.
+- Der PII-Sanitizer maskiert vor Zusammenfassung **und** Übersetzung. Ob er
+  Namen in fremdsprachigem Text (z. B. Russisch, Arabisch) zuverlässig
+  erkennt, hängt vom Sanitizer-Dienst ab und ist nicht garantiert. Die
+  Übersetzung sollte deshalb nur mit einem selbst betriebenen LLM laufen.
 - Der Endpunkt `GET /api/v1/settings/whisper-settings/` ist ohne Login
   erreichbar (die Recorder brauchen `live_backend` vor der Anmeldung), liefert
   API-Keys aber nur noch an Admins. Bis zum Fix (siehe `CHANGELOG.md`,
@@ -207,6 +214,7 @@ Drittland im Spiel ist:**
 ## Verweise
 
 - [`docs/pii.md`](pii.md) — detaillierter Ablauf der PII-Sanitisierung
+- [`docs/dsfa-vorlage.md`](dsfa-vorlage.md) — Vorlage für die Datenschutz-Folgenabschätzung
 - [`docs/client.md`](client.md) — Datenfluss des Desktop-Clients (eigenes Repo mit eigener `data-mapping.md`)
 - [`DISCLAIMER.md`](../DISCLAIMER.md) — „Kein Medizinprodukt"-Hinweis
 - `AGENTS.md` (Repo-Root, auch als `CLAUDE.md` verlinkt) — technische

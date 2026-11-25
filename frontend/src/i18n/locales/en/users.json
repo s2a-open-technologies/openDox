@@ -4,6 +4,7 @@
   "create": "Add user",
   "active": "Active",
   "inactive": "Inactive",
+  "translationReleased": "Translation released",
   "empty": "No users",
   "dialog": {
     "editTitle": "Edit user",
@@ -16,6 +17,8 @@
     "passwordUnchanged": "(empty = unchanged)",
     "passwordExternal": "The password is managed in the directory (LDAP) or by the SSO provider and cannot be changed here.",
     "isActive": "Active",
+    "translationAllowed": "Release translation",
+    "translationAllowedHint": "May dictate in another language while translation is set to “Selected users”.",
     "role": "Role",
     "roleExternal": "The role follows the groups in the directory (LDAP) or at the SSO provider and is changed there.",
     "update": "Update",

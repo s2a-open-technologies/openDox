@@ -1,0 +1,23 @@
+{
+  "title": "Translation",
+  "description": "Doctors dictate in their native language, openDox provides a translation into this instance's language. The original stays the transcript.",
+  "enabled": "Enable translation",
+  "purposeHint": "Off by default. The translation is a machine draft and must be compared with one's own dictation (intended purpose).",
+  "target": "Target language: {{language}}.",
+  "targetHint": "This is the transcription language under Services → Whisper / ASR.",
+  "access": "Who may translate?",
+  "accessOptions": {
+    "selected": "Selected users",
+    "all": "All users"
+  },
+  "accessHints": {
+    "selected": "Released per user under Users → Edit.",
+    "all": "Every logged-in user can choose a dictation language."
+  },
+  "languages": "Dictation languages",
+  "languagesHint": "Users can dictate in these languages. The instance's own language is not offered.",
+  "otherCode": "Other (ISO code, e.g. fi)",
+  "add": "Add language",
+  "invalidCode": "Please enter a two-letter ISO code, e.g. fi",
+  "saved": "Translation settings saved"
+}

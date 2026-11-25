@@ -1,0 +1,22 @@
+{
+  "title": "Descarga de audio",
+  "description": "Exportación de audio de las grabaciones (mono, formato y calidad configurables). Solo se aplica a las grabaciones nuevas.",
+  "enabled": "Guardar audio",
+  "format": "Formato de archivo",
+  "formats": {
+    "mp3": "MP3 (con pérdida, archivo más pequeño)",
+    "ogg": "OGG/Opus (con pérdida, moderno y eficiente)",
+    "flac": "FLAC (comprimido sin pérdida)",
+    "wav": "WAV (sin comprimir, archivo más grande)"
+  },
+  "bitrate": "Tasa de bits (calidad/tamaño)",
+  "bitrateOption": "{{kbit}} kbit/s (~{{size}} MB/min)",
+  "sampleRate": "Frecuencia de muestreo (Hz)",
+  "rates": {
+    "16000": "16000 Hz (nativa, archivo más pequeño)",
+    "22050": "22050 Hz",
+    "44100": "44100 Hz (audio estándar, más grande)"
+  },
+  "note": "Mono forzado. Si ffmpeg no está disponible, no se guarda audio.",
+  "saved": "Ajustes de audio guardados"
+}

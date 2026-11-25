@@ -4,6 +4,7 @@
   "create": "Benutzer anlegen",
   "active": "Aktiv",
   "inactive": "Inaktiv",
+  "translationReleased": "Übersetzung freigegeben",
   "empty": "Keine Benutzer vorhanden",
   "dialog": {
     "editTitle": "Benutzer bearbeiten",
@@ -16,6 +17,8 @@
     "passwordUnchanged": "(leer = unveraendert)",
     "passwordExternal": "Das Passwort wird im Verzeichnisdienst (LDAP) bzw. beim SSO-Anbieter verwaltet und kann hier nicht geändert werden.",
     "isActive": "Aktiv",
+    "translationAllowed": "Übersetzung freigeben",
+    "translationAllowedHint": "Darf in einer anderen Sprache diktieren, wenn die Übersetzung auf „Ausgewählte Benutzer“ steht.",
     "role": "Rolle",
     "roleExternal": "Die Rolle ergibt sich aus den Gruppen im Verzeichnisdienst (LDAP) bzw. beim SSO-Anbieter und wird dort geändert.",
     "update": "Aktualisieren",

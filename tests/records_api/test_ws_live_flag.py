@@ -99,3 +99,35 @@ def test_live_default_still_asks_for_live_asr(client, ws_env, monkeypatch):
     _record_and_stop(client, _url(user, session_id, token))
 
     assert calls
+
+
+@pytest.mark.parametrize(("language", "asks_live"), [("ar", False), ("ru", True)])
+def test_dictation_language_without_live_model_records_without_live_text(
+    client, ws_env, monkeypatch, session_factory, language, asks_live
+):
+    """The live model knows no Arabic: no live text, the final pass translates."""
+    user, session_id, token = ws_env
+    with session_factory() as session:
+        rec = session.exec(
+            Record.__table__.select().where(Record.session_id == session_id)
+        ).first()
+        stored = session.get(Record, rec.id)
+        stored.source_language = language
+        session.add(stored)
+        session.commit()
+    calls = []
+
+    class _NoStream:
+        def supports_streaming(self):
+            return False
+
+    def _fake_live_asr():
+        calls.append(1)
+        return _NoStream()
+
+    monkeypatch.setattr(record_module, "get_live_asr", _fake_live_asr)
+
+    messages = _record_and_stop(client, _url(user, session_id, token))
+
+    assert bool(calls) is asks_live
+    assert messages[0]["status"] == "finished"

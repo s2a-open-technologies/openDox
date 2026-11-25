@@ -125,7 +125,7 @@ vi.mock("@/components/Recorder", () => ({
 }));
 
 type TranscriptViewMockProps = {
-  transcript: { id: string; title: string };
+  transcript: { id: string; title: string; sourceLanguage?: string | null; translationSegments?: unknown[] };
   categories: { id: number }[];
   onNewRecording: () => void;
   onSave: (id: string, content: string, summarize: string) => void;
@@ -136,6 +136,9 @@ vi.mock("@/components/TranscriptView", () => ({
   default: (props: TranscriptViewMockProps) => (
     <div data-testid="transcript-view">
       <span>TranscriptView-{props.transcript.title}</span>
+      <span data-testid="transcript-translation">
+        {props.transcript.sourceLanguage ?? "none"}-{props.transcript.translationSegments?.length ?? 0}
+      </span>
       <button onClick={props.onNewRecording}>NewRecording</button>
       <button onClick={() => props.onSave(props.transcript.id, "edited content", "edited summary")}>
         SaveRec
@@ -166,8 +169,9 @@ const baseUser = {
 
 type FetchMap = {
   records?: Record<string, unknown>[];
-  categories?: { id: number; name: string }[];
+  categories?: { id: number; name: string; is_builtin?: boolean; is_default?: boolean }[];
   activeSession?: { active: boolean; session_id?: string };
+  translation?: { available: boolean; languages: string[]; target_language: string; live_languages: string[] };
 };
 
 function buildAuthFetch(overrides: FetchMap = {}) {
@@ -184,6 +188,9 @@ function buildAuthFetch(overrides: FetchMap = {}) {
     }
     if (url.includes("/records/active-session/")) {
       return Promise.resolve(jsonResponse(activeSession));
+    }
+    if (url.includes("/settings/translation/me") && overrides.translation) {
+      return Promise.resolve(jsonResponse(overrides.translation));
     }
     return Promise.resolve(jsonResponse({}));
   });
@@ -659,5 +666,65 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("archive-date")).toHaveTextContent("none");
     expect(screen.queryByTestId("archive-day-list")).not.toBeInTheDocument();
     expect(await screen.findByText("Willkommen bei openDox")).toBeInTheDocument();
+  });
+
+  it("offers the dictation language only when translation is released", async () => {
+    const user = userEvent.setup();
+    renderDashboard(
+      buildAuthFetch({
+        categories: [{ id: 1, name: "Standard", is_builtin: true }],
+        translation: { available: true, languages: ["ru", "ar"], target_language: "de", live_languages: ["ru"] },
+      })
+    );
+
+    await screen.findByText("Willkommen bei openDox");
+    await user.click(screen.getByRole("button", { name: "Neue Aufnahme starten" }));
+
+    expect(await screen.findByText("Diktiersprache")).toBeInTheDocument();
+    expect(screen.getByText("Deutsch (Standard)")).toBeInTheDocument();
+  });
+
+  it("hides the dictation language without the release", async () => {
+    const user = userEvent.setup();
+    renderDashboard(buildAuthFetch({ categories: [{ id: 1, name: "Standard", is_builtin: true }] }));
+
+    await screen.findByText("Willkommen bei openDox");
+    await user.click(screen.getByRole("button", { name: "Neue Aufnahme starten" }));
+    await screen.findByRole("button", { name: "Aufnahme starten" });
+
+    expect(screen.queryByText("Diktiersprache")).not.toBeInTheDocument();
+  });
+
+  it("opens a translated recording with its translation (regression)", async () => {
+    const translated = {
+      id: 9,
+      session_id: "s-ru",
+      title: "Diktat russisch",
+      category_id: 1,
+      timestamp: "06.11.2026 09:42:10",
+      content: "Аллергии нет.",
+      summarize: "Keine Allergien.",
+      summary_enabled: true,
+      user_id: 5,
+      task_id: null,
+      has_audio: false,
+      source_language: "ru",
+      translation_language: "de",
+      translation: "Keine Allergien.",
+      translation_segments: [
+        { source: "Аллергии нет.", target: "Keine Allergien.", paragraph: 0, missing_numbers: [], extra_numbers: [] },
+      ],
+    };
+    const base = buildAuthFetch({ records: [translated], categories: [{ id: 1, name: "Standard", is_builtin: true }] });
+    const authFetch = vi.fn((url: string, options?: RequestInit) =>
+      url === "/api/v1/records/record/9" ? Promise.resolve(jsonResponse(translated)) : base(url, options)
+    );
+    const user = userEvent.setup();
+    renderDashboard(authFetch);
+
+    await user.click(await screen.findByRole("button", { name: "Select-Diktat russisch" }));
+
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith("/api/v1/records/record/9"));
+    expect(await screen.findByTestId("transcript-translation")).toHaveTextContent("ru-1");
   });
 });

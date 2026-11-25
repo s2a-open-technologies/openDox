@@ -1,0 +1,11 @@
+{
+  "title": "Eliminación automática",
+  "description": "Elimina definitivamente las grabaciones que superan el plazo (contado desde la hora de la grabación): transcripción, resumen y audio guardado, estén archivadas o no. El plazo es el límite máximo para todos; los usuarios pueden elegir uno más corto para sus propias grabaciones en su perfil.",
+  "enabled": "Eliminar automáticamente",
+  "days": "Conservación máxima (días)",
+  "daysInvalid": "Introduzca un número entero entre 1 y 3650.",
+  "daysInvalidToast": "El plazo debe ser un número entero entre 1 y 3650",
+  "hint": "Comprobación cada 6 horas; los valores modificados se aplican sin reiniciar. Se omiten las grabaciones cuya transcripción sigue en curso. Cada ejecución con eliminaciones aparece en el registro de auditoría.",
+  "warning": "Las grabaciones eliminadas, incluido el audio, no se pueden recuperar. Traslade los textos a la documentación del paciente a tiempo.",
+  "saved": "Eliminación automática guardada"
+}

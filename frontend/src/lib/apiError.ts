@@ -38,10 +38,11 @@ const translateCode = (code: string, fallback: string | undefined, params?: Reco
  */
 export const apiErrorMessage = (body: unknown, fallback: string): string => {
   if (!body || typeof body !== "object") return fallback;
-  const { detail, code, error } = body as {
+  const { detail, code, error, params } = body as {
     detail?: unknown;
     code?: unknown;
     error?: unknown;
+    params?: Record<string, unknown>;
   };
 
   if (detail && typeof detail === "object" && !Array.isArray(detail)) {
@@ -51,7 +52,7 @@ export const apiErrorMessage = (body: unknown, fallback: string): string => {
   if (typeof detail === "string" && detail) return detail;
 
   if (typeof code === "string" && code) {
-    return translateCode(code, typeof error === "string" ? error : undefined);
+    return translateCode(code, typeof error === "string" ? error : undefined, params);
   }
   if (typeof error === "string" && error) return error;
   return fallback;

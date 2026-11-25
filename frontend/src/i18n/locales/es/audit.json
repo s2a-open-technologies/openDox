@@ -1,0 +1,95 @@
+{
+  "title": "Registro de auditoría",
+  "description": "Registro de las acciones de administración y los eventos de seguridad: ajustes, usuarios, copias de seguridad, reintentos, inicios de sesión fallidos y accesos denegados. El trabajo de los usuarios con sus propias grabaciones no se registra, y nunca se registran contenidos ni credenciales.",
+  "filter": {
+    "since": "Desde",
+    "until": "Hasta",
+    "actor": "Usuario",
+    "action": "Área",
+    "outcome": "Resultado",
+    "all": "Todos",
+    "apply": "Filtrar",
+    "reset": "Restablecer"
+  },
+  "groups": {
+    "auth": "Inicio de sesión",
+    "access": "Acceso",
+    "user": "Usuarios",
+    "settings": "Ajustes",
+    "category": "Categorías",
+    "dictionary": "Diccionarios",
+    "language": "Idiomas",
+    "backup": "Copia de seguridad",
+    "task": "Transcripciones",
+    "audit": "Registro de auditoría"
+  },
+  "outcomes": {
+    "success": "Correcto",
+    "failure": "Fallido",
+    "denied": "Denegado"
+  },
+  "columns": {
+    "time": "Momento",
+    "actor": "Usuario",
+    "action": "Acción",
+    "outcome": "Resultado",
+    "details": "Detalles",
+    "ip": "Dirección IP"
+  },
+  "actions": {
+    "auth_login": "Inicio de sesión",
+    "access_denied": "Acceso denegado",
+    "user_create": "Usuario creado",
+    "user_update": "Usuario modificado",
+    "user_delete": "Usuario eliminado",
+    "user_role_sync": "Rol cambiado por grupo",
+    "settings_whisper_update": "Ajustes de Whisper/ASR modificados",
+    "settings_llm_update": "Ajustes del LLM modificados",
+    "settings_ldap_update": "Ajustes de LDAP modificados",
+    "settings_ldap_certificate_upload": "Certificado LDAP subido",
+    "settings_oidc_update": "Ajustes de OIDC modificados",
+    "settings_audio_update": "Ajustes de audio modificados",
+    "settings_client_update": "Política de cliente modificada",
+    "settings_session_update": "Política de sesión modificada",
+    "settings_translation_update": "Ajustes de traducción modificados",
+    "category_create": "Categoría creada",
+    "category_update": "Categoría modificada",
+    "category_delete": "Categoría eliminada",
+    "category_default": "Categoría predeterminada establecida",
+    "dictionary_create": "Diccionario creado",
+    "dictionary_update": "Diccionario modificado",
+    "dictionary_upload": "Diccionario subido",
+    "dictionary_delete": "Diccionario eliminado",
+    "language_create": "Idioma creado",
+    "language_update": "Idioma modificado",
+    "language_delete": "Idioma eliminado",
+    "backup_export": "Copia de seguridad exportada",
+    "backup_restore": "Copia de seguridad restaurada",
+    "task_retry": "Transcripción repetida",
+    "audit_export": "Registro de auditoría exportado",
+    "records_auto_delete": "Grabaciones antiguas eliminadas automáticamente",
+    "task_discard": "Audio conservado descartado",
+    "user_local_password_removed": "Contraseña local eliminada al adoptar la cuenta por LDAP/SSO"
+  },
+  "reasons": {
+    "invalid_credentials": "Nombre de usuario o contraseña incorrectos",
+    "account_locked": "Cuenta bloqueada",
+    "rate_limited": "Demasiados intentos",
+    "group_not_allowed": "Ningún grupo autorizado",
+    "error": "Error"
+  },
+  "detail": {
+    "fields": "Campos: {{fields}}"
+  },
+  "pagination": {
+    "range": "{{from}}–{{to}} de {{total}}",
+    "previous": "Anterior",
+    "next": "Siguiente"
+  },
+  "system": "Sistema",
+  "empty": "Sin entradas",
+  "refresh": "Actualizar",
+  "export": "Exportar CSV",
+  "loadFailed": "No se pudo cargar el registro de auditoría",
+  "exportFailed": "Error al exportar"
+}

@@ -45,5 +45,11 @@
     "stopTitle": "Stop recording",
     "stopDescription": "Do you really want to stop and save the recording?",
     "cancel": "Cancel"
+  },
+  "dictationLanguage": {
+    "label": "Dictation language",
+    "instance": "{{language}} (default)",
+    "translatedInto": "After recording, the dictation is translated into {{language}}. The original is kept.",
+    "noLivePreview": "There is no live preview for this language. The text appears after the recording ends."
   }
 }

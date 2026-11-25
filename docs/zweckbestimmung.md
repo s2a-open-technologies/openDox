@@ -1,6 +1,6 @@
 # Zweckbestimmung openDox
 
-> Stand: 2026-10-05 · gilt für openDox ab Version 0.8.x
+> Stand: 2026-11-25 · gilt für openDox ab Version 0.8.x, ergänzt um die Übersetzung (nach 0.11.3)
 > Diese Zweckbestimmung legt fest, wofür openDox vom Hersteller bestimmt ist
 > und wofür nicht. Sie ist die Grundlage der Abgrenzung zum Medizinprodukt
 > (Art. 2 Nr. 1 Verordnung (EU) 2017/745, MDR) und ergänzt
@@ -14,7 +14,11 @@ openDox ist eine Software zur **Dokumentationsunterstützung**. Sie wandelt
 gesprochene Sprache in Text um (Spracherkennung), kann personenbezogene
 Angaben optional maskieren und erstellt aus dem Text mittels Sprachmodell
 einen **strukturierten Textentwurf** (z. B. Gesprächs- oder Befunddokumentation)
-nach Vorgaben, die der Betreiber je Kategorie festlegt.
+nach Vorgaben, die der Betreiber je Kategorie festlegt. Optional, nur nach
+Freigabe durch den Betreiber, kann sie ein in einer anderen Sprache gesprochenes
+Diktat **wörtlich in die Sprache der Instanz übersetzen**. Auch das bleibt eine
+Diktierhilfe: Die Übersetzung gibt wieder, was der Anwender diktiert hat, und
+fügt nichts hinzu.
 
 Der Zweck beschränkt sich auf das **Erfassen, Umwandeln, Strukturieren und
 Ablegen von Text**, den medizinisches Fachpersonal selbst gesprochen hat. Die
@@ -40,6 +44,7 @@ vollständig beim Anwender.
 | Fachbegriff-Korrektur | Phonetischer Abgleich mit Glossaren (Kategorie, persönliches Wörterbuch) |
 | PII-Maskierung (optional) | Ersetzen von Namen und Orten durch Platzhalter vor der LLM-Verarbeitung |
 | Textentwurf | Sprachmodell strukturiert bzw. bereinigt den Text nach Kategorie-Vorgabe |
+| Übersetzung (optional) | Ein Diktat in einer anderen Sprache wird wörtlich in die Sprache der Instanz übersetzt; das Original bleibt das Transkript. Nur nach Freigabe durch den Betreiber |
 | Ablage | Verschlüsselte Speicherung von Text und optional Audio, Archivierung, Export |
 
 ## 4. Ausdrücklich nicht bestimmungsgemäß
@@ -59,7 +64,15 @@ openDox ist **nicht** dafür bestimmt und darf **nicht** verwendet werden für:
    dokumentieren, nicht medizinisch bewerten oder ergänzen;
 5. den Einsatz als **alleinige Grundlage** für Behandlungsentscheidungen;
 6. Notfall- und Intensivsituationen, in denen eine fehlerhafte oder verzögerte
-   Ausgabe unmittelbar die Patientensicherheit gefährden kann.
+   Ausgabe unmittelbar die Patientensicherheit gefährden kann;
+7. die **Übersetzung als Kommunikationshilfe**: openDox ersetzt keine
+   Dolmetscherin und keinen Dolmetscher und keine Sprachmittlung im Gespräch
+   mit Patientinnen und Patienten. Übersetzt wird nur, was Fachpersonal selbst
+   diktiert hat, als Dokumentationsentwurf für das Fachpersonal;
+8. die Übersetzung von **Aufklärung, Einwilligung** oder anderen Texten, die
+   an Patientinnen und Patienten gerichtet sind oder von ihnen unterschrieben
+   werden, sowie von Befunden, die in anderer Sprache rechtsverbindlich
+   vorliegen müssen. Die Übersetzung ist weder beglaubigt noch geprüft.
 
 Kein Funktionsmerkmal von openDox verfolgt einen medizinischen Zweck im Sinne
 der MDR. Die Kategorie-Prompts dürfen keine diagnostischen oder
@@ -75,6 +88,11 @@ therapeutischen Auswertungen verlangen (siehe Abschnitt 6).
   Wörter, Zahlen, Dosierungen, Seitenangaben und Negationen falsch wiedergeben
   oder Inhalte erfinden. Das Risiko steigt bei Dialekt, Hintergrundgeräuschen,
   seltenen Fachbegriffen und mehreren Sprechenden.
+- **Übersetzung:** Zusätzlich zu den genannten Fehlern kann eine Übersetzung
+  Sinn, Negationen, Seitenangaben, Maßeinheiten oder Fachbegriffe verändern.
+  Automatisch verglichen werden nur Zahlen zwischen Original und Übersetzung;
+  alles andere prüft ausschließlich der Anwender. Auch die Wortwahl bei
+  seltenen Sprachen und Fachbegriffen kann abweichen.
 - **Betreiber:** Wer eine Instanz betreibt, ist für Datenschutz (DSGVO,
   §203 StGB), IT-Sicherheit, Auftragsverarbeitung und die Einhaltung der
   Zweckbestimmung verantwortlich.
@@ -99,6 +117,15 @@ Die Abgrenzung wird in der Software nachvollziehbar abgebildet:
   in allen Oberflächensprachen.
 - Das Sprachmodell wird angewiesen, nichts zu ergänzen und keine Platzhalter
   für fehlende Angaben zu erfinden.
+- Übersetzung: standardmäßig aus, der Betreiber gibt sie für alle oder für
+  einzelne Benutzer frei. Übersetzt wird wörtlich und vollständig, ohne
+  Kürzung und ohne inhaltliche Korrektur, und immer in die Sprache der
+  Instanz. Das Diktat in der Originalsprache bleibt unverändert gespeichert
+  und wird Satz für Satz neben der Übersetzung angezeigt. Sätze, deren Zahlen
+  zwischen Original und Übersetzung abweichen, werden markiert. Vor dem
+  Kopieren bestätigt der Anwender, dass er die Übersetzung mit seinem Diktat
+  verglichen hat. Die Übersetzung ist ein maschineller Entwurf wie jede
+  andere Ausgabe und kein beglaubigter oder geprüfter Text.
 - Der mitgelieferte Standardprompt (Kategorie „Standard“, nur
   Zeichensetzung) ist schreibgeschützt: Name, Beschreibung und Prompt lassen
   sich weder über die Oberfläche noch über die API oder ein Backup-Restore
@@ -156,6 +183,14 @@ erlauben*, standardmäßig aus). Ohne Freigabe stammen alle wirksamen
 Kategorie-Vorgaben vom Betreiber. Mit der Freigabe übernimmt der Betreiber
 die Verantwortung auch für die Prompts seiner Benutzer, die er aus
 Datenschutzgründen nicht einsehen kann.
+
+Wer die Übersetzung freigibt (Administration → Übersetzung), entscheidet über
+die zugelassenen Diktiersprachen und die berechtigten Benutzer und trägt dafür
+die Verantwortung. Die Freigabe darf die Übersetzung nicht zu einem Ersatz für
+Sprachmittlung im Patientengespräch machen (Abschnitt 4, Nr. 7 und 8). Läuft die
+Übersetzung über ein externes Sprachmodell, gehören auch die übersetzten Texte
+in die Datenschutz-Folgenabschätzung des Betreibers
+([`docs/data-mapping.md`](data-mapping.md)).
 
 Die Software wird ohne Gewährleistung bereitgestellt (AGPL-3.0-or-later,
 §§ 15–16).

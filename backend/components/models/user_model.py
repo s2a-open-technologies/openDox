@@ -34,7 +34,7 @@ ROLES = ("admin", "moderator", "demo_viewer", "user")
 # UI languages the frontend ships translations for (frontend/src/i18n). Add a
 # code here together with its locale folder. Not to be confused with the
 # transcription language (WhisperSettingsModel.language).
-UI_LANGUAGES = ("de", "en")
+UI_LANGUAGES = ("de", "en", "es")
 
 # Where a user logs in. Decides how a session renewal re-checks the account
 # (services/session_revalidation.py).
@@ -65,6 +65,9 @@ class User(SQLModel, table=True):
     idp_refresh_token: Optional[str] = Field(
         default=None, sa_column=Column(EncryptedString, nullable=True)
     )
+    # Released for dictation in another language while the translation
+    # setting is limited to selected users (TranslationSettingsModel.access).
+    translation_allowed: bool = Field(default=False)
 
     @property
     def is_superuser(self) -> bool:
@@ -83,6 +86,7 @@ class UserCreate(UserBase):
 
     password: str  # Klartext beim Eingang – wird gehasht gespeichert
     role: str = "user"
+    translation_allowed: bool = False
 
 
 class UserRead(UserBase):
@@ -94,6 +98,7 @@ class UserRead(UserBase):
     disclaimer_accepted_at: Optional[datetime] = None
     ui_language: Optional[str] = None
     auth_source: Optional[str] = None
+    translation_allowed: bool = False
 
 
 class UserLogin(SQLModel):
@@ -110,6 +115,7 @@ class UserUpdate(SQLModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
+    translation_allowed: Optional[bool] = None
 
 
 class RetentionRead(SQLModel):

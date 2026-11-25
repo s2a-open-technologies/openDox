@@ -1,0 +1,40 @@
+{
+  "enabled": {
+    "title": "Procesamiento con LLM",
+    "description": "Resumir y estructurar las transcripciones mediante un modelo de lenguaje",
+    "label": "Procesamiento con LLM activo",
+    "offHint": "Solo se transcribe: sin LLM y sin sanitizador de PII. El texto resultante es la transcripción (también en el cliente de escritorio). Las categorías pueden desactivar el LLM individualmente, pero no activarlo contra este interruptor."
+  },
+  "title": "Configuración de LLM / Ollama",
+  "description": "Configuración para la generación de texto y el resumen",
+  "apiEndpoint": "Endpoint de la API",
+  "apiEndpointHint": "Ollama, vLLM o cualquier endpoint compatible con OpenAI",
+  "apiKeyOptional": "Clave API (opcional)",
+  "model": "Modelo",
+  "correctionModel": "Modelo de corrección (opcional)",
+  "correctionModelPlaceholder": "vacío = igual que el modelo de resumen",
+  "correctionModelHint": "Modelo pequeño y rápido para la corrección de la vista en vivo al usar Whisper para casi tiempo real, p. ej. qwen2.5:0.5b",
+  "temperature": "Temperature (0.0 - 1.0)",
+  "maxTokens": "Max Tokens",
+  "topP": "Top P (0.0 - 1.0)",
+  "frequencyPenalty": "Frequency Penalty (-2.0 - 2.0)",
+  "enableThinking": "Activar thinking",
+  "enableThinkingHint": "Desactivado por defecto: los modelos de razonamiento (p. ej. MedGemma, Qwen3, DeepSeek-R1) pueden tardar muchísimo o quedarse bloqueados al resumir.",
+  "sanitizer": {
+    "title": "Sanitizador de PII",
+    "description": "Anonimiza los datos sensibles de la transcripción antes de enviarla al LLM",
+    "enable": "Activar sanitizador",
+    "endpoint": "Endpoint del sanitizador (URL completa)",
+    "apiKeyPlaceholder": "Bearer Token"
+  },
+  "save": "Guardar ajustes",
+  "testConnection": "Probar conexión",
+  "saved": "Ajustes guardados",
+  "test": {
+    "connected": "Conectado · Respuesta: {{reply}}",
+    "reply": "«{{reply}}»",
+    "noReply": "no se recibió respuesta",
+    "unknownError": "Error desconocido",
+    "requestFailed": "Error en la solicitud"
+  }
+}

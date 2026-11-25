@@ -23,6 +23,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "re
 import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 import { BASE_PATH } from "@/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,16 +38,22 @@ import {
 } from "@/components/ui/dialog";
 import { VoiceVisualizer, BarVisualizer } from "@/components/ui/voice-visualizer";
 
+// The server refused to create the record; its message is shown as is.
+class CreateRecordError extends Error {}
+
 export interface RecordingStartData {
   session_id: string;
   id?: number;
   title?: string;
+  source_language?: string | null;
 }
 
 interface RecorderProps {
   userId: string;
   title?: string;
   categoryId?: string | null;
+  /** Dictation language for a translated recording; null = instance language. */
+  sourceLanguage?: string | null;
   patient?: string;
   subject?: string;
   onFinalTranscription?: (sessionId: string, taskId?: string | number) => void;
@@ -59,7 +66,7 @@ export interface RecorderHandle {
   waitForUploads: () => Promise<void>;
 }
 
-const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, categoryId, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }, ref) => {
+const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, categoryId, sourceLanguage, patient, subject, onFinalTranscription, onRecordingStart, autoStart, resumeSessionId }, ref) => {
   const { t } = useTranslation("record");
   const { authFetch, getFreshToken } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
@@ -107,11 +114,15 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       body: JSON.stringify({
         "user_id": userId,
         "title": title || "Neue Aufnahme",
-        "category_id": categoryId ? parseInt(categoryId) : null
+        "category_id": categoryId ? parseInt(categoryId) : null,
+        ...(sourceLanguage ? { "source_language": sourceLanguage } : {}),
       })
     });
 
-    if (!response.ok) throw new Error(t("recorder.createFailed"));
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new CreateRecordError(apiErrorMessage(err, t("recorder.createFailed")));
+    }
 
     const record = await response.json();
     setSessionId(record.session_id);
@@ -303,7 +314,8 @@ const Recorder = forwardRef<RecorderHandle, RecorderProps>(({ userId, title, cat
       setIsProcessing(false);
     } catch (err) {
       console.error(err);
-      toast.error(t("recorder.startFailed"));
+      // A refused create (e.g. dictation language not released) has a reason.
+      toast.error(err instanceof CreateRecordError ? err.message : t("recorder.startFailed"));
     }
   };
 

@@ -47,6 +47,7 @@ from backend.components.models.record_model import (
     RecordCreate,
     RecordRead,
     RecordUpdate,
+    SegmentEdit,
 )
 from backend.components.models.task_model import ACTIVE_TASK_STATUSES, Task
 from backend.components.models.user_model import User
@@ -73,6 +74,7 @@ from backend.components.services.llm_gate import (
     effective_category,
     effective_summary,
     personal_categories_allowed,
+    result_text,
     run_summary,
     summary_enabled,
 )
@@ -81,6 +83,12 @@ from backend.components.services.retained_audio import (
     remove_retained_audio,
 )
 from backend.components.services.session_store import session_store
+from backend.components.services.translation import check_segment
+from backend.components.services.translation.segmenter import join_sentences
+from backend.components.services.translation_gate import (
+    live_preview_supported,
+    resolve_source_language,
+)
 from backend.components.sql.sql_engine import SessionDep
 from backend.views.auth_api.dependencies import get_current_user
 
@@ -171,6 +179,7 @@ async def record_create(
         payload (str): Payload with user_id and session_id and title
     """
     _require_owner(current_user, data.user_id)
+    source_language = resolve_source_language(db, current_user, data.source_language)
 
     # Create a unique session_id
     session_id = uuid.uuid4()
@@ -185,6 +194,7 @@ async def record_create(
         content="",
         summarize="",
         file="",
+        source_language=source_language,
     )
 
     db.add(record)
@@ -231,6 +241,7 @@ async def upload_audio(
     category_id: int = Form(...),
     user_id: int = Form(...),
     title: str | None = Form(None),
+    source_language: str | None = Form(None),
     current_user: User = Depends(get_current_user),
 ):
     """Upload a finished audio file and run it through the transcription pipeline.
@@ -247,6 +258,8 @@ async def upload_audio(
         category_id: Category to associate with the record.
         user_id: Owner of the record.
         title: Optional title; defaults to ``"Upload {timestamp}"``.
+        source_language: Optional dictation language (ISO 639-1); another
+            language than the instance's needs the translation release.
         current_user: Authenticated user (must own ``user_id`` or be admin).
 
     Returns:
@@ -256,6 +269,7 @@ async def upload_audio(
         HTTPException 415: If the file is not a supported audio format.
     """
     _require_owner(current_user, user_id)
+    resolved_language = resolve_source_language(db, current_user, source_language)
 
     ext = _ext_from_filename(file.filename)
     content_type = (file.content_type or "").lower()
@@ -283,6 +297,7 @@ async def upload_audio(
         content="",
         summarize="",
         file="",
+        source_language=resolved_language,
     )
     db.add(record)
     db.commit()
@@ -550,6 +565,13 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
     stream_session = None
     backend = None
     use_streaming = False
+    # A dictation language the live model does not know would only produce
+    # nonsense as live text: record without it, the final pass translates.
+    dictation_language = db.exec(
+        select(Record.source_language).where(Record.session_id == session_id)
+    ).first()
+    if live and not live_preview_supported(dictation_language):
+        live = False
     if live:
         try:
             backend = get_live_asr()
@@ -815,6 +837,31 @@ async def websocket_record(websocket: WebSocket, db: SessionDep):
             pass
 
 
+def _apply_segment_edits(record: Record, edits: list[SegmentEdit]) -> None:
+    """Store edited translated sentences and rebuild the translation text.
+
+    The sources stay as transcribed; numbers are checked again per sentence.
+    """
+    segments = record.segments()
+    for edit in edits:
+        if not 0 <= edit.index < len(segments):
+            raise api_error(
+                400,
+                "segment_out_of_range",
+                "Translated sentence not found",
+                index=edit.index,
+            )
+        old = segments[edit.index]
+        segments[edit.index] = check_segment(
+            old.get("source", ""), edit.target.strip(), old.get("paragraph", 0)
+        ).to_dict()
+    record.translation_segments = json.dumps(segments, ensure_ascii=False)
+    record.translation = join_sentences(
+        [s.get("target", "") for s in segments],
+        [s.get("paragraph", 0) for s in segments],
+    )
+
+
 @record_bp.put("/record/{record_id}", response_model=RecordRead)
 async def update_record(
     record_id: int,
@@ -828,18 +875,20 @@ async def update_record(
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
 
-    old_content = record.content
+    old_result = result_text(record)
     if data.title is not None:
         record.title = data.title
     if data.content is not None:
         record.content = data.content
+    if data.translation_segments is not None:
+        _apply_segment_edits(record, data.translation_segments)
     if data.summarize is not None and not (
-        # A client echoing the transcript we served as summary (no LLM for
-        # this record) must not store it, or later transcript edits would no
-        # longer reach the summary.
+        # A client echoing the result text we served as summary (no LLM for
+        # this record) must not store it, or later edits of the transcript
+        # or translation would no longer reach the summary.
         not record.summarize
         and not summary_enabled(db, record)
-        and data.summarize in (old_content, record.content)
+        and data.summarize in (old_result, result_text(record))
     ):
         record.summarize = data.summarize
     if data.category_id is not None:
@@ -1161,7 +1210,8 @@ async def regenerate_summary(
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     _require_owner(current_user, record.user_id)
-    if not record.content:
+    text = result_text(record)
+    if not text:
         raise HTTPException(
             status_code=400, detail="Record has no transcription content"
         )
@@ -1172,7 +1222,7 @@ async def regenerate_summary(
     try:
         if enabled:
             summary, entity_mapping = await asyncio.to_thread(
-                run_summary, db, cat, record.content
+                run_summary, db, cat, text
             )
             record.summarize = summary
             if entity_mapping:

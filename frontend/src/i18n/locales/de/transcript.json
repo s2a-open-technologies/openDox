@@ -14,7 +14,8 @@
   },
   "processing": {
     "llm": "KI erstellt Zusammenfassung...",
-    "transcribing": "Transkription läuft..."
+    "transcribing": "Transkription läuft...",
+    "translating": "Übersetzung läuft..."
   },
   "copy": "Kopieren",
   "summary": {
@@ -48,5 +49,18 @@
     "description": "Mit der Bestätigung übernehmen Sie die Verantwortung für den kopierten Inhalt und bestätigen die korrekte Übergabe an eine Fachkraft. Alle maschinell erstellten Transkriptionen und Zusammenfassungen müssen von qualifiziertem Fachpersonal überprüft werden.",
     "cancel": "Abbrechen",
     "confirm": "Bestätigen"
+  },
+  "translation": {
+    "originalTitle": "Transkript (Original: {{language}})",
+    "tab": "Übersetzung",
+    "hint": "Oben die Übersetzung, darunter Ihr Diktat. Prüfen Sie jeden Satz.",
+    "none": "Noch keine Übersetzung vorhanden.",
+    "flaggedSummary_one": "{{count}} Satz mit abweichenden Zahlen, bitte besonders prüfen.",
+    "flaggedSummary_other": "{{count}} Sätze mit abweichenden Zahlen, bitte besonders prüfen.",
+    "missingNumbers": "Fehlt in der Übersetzung: {{numbers}}",
+    "extraNumbers": "Nur in der Übersetzung: {{numbers}}",
+    "sentenceLabel": "Übersetzter Satz {{n}}",
+    "saveFailed": "Übersetzung konnte nicht gespeichert werden",
+    "confirmLabel": "Ich habe die Übersetzung Satz für Satz mit meinem Diktat verglichen und ggf. korrigiert. Ich übernehme die Verantwortung für den kopierten Inhalt."
   }
 }

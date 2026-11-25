@@ -191,6 +191,25 @@ describe("TranscriptView", () => {
     expect(await screen.findByText("Fertig")).toBeInTheDocument();
   });
 
+  it("does not flag the result of a finished task as unsaved changes", async () => {
+    const authFetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/status/")) {
+        return Promise.resolve(jsonResponse({ status: "finished" }));
+      }
+      return Promise.resolve(
+        jsonResponse({ content: "neues Transkript", summarize: "neue Zusammenfassung", has_audio: false })
+      );
+    });
+    renderView(
+      { transcript: makeTranscript({ taskId: "task-1", content: "", summarize: "" }) },
+      authFetch
+    );
+
+    expect(await screen.findByText("Fertig")).toBeInTheDocument();
+    await screen.findByText("neue Zusammenfassung");
+    expect(screen.queryByText("Ungespeicherte Änderungen vorhanden")).not.toBeInTheDocument();
+  });
+
   it("shows the failure with its detail and clears it after a successful regeneration", async () => {
     const authFetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes("/status/")) {

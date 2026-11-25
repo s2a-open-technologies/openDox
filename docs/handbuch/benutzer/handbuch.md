@@ -129,7 +129,10 @@ verlassen.
    Kategorie bestimmt, wie die Zusammenfassung aufgebaut wird und welche
    globalen Wörterbücher gelten (siehe Kapitel *Kategorien*). Ihre eigenen
    Wörterbücher gelten immer.
-4. Klicken Sie auf **Aufnahme starten**.
+4. Nur wenn Ihre Administration die Übersetzung freigegeben hat: Wählen Sie
+   die **Diktiersprache**, wenn Sie nicht in der Standardsprache diktieren
+   (siehe *Übersetzung prüfen*).
+5. Klicken Sie auf **Aufnahme starten**.
 
 ![Dialog „Neue Aufnahme“](bilder/benutzer/04-neue-aufnahme.png)
 
@@ -195,7 +198,8 @@ lassen, z. B. von einem Diktiergerät:
 1. Klicken Sie in der Seitenleiste auf **Audio hochladen**.
 2. Optional: Geben Sie einen **Titel** ein.
 3. Wählen Sie Kategorie und **Audiodatei** und klicken Sie auf
-   **Hochladen**.
+   **Hochladen**. Ist die Übersetzung freigegeben, wählen Sie bei Bedarf auch
+   die **Diktiersprache**.
 
 ![Dialog „Audio hochladen“](bilder/benutzer/06-audio-hochladen.png)
 
@@ -252,6 +256,34 @@ und Diagnosen mit dem, was Sie diktiert haben.
 Klicken Sie auf **Speichern**, um Ihre Änderungen zu sichern. Solange Sie
 nicht gespeichert haben, zeigt openDox *„Ungespeicherte Änderungen
 vorhanden“*.
+
+## Übersetzung prüfen
+
+Haben Sie in einer anderen Sprache diktiert, zeigt die Aufnahme links das
+**Transkript (Original)** in Ihrer Sprache und rechts den Reiter
+**Übersetzung**:
+
+![Übersetzte Aufnahme: Original links, Satzpaare rechts, ein Satz mit abweichender Zahl markiert](bilder/benutzer/11-uebersetzung.png)
+
+- Jeder Satz steht als Paar: oben die Übersetzung, darunter klein Ihr
+  diktierter Satz.
+- Sätze, in denen die Zahlen zwischen Original und Übersetzung abweichen,
+  sind gelb markiert, mit dem Hinweis, welche Zahl fehlt oder neu ist. Prüfen
+  Sie diese Sätze besonders genau.
+- Nach der Bestätigung können Sie einzelne übersetzte Sätze direkt
+  korrigieren und mit **Speichern** sichern.
+- **Kopieren** im Reiter *Übersetzung* übernimmt die Übersetzung, nicht das
+  Original.
+- Der Reiter **Zusammenfassung** enthält die KI-Zusammenfassung, erstellt aus
+  der Übersetzung.
+
+Der Bestätigungshaken lautet hier *„Ich habe die Übersetzung Satz für Satz
+mit meinem Diktat verglichen …“*. Vergleichen Sie vor allem Medikamente,
+Dosierungen, Verneinungen und Seitenangaben.
+
+Bei Sprachen ohne Live-Vorschau (z. B. Arabisch) sehen Sie während der
+Aufnahme keinen Text. Er erscheint nach dem Beenden; danach zeigt openDox
+kurz **Übersetzung läuft...**.
 
 ## Text übernehmen
 

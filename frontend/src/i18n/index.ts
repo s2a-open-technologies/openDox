@@ -40,6 +40,7 @@ const namespaces = Object.keys(resources.de ?? {});
 export const SUPPORTED_LANGUAGES = [
   { code: "de", label: "Deutsch" },
   { code: "en", label: "English" },
+  { code: "es", label: "Español" },
 ] as const;
 
 export type UiLanguage = (typeof SUPPORTED_LANGUAGES)[number]["code"];

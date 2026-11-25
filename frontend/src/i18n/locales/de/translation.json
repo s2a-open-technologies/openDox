@@ -1,0 +1,23 @@
+{
+  "title": "Übersetzung",
+  "description": "Ärztinnen und Ärzte diktieren in ihrer Muttersprache, openDox liefert eine Übersetzung in die Sprache dieser Instanz. Das Original bleibt das Transkript.",
+  "enabled": "Übersetzung einschalten",
+  "purposeHint": "Standardmäßig aus. Die Übersetzung ist ein maschineller Entwurf und muss mit dem eigenen Diktat verglichen werden (Zweckbestimmung).",
+  "target": "Zielsprache: {{language}}.",
+  "targetHint": "Das ist die Transkriptionssprache unter Dienste → Whisper / ASR.",
+  "access": "Wer darf übersetzen?",
+  "accessOptions": {
+    "selected": "Ausgewählte Benutzer",
+    "all": "Alle Benutzer"
+  },
+  "accessHints": {
+    "selected": "Freigabe pro Benutzer unter Benutzer → Bearbeiten.",
+    "all": "Jeder angemeldete Benutzer kann eine Diktiersprache wählen."
+  },
+  "languages": "Diktiersprachen",
+  "languagesHint": "Aus diesen Sprachen kann diktiert werden. Die Sprache der Instanz selbst steht nicht zur Wahl.",
+  "otherCode": "Weitere (ISO-Code, z. B. fi)",
+  "add": "Sprache hinzufügen",
+  "invalidCode": "Bitte einen zweistelligen ISO-Code eingeben, z. B. fi",
+  "saved": "Übersetzungs-Einstellungen gespeichert"
+}

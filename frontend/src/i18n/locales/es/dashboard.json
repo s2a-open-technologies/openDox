@@ -1,0 +1,57 @@
+{
+  "confirmDelete": "¿Realmente desea eliminar esta grabación de forma irreversible?",
+  "deleteFailedShort": "Error al eliminar",
+  "deleted": "Grabación eliminada",
+  "deleteFailed": "Error al eliminar la grabación",
+  "archiveFailedShort": "Error al archivar",
+  "archived": "Grabación archivada",
+  "restoreFailed": "Error al restaurar",
+  "restored": "Grabación restaurada",
+  "defaultTitle": "Grabación {{n}}",
+  "uncategorized": "Sin categoría",
+  "fetchFailed": "Error al obtener la grabación",
+  "loadFailed": "Error al cargar la grabación",
+  "saved": "Grabación guardada",
+  "saveFailed": "Error al guardar",
+  "categoryChanged": "Categoría modificada",
+  "categoryChangeFailed": "Error al cambiar la categoría",
+  "upload": {
+    "failed": "Error al subir el archivo",
+    "defaultTitle": "Subida {{date}}",
+    "success": "Subida correcta: la transcripción está en curso.",
+    "title": "Subir audio",
+    "description": "Suba un archivo de audio ya grabado. Pasa automáticamente por el flujo de transcripción y resumen.",
+    "titleOptional": "Título (opcional)",
+    "titlePlaceholder": "p. ej. Anamnesis del paciente Müller",
+    "file": "Archivo de audio",
+    "uploading": "Subiendo...",
+    "submit": "Subir"
+  },
+  "openMenu": "Abrir menú",
+  "cancelConfirm": "¿Realmente desea cancelar la grabación? No se podrá recuperar.",
+  "cancelFailed": "Error al cancelar la grabación",
+  "cancel": "Cancelar",
+  "toOverview": "Ir al resumen",
+  "unfinished": {
+    "title": "Grabación sin terminar",
+    "description": "Una grabación se interrumpió y se puede reanudar.",
+    "resume": "Reanudar",
+    "discardConfirm": "¿Realmente desea descartar la grabación?",
+    "discard": "Descartar"
+  },
+  "welcome": {
+    "title": "Bienvenido a openDox",
+    "description": "Seleccione una grabación o inicie una nueva para empezar."
+  },
+  "new": {
+    "start": "Iniciar nueva grabación",
+    "title": "Nueva grabación",
+    "description": "Asigne un nombre y una categoría a la grabación para encontrarla más fácilmente después.",
+    "titleLabel": "Título",
+    "titlePlaceholder": "p. ej. Anamnesis del paciente",
+    "submit": "Iniciar grabación"
+  },
+  "category": "Categoría",
+  "categoryPlaceholder": "Seleccionar categoría...",
+  "categoriesHint": "Cree primero una categoría en Ajustes."
+}

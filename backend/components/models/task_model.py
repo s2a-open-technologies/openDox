@@ -31,7 +31,7 @@ def _utcnow() -> datetime:
 
 # Statuses of a task whose pipeline is still running.
 ACTIVE_TASK_STATUSES = frozenset(
-    {"pending", "running", "transcribing", "processing_llm"}
+    {"pending", "running", "transcribing", "translating", "processing_llm"}
 )
 
 

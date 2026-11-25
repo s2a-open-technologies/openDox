@@ -1,0 +1,14 @@
+{
+  "title": "No es un producto sanitario",
+  "gate": {
+    "p1": "openDox no es un producto sanitario autorizado conforme a la ley alemana de productos sanitarios (MPG) ni a normativas comparables (p. ej. MDR de la UE, FDA). Sirve exclusivamente como apoyo a la documentación.",
+    "p2": "Todas las transcripciones y resúmenes generados automáticamente deben ser revisados por personal cualificado antes de utilizarse o incorporarse a una historia clínica. openDox no sustituye un diagnóstico, asesoramiento ni recomendación terapéutica médicos.",
+    "p3": "Quien opera esta aplicación es responsable de que su uso sea compatible con la normativa vigente en su jurisdicción. Para más detalles, consulte <code>DISCLAIMER.md</code> en el repositorio del proyecto.",
+    "confirm": "He leído y comprendido el aviso y confirmo que soy responsable del uso conforme a la normativa de esta aplicación.",
+    "submit": "Confirmar",
+    "submitting": "Confirmando...",
+    "failed": "Error al confirmar: inténtelo de nuevo"
+  },
+  "view": "Esta herramienta no es un producto sanitario conforme a la ley alemana de productos sanitarios (MPG). Sirve exclusivamente como apoyo a la documentación. Todas las transcripciones y resúmenes generados automáticamente deben ser revisados por personal cualificado. No sustituye un diagnóstico, asesoramiento ni recomendación terapéutica médicos.",
+  "noticeTitle": "Aviso importante"
+}

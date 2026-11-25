@@ -1,0 +1,39 @@
+{
+  "heading": "Cliente de escritorio",
+  "saved": "Ajustes del cliente guardados",
+  "config": {
+    "title": "Ajustes del cliente",
+    "description": "Se aplican a todos los clientes de openDox conectados a este servidor. Los clientes solo los cargan al iniciarse: los cambios surten efecto cuando se reinicia el cliente.",
+    "liveView": "Vista en vivo activada por defecto (los usuarios pueden cambiarla en el propio cliente)",
+    "micMode": "Botón de grabación del micrófono de dictado",
+    "micModes": {
+      "hold": "Mantener para grabar, soltar inserta el texto",
+      "toggle": "Pulsar inicia, volver a pulsar detiene"
+    },
+    "clipboardExclude": "Excluir el texto insertado del historial y del portapapeles en la nube (Windows)",
+    "clipboardClear": "Vaciar el portapapeles después de (segundos)",
+    "clipboardClearHint": "Solo si no ha cambiado desde entonces. 0 = no vaciar nunca.",
+    "allowlist": "Programas de destino permitidos (un programa por línea)",
+    "allowlistHint": "Vacío = insertar en cualquier programa. En caso contrario, el cliente pregunta antes de insertar en un programa que no figure en la lista. Ejemplo: medistar.exe",
+    "note": "Son valores predeterminados: un valor presente en el settings.json del equipo tiene prioridad. Los usuarios también pueden cambiar la vista en vivo y el botón de grabación en el propio cliente."
+  },
+  "distribution": {
+    "title": "Distribuir el cliente",
+    "description": "Un instalador para todos los equipos. La conexión con este servidor está en un pequeño settings.json que se copia junto al programa.",
+    "step1": "1. Descargar el instalador",
+    "windowsMsi": "Windows (MSI, para distribución de software)",
+    "windowsExe": "Windows (Setup.exe, puesto individual)",
+    "macos": "macOS",
+    "step2": "2. Descargar settings.json",
+    "serverUrl": "Dirección del servidor para los clientes:",
+    "settingsJson": "settings.json",
+    "serverUrlHint": "Si la dirección no es correcta (p. ej. los clientes acceden al servidor con otro nombre), defina CLIENT_SERVER_URL en la configuración del servidor.",
+    "step3": "3. Distribuir juntos el instalador y settings.json",
+    "intune": "Intune (aplicación Win32, comando de instalación)",
+    "sccm": "SCCM / PowerShell",
+    "singleHint": "Puesto individual: ejecute el instalador y copie settings.json en {{dir}}.",
+    "copy": "Copiar",
+    "copied": "Copiado al portapapeles",
+    "copyFailed": "Error al copiar"
+  }
+}

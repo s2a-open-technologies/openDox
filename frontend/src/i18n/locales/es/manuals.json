@@ -1,0 +1,10 @@
+{
+  "heading": "Manuales",
+  "description": "Manual de usuario, de administración y de instalación de openDox en PDF.",
+  "benutzer": "Manual de usuario",
+  "administration": "Manual de administración",
+  "installation": "Manual de instalación",
+  "releasePage": "Abrir la página de la versión",
+  "hint": "Los PDF se descargan del servidor de versiones; para ello el navegador necesita acceso a Internet o al espejo configurado.",
+  "unavailable": "No hay manuales disponibles para esta versión."
+}

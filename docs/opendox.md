@@ -738,7 +738,7 @@ Jedes S3-kompatible Backend funktioniert (generisches boto3); `docker-compose.ym
 
 ## System-Health-Check
 
-`GET /api/v1/settings/services-health/` (`settings_routes.py`) treibt den Admin-„System"-Tab (`SystemSettings.tsx`, alle 10s gepollt) — ein `async def check_x()`-Closure pro Dienst (Postgres, Redis, Whisper, Parakeet, EntityGuard, S3, Verschlüsselungs-Key-Status), alle parallel über `asyncio.gather`. Jeder liefert `"online"`/`"offline"`/`"disabled"` — `"disabled"` wird zurückgegeben, **bevor** ein Netzwerk-Call versucht wird, wenn ein Feature gar nicht konfiguriert ist (z. B. `audio_storage.is_configured()` für S3), damit ein bewusst deaktiviertes Feature nicht als falsches „offline" erscheint. Das Frontend ist vollständig generisch — es rendert einfach die zurückgegebene `{name, status}`-Liste, ein neuer Check erfordert also nur Backend-Änderungen.
+`GET /api/v1/settings/services-health/` (`settings_routes.py`) treibt den Admin-„System"-Tab (`SystemSettings.tsx`, alle 10s gepollt) — ein `async def check_x()`-Closure pro Dienst (Postgres, Redis, Whisper, Parakeet, EntityGuard, S3), alle parallel über `asyncio.gather`. Jeder liefert `"online"`/`"offline"`/`"disabled"` — `"disabled"` wird zurückgegeben, **bevor** ein Netzwerk-Call versucht wird, wenn ein Feature gar nicht konfiguriert ist (z. B. `audio_storage.is_configured()` für S3), damit ein bewusst deaktiviertes Feature nicht als falsches „offline" erscheint. Das Frontend ist vollständig generisch — es rendert einfach die zurückgegebene `{name, status}`-Liste, ein neuer Check erfordert also nur Backend-Änderungen. Die Prüfung des `ENCRYPTION_KEY` ist bewusst kein Eintrag dieser Liste (kein Dienst): Sie kommt als eigenes Feld `encryption_key` (`"match"`/`"mismatch"`) zurück und erscheint in der Karte *Sicherheit*.
 
 ---
 
@@ -915,7 +915,7 @@ class Record(SQLModel, table=True):
 
 ### Key-Rotation
 
-`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** alle verschlüsselten Spalten in-place (`Record.title`/`content`/`summarize`/`pii_mapping`, `User.personal_glossary`, LDAP-Bind-Passwort, OIDC-Client-Secret) mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — der `"Verschlüsselung"`-Eintrag muss `"online"` sein.
+`ENCRYPTION_KEY` ist rotierbar, ohne den Betrieb zu unterbrechen: `ENCRYPTION_KEY_PREVIOUS` (bzw. das `_FILE`-Pendant) neben dem neuen Key setzen, App neu starten. Beim Start erkennt die App über einen in `EncryptionKeyState` gespeicherten Fingerprint einen Key-Wechsel und **re-verschlüsselt** alle verschlüsselten Spalten in-place (`Record.title`/`content`/`summarize`/`pii_mapping`/`translation`/`translation_segments`, `Dictionary.terms`, `User.idp_refresh_token`, LDAP-Bind-Passwort, OIDC-Client-Secret) mit dem neuen Key (`backend/components/security/key_rotation.py`). Der Vorgang ist idempotent und unterbrechungssicher — ein abgebrochener Lauf setzt beim nächsten Start mit denselben Key-Werten fort. **Nicht** von diesem automatischen Pass erfasst: das persistierte Audio in S3 (`audio_storage.py`) — es wird bei Upload/Download ver-/entschlüsselt, nicht beim Rotieren erneut umverschlüsselt. Verifikation nach einer Rotation: `GET /api/v1/settings/services-health/` — das Feld `encryption_key` muss `"match"` sein (Admin → System → Karte *Sicherheit*: „Passt zum Datenbestand“).
 
 ### Key-Management
 
@@ -992,7 +992,7 @@ services:
 - `Record.summarize` – LLM-Zusammenfassung (patientenbezogene Inhalte)
 - `Record.title` – Titel der Aufnahme
 - `Record.pii_mapping` – Token→Klarname-Mapping des PII-Sanitizers
-- `User.personal_glossary` – privates Korrektur-Wörterbuch
+- `Dictionary.terms` – Begriffe der globalen und persönlichen Wörterbücher
 - `LdapSettingsModel.bind_user_password`, `OidcSettingsModel.client_secret`
 - Persistiertes Audio im Objektspeicher (`encrypt_bytes()`, siehe Audio-Download)
 

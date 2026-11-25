@@ -137,7 +137,7 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 
-    const saveConfig = async () => {
+    const saveConfig = async (): Promise<boolean> => {
         try {
             const res = await authFetch('/api/v1/settings/whisper-settings/', {
                 method: 'PUT',
@@ -146,17 +146,23 @@ const WhisperConfig = ({ readOnly = false }: { readOnly?: boolean }) => {
             });
             if (res.ok) {
                 toast.success(t('saved'));
-            } else {
-                toast.error(t('common:saveFailed'));
+                return true;
             }
+            toast.error(t('common:saveFailed'));
         } catch {
             toast.error(t('common:connectionError'));
         }
+        return false;
     };
 
     const testAsr = async (which: 'live' | 'final') => {
         const setter = which === 'live' ? setLiveTest : setFinalTest;
         setter({ status: 'testing', result: null });
+        // The backend tests the stored settings, so store what is in the form.
+        if (!(await saveConfig())) {
+            setter({ status: 'idle', result: null });
+            return;
+        }
         try {
             const res = await authFetch(`/api/v1/settings/asr-test/?backend=${which}`);
             const data = await res.json();

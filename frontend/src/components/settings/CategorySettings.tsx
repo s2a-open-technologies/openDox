@@ -409,6 +409,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                     onChange={e => setSettings({ ...settings, name: e.target.value })}
                                     placeholder={t('form.name')}
                                     readOnly={lockedBuiltin}
+                                    className={lockedBuiltin ? 'bg-muted text-muted-foreground cursor-not-allowed' : undefined}
                                     required
                                 />
                             </div>
@@ -419,6 +420,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                     onChange={e => setSettings({ ...settings, description: e.target.value })}
                                     placeholder={t('form.description')}
                                     readOnly={lockedBuiltin}
+                                    className={lockedBuiltin ? 'bg-muted text-muted-foreground cursor-not-allowed' : undefined}
                                     required
                                 />
                             </div>
@@ -443,7 +445,7 @@ const CategorySettings = ({ scope = 'global' }: CategorySettingsProps) => {
                                 value={settings.system_prompt}
                                 onChange={e => setSettings({ ...settings, system_prompt: e.target.value })}
                                 placeholder={t('form.systemPromptPlaceholder')}
-                                className="min-h-[100px]"
+                                className={`min-h-[100px]${lockedBuiltin ? ' bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
                                 readOnly={lockedBuiltin}
                                 required
                             />

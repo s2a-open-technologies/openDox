@@ -14,7 +14,8 @@
   },
   "processing": {
     "llm": "AI is creating the summary...",
-    "transcribing": "Transcription in progress..."
+    "transcribing": "Transcription in progress...",
+    "translating": "Translating..."
   },
   "copy": "Copy",
   "summary": {
@@ -48,5 +49,18 @@
     "description": "By confirming you take responsibility for the copied content and confirm its correct handover to a professional. All machine-generated transcriptions and summaries must be reviewed by qualified professionals.",
     "cancel": "Cancel",
     "confirm": "Confirm"
+  },
+  "translation": {
+    "originalTitle": "Transcript (original: {{language}})",
+    "tab": "Translation",
+    "hint": "The translation on top, your dictation below. Check every sentence.",
+    "none": "No translation yet.",
+    "flaggedSummary_one": "{{count}} sentence with differing numbers, please check it carefully.",
+    "flaggedSummary_other": "{{count}} sentences with differing numbers, please check them carefully.",
+    "missingNumbers": "Missing in the translation: {{numbers}}",
+    "extraNumbers": "Only in the translation: {{numbers}}",
+    "sentenceLabel": "Translated sentence {{n}}",
+    "saveFailed": "The translation could not be saved",
+    "confirmLabel": "I have compared the translation sentence by sentence with my dictation and corrected it where needed. I take responsibility for the copied content."
   }
 }

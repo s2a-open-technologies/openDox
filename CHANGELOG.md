@@ -13,6 +13,8 @@ section as the GitHub Release notes.
 ## [Unreleased]
 
 ### Added
+- **LLM status in the System tab** — an *LLM* line next to Live and Transcription: reachable, API key accepted and
+  the configured model listed by the server (a cheap `/models` call, not a chat request); off when the LLM is disabled.
 - **Web UI in Spanish** (`es`) — selectable in the profile next to German and English, including the
   "Kein Medizinprodukt" disclaimer and first-login gate. Locale files only.
 - **Translation: dictate in your native language** — off by default. Admins switch it on in the new tab

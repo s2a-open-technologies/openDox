@@ -527,6 +527,43 @@ async def get_services_health(db: SessionDep):
         ok = await asyncio.to_thread(backend.health_check)
         return {"name": "Live", "status": "online" if ok else "offline"}
 
+    async def check_llm():
+        # A cheap /models call, not a chat completion: this runs every 10 s.
+        # Reachable, accepted API key and (where the server lists models) the
+        # configured model present. The full probe stays in /llm-test/.
+        if (
+            not llm_settings
+            or not llm_settings.llm_enabled
+            or not llm_settings.llm_api_endpoint
+        ):
+            return {"name": "LLM", "status": "disabled"}
+        model = llm_settings.llm_model
+        url = f"{normalize_openai_base_url(llm_settings.llm_api_endpoint)}/models"
+        headers = (
+            {"Authorization": f"Bearer {llm_settings.llm_api_key}"}
+            if llm_settings.llm_api_key
+            else {}
+        )
+
+        def _probe() -> bool:
+            try:
+                response = _requests.get(url, headers=headers, timeout=5)
+            except _requests.exceptions.RequestException:
+                return False
+            if response.status_code in (401, 403) or response.status_code >= 500:
+                return False
+            if response.status_code != 200:
+                return True  # no model list on this server: reachable is all we know
+            try:
+                ids = [m["id"] for m in response.json()["data"]]
+            except Exception:
+                return True
+            # Ollama lists "name:tag" for a model configured as just "name".
+            return not ids or any(i == model or i.startswith(f"{model}:") for i in ids)
+
+        ok = await asyncio.to_thread(_probe)
+        return {"name": "LLM", "status": "online" if ok else "offline"}
+
     async def check_entityguard():
         # EntityGuard only ever runs in front of the LLM.
         sanitizer_configured = (
@@ -578,6 +615,7 @@ async def get_services_health(db: SessionDep):
         check_redis(),
         check_whisper(),
         check_parakeet(),
+        check_llm(),
         check_entityguard(),
         check_s3(),
     )

@@ -70,7 +70,14 @@ Admin-UI → LLM-Einstellungen → PII-Sanitizer (EntityGuard)
   `http://entityguard:9500/api/v1/sanitize` — es wird kein Pfad
   mehr automatisch angehängt, damit auch andere Sanitizer-Dienste mit
   abweichender Route konfiguriert werden können.
-- **API Key:** optional, Bearer Token
+- **API Key:** optional, Bearer Token. EntityGuard lehnt Anfragen ohne gültigen
+  Schlüssel mit 401 ab (fail-closed). Ohne Admin-UI (Headless-Betrieb) genügt
+  ein frei gewählter Schlüssel mit mindestens 16 Zeichen, der auf beiden Seiten
+  gleich eingetragen wird: bei EntityGuard als `ENTITYGUARD_API_KEY`
+  (oder `ENTITYGUARD_API_KEY_FILE`), bei openDox in diesem Feld. Er dient nur
+  als Zugangssperre zwischen den beiden Diensten, kein Geheimnis für Dritte,
+  solange EntityGuard nicht von außen erreichbar ist. Beispiel:
+  `openssl rand -hex 32`.
 - **Department:** wird nicht mehr vom Backend gesendet (EntityGuard wendet
   intern einen Default an)
 

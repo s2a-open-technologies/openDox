@@ -1,0 +1,5 @@
+{
+  "message": "openDox {{latest}} is available (installed: {{current}}).",
+  "viewRelease": "View release",
+  "dismiss": "Dismiss notice"
+}

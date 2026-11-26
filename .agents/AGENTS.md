@@ -171,6 +171,10 @@ Configured via Admin UI → LLM settings → PII-Sanitizer. `sanitizer_endpoint`
 
 **Placeholder-hallucination hardening is enforced in code, not in prompt text**: `generate_response()` unconditionally appends an anti-hallucination instruction (don't invent `[DATUM]`/`[WERT]`-style bracket placeholders for missing info, but preserve existing EntityGuard `[PERSON]`/`[LOCATION]` tokens — worded to not contradict `sanitizing_service._PRESERVE_TOKENS_INSTRUCTION`) to *every* prompt regardless of source, right next to the existing "Do not output your reasoning" suppression. This is deliberate: an admin creating a new category via `CategorySettings.tsx` writes free-form `system_prompt` text and has no way of knowing the local model tends to hallucinate placeholders — the rule can't rely on being written into that text.
 
+### Update Hint
+
+`GET /settings/update-check/` (admin + demo_viewer) → `{current, latest, update_available, release_url}`, backed by `services/app_release.py` (GitHub `releases/latest`, per-process cache 6 h / 15 min after failure, fail-open, numeric version compare). `OPENDOX_LATEST_RELEASE_URL=""` disables the lookup. Frontend: `UpdateBanner.tsx` at the top of `Dashboard.tsx`'s `<main>`, only fetches for those roles, dismissal stored per version in `localStorage["update_banner_dismissed"]`; strings in i18n namespace `updateCheck` (no direct address form, keep it neutral in every language). API reference: `docs/api.md`.
+
 ### Audio Download (S3-compatible Object Storage)
 
 Optional feature (`AudioSettingsModel`: `audio_download_enabled`, `audio_bitrate` up to `320k`, `audio_sample_rate`, `audio_format`) that keeps a compressed, encrypted copy of the final recording around for clinicians to download later — separate from the raw PCM/WAV (see Audio File Cleanup below for when that raw copy is actually deleted, which is no longer "always").

@@ -85,6 +85,7 @@ from backend.components.modules.env import env_or_file
 from backend.components.modules.logger import get_logger
 from backend.components.modules.public_url import request_base_url
 from backend.components.services import (
+    app_release,
     audio_storage,
     client_release,
     dictionary_service,
@@ -2241,3 +2242,32 @@ async def get_manuals(
         file = f"openDox-{label}-{version}.pdf"
         manuals.append({"key": key, "file": file, "url": f"{base}/{file}"})
     return {"version": version, "release_url": release_url, "manuals": manuals}
+
+
+@settings_bp.get("/update-check/")
+async def get_update_check(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Whether a newer openDox release than the running one exists.
+
+    Admin and demo viewer only. The GitHub lookup is cached and fail-open:
+    no connection or ``OPENDOX_LATEST_RELEASE_URL=""`` → ``update_available``
+    is false, never an error.
+    """
+    if current_user.role not in ("admin", "demo_viewer"):
+        raise api_error(403, "admin_required", "Admin role required")
+    current = str(request.app.version or "").strip()
+    latest = await app_release.latest_version()
+    available = bool(latest) and app_release.is_newer(latest, current)
+    release_url = (
+        f"{app_release.REPO_RELEASES_URL}/tag/v{latest}"
+        if available
+        else app_release.REPO_RELEASES_URL
+    )
+    return {
+        "current": current,
+        "latest": latest,
+        "update_available": available,
+        "release_url": release_url,
+    }

@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { AlertTriangle, Radio, Menu } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import UpdateBanner from "@/components/UpdateBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
@@ -540,6 +541,7 @@ const Dashboard = () => {
           </Button>
           <Logo className="h-8" />
         </div>
+        <UpdateBanner />
         <div className="flex-1 min-h-0 overflow-auto">
         {activeSessionId ? (
           <div className="flex flex-col items-center justify-center h-full">

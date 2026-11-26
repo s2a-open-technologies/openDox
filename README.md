@@ -143,6 +143,7 @@ Sensible Werte können via `{VAR}_FILE` aus Dateien gelesen werden (z. B. `SEC
 | `CLIENT_SERVER_URL` | Server-Adresse, die in die `settings.json` des Desktop-Clients geschrieben wird (Admin → Clients) | – (aus der Anfrage des Admins abgeleitet, inkl. `ROOT_PATH`) |
 | `CLIENT_DOWNLOAD_BASE_URL` | Basis-URL der Installer-Downloads im Admin-Bereich | neuestes GitHub-Release von `opendox-client` |
 | `CLIENT_LATEST_RELEASE_URL` | Quelle der neuesten Client-Version für den Update-Hinweis im Client; leer = aus | GitHub-API, neuestes Release von `opendox-client` |
+| `OPENDOX_LATEST_RELEASE_URL` | Quelle der neuesten openDox-Version für den Update-Hinweis im Admin-Dashboard; leer = aus | GitHub-API, neuestes Release von `openDox` |
 | `WHISPER_API_ENDPOINT` | Whisper-API-URL (Fallback, wenn keine DB-Settings gesetzt sind) | `http://localhost:9100/v1` |
 | `WHISPER_API_KEY` | Whisper-API-Key | `loc-123` |
 | `FAILED_AUDIO_RETENTION_DAYS` | Tage, bis Audio fehlgeschlagener Transkriptionen in den Objektspeicher archiviert wird | `3` |
@@ -196,6 +197,7 @@ Im Docker-Image laufen Migrationen automatisch vor dem App-Start (`entrypoint.sh
 | [`docs/audit-checklist-opendox.md`](docs/audit-checklist-opendox.md) | Selbstauskunft für Audits, mit Fundstellen und offenen Lücken |
 | [`docs/hospital-audit-frameworks.md`](docs/hospital-audit-frameworks.md) | Einordnung gegen ISO 27001, BSI, NIS2, CRA, MDR, DSGVO |
 | [`docs/client.md`](docs/client.md) | Desktop-Client |
+| [`docs/api.md`](docs/api.md) | API-Referenz (HTTP und WebSocket) |
 | [`docs/release.md`](docs/release.md) | Release, Images bauen, Server aktualisieren |
 | [`docs/opendox.md`](docs/opendox.md) | Ausführliche Gesamtdokumentation |
 | [`SECURITY.md`](SECURITY.md) | Meldeweg für Schwachstellen, technische Maßnahmen (Art. 32) |

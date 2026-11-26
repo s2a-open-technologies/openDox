@@ -12,6 +12,16 @@ section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-11-26
+
+### Added
+- **Update hint for admins** — a banner in the dashboard when a newer openDox release exists, with a link to the
+  GitHub release; dismissing is remembered per version. `GET /settings/update-check/` (admin and demo viewer, cached
+  lookup, fail-open). `OPENDOX_LATEST_RELEASE_URL=""` turns the lookup off. API reference in `docs/api.md`.
+
+### Documentation
+- Complete API reference (`docs/api.md`); `docs/pii.md` explains the shared API key for headless EntityGuard.
+
 ## [0.12.0] — 2026-11-25
 
 ### Added
@@ -585,7 +595,8 @@ category. AGPL-3.0-or-later; not a certified medical device.
 - **Licensing**: full AGPL-3.0-or-later text in `LICENSE`, SPDX headers in
   all source files, REUSE spec compliance (`REUSE.toml`, `reuse lint` green).
 
-[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/s2a-open-technologies/openDox/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/s2a-open-technologies/openDox/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/s2a-open-technologies/openDox/compare/v0.11.2...v0.11.3
